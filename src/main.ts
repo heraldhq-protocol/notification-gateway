@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -25,6 +26,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
+  app.useLogger(app.get(Logger));
 
   // ── Security ───────────────────────────────────────────────
   app.use(
@@ -69,8 +71,8 @@ async function bootstrap() {
     .setTitle('Herald Notification Gateway')
     .setDescription(
       'Privacy-preserving notification delivery for Solana protocols.\n\n' +
-        '**Authentication:** All endpoints require a `Bearer hrld_xxx` API key.\n\n' +
-        '**Rate Limits:** Developer: 2 req/s | Growth: 20 req/s | Scale: 100 req/s | Enterprise: 500 req/s',
+      '**Authentication:** All endpoints require a `Bearer hrld_xxx` API key.\n\n' +
+      '**Rate Limits:** Developer: 2 req/s | Growth: 20 req/s | Scale: 100 req/s | Enterprise: 500 req/s',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
@@ -101,3 +103,6 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+// Reboot dev server
+// Second reload
