@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SmtpProvider } from './providers/smtp.provider.js';
 import { ResendProvider } from './providers/resend.provider.js';
 import { SesProvider } from './providers/ses.provider.js';
+import { SendgridProvider } from './providers/sendgrid.provider.js';
 import type {
   IMailProvider,
   SendEmailMessage,
@@ -15,7 +16,7 @@ import type {
  * Provider selection:
  *   development → SmtpProvider (Nodemailer + Mailhog)
  *   staging     → ResendProvider (Resend API)
- *   production  → SesProvider (AWS SES), fallback to SmtpProvider
+ *   production  → SesProvider (AWS SES), fallback to SendgridProvider
  *
  * SECURITY: The 'to' field MUST NOT appear in any logs.
  */
@@ -29,17 +30,18 @@ export class MailService {
     private readonly smtpProvider: SmtpProvider,
     private readonly resendProvider: ResendProvider,
     private readonly sesProvider: SesProvider,
+    private readonly sendgridProvider: SendgridProvider,
     private readonly config: ConfigService,
   ) {
     const mailProvider = this.config.get<string>('MAIL_PROVIDER', 'smtp');
     switch (mailProvider) {
       case 'resend':
         this.primaryProvider = this.resendProvider;
-        this.fallbackProvider = null;
+        this.fallbackProvider = this.sendgridProvider;
         break;
       case 'ses':
         this.primaryProvider = this.sesProvider;
-        this.fallbackProvider = this.smtpProvider; // fallback
+        this.fallbackProvider = this.sendgridProvider; // fallback
         break;
       case 'smtp':
       default:

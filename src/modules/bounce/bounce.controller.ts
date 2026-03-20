@@ -6,8 +6,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { QueueNames } from '../queue/queue.constants.js';
 import { PrismaService } from '../../database/prisma.service.js';
+import { SesSnsPayloadDto } from './dto/ses-sns.dto.js';
+
 
 /**
  * BounceController — handles SES SNS bounce/complaint notifications.
@@ -22,14 +27,16 @@ import { PrismaService } from '../../database/prisma.service.js';
 export class BounceController {
   private readonly logger = new Logger(BounceController.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue(QueueNames.BOUNCE) private readonly bounceQueue: Queue,
+  ) { }
 
   @Post('ses')
   @HttpCode(HttpStatus.OK)
   @ApiExcludeEndpoint()
-  async handleSesNotification(@Body() body: Record<string, unknown>) {
-    const notificationType =
-      (body.notificationType as string) ?? (body.Type as string);
+  async handleSesNotification(@Body() body: SesSnsPayloadDto) {
+    const notificationType = body.notificationType ?? body.Type;
 
     // Handle SNS subscription confirmation
     if (notificationType === 'SubscriptionConfirmation') {
@@ -41,88 +48,14 @@ export class BounceController {
     const message =
       typeof body.Message === 'string'
         ? JSON.parse(body.Message as string)
-        : body;
+        : body.Message || body;
 
-    const sesNotificationType = message.notificationType as string;
-    const mail = message.mail as Record<string, unknown>;
-    const sesMessageId = mail?.messageId as string;
-
-    if (!sesMessageId) {
-      this.logger.warn('SES notification missing messageId');
-      return { status: 'ignored' };
-    }
-
-    // Find the notification by SES message ID
-    const notification = await this.prisma.notification.findFirst({
-      where: { sesMessageId },
+    // Enqueue for async processing
+    await this.bounceQueue.add('ses-bounce', message, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
     });
 
-    if (!notification) {
-      this.logger.warn('Bounce for unknown notification', { sesMessageId });
-      return { status: 'unknown' };
-    }
-
-    if (sesNotificationType === 'Bounce') {
-      const bounce = message.bounce as Record<string, unknown>;
-      const bounceType = bounce?.bounceType === 'Permanent' ? 'hard' : 'soft';
-
-      // Record bounce
-      await this.prisma.emailBounce.create({
-        data: {
-          notificationId: notification.id,
-          walletHash: notification.walletHash,
-          bounceType,
-          sesMessageId,
-          diagnosticCode: (
-            bounce?.bouncedRecipients as Record<string, string>[]
-          )?.[0]?.diagnosticCode,
-        },
-      });
-
-      await this.prisma.notification.update({
-        where: { id: notification.id },
-        data: { bounce: true, bounceType },
-      });
-
-      // Count consecutive soft bounces for this wallet
-      if (bounceType === 'soft') {
-        const consecutiveSofts = await this.prisma.emailBounce.count({
-          where: {
-            walletHash: notification.walletHash,
-            bounceType: 'soft',
-          },
-        });
-
-        if (consecutiveSofts >= 3) {
-          this.logger.warn(
-            '3+ soft bounces — identity suspension recommended',
-            {
-              walletHash: notification.walletHash.slice(0, 8) + '...',
-            },
-          );
-        }
-      } else {
-        // Hard bounce — immediate suspension recommended
-        this.logger.warn('Hard bounce — identity suspension recommended', {
-          walletHash: notification.walletHash.slice(0, 8) + '...',
-        });
-      }
-
-      return { status: 'processed', bounceType };
-    }
-
-    if (sesNotificationType === 'Complaint') {
-      await this.prisma.emailBounce.create({
-        data: {
-          notificationId: notification.id,
-          walletHash: notification.walletHash,
-          bounceType: 'complaint',
-          sesMessageId,
-        },
-      });
-      return { status: 'complaint_recorded' };
-    }
-
-    return { status: 'ok' };
+    return { status: 'queued' };
   }
 }
