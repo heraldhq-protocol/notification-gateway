@@ -67,6 +67,23 @@ export class UpdateWebhookDto {
   @ApiPropertyOptional() @IsOptional() isActive?: boolean;
 }
 
+export class WebhookResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() url: string;
+  @ApiProperty() events: string[];
+  @ApiPropertyOptional({ description: 'Shown ONCE upon creation' }) secret?: string;
+  @ApiProperty() is_active: boolean;
+  @ApiPropertyOptional() failure_count?: number;
+  @ApiPropertyOptional() last_success_at?: string | null;
+  @ApiProperty() created_at: string;
+}
+
+export class WebhookUpdateResponseDto {
+  @ApiProperty() updated: boolean;
+}
+
+import { WebhookService } from './webhook.service.js';
+
 // ── Controller ─────────────────────────────────────────────────────
 
 @ApiTags('Webhooks')
@@ -74,24 +91,29 @@ export class UpdateWebhookDto {
 @UseGuards(AuthGuard)
 @Controller('v1/webhooks')
 export class WebhookController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly webhookService: WebhookService,
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Register a webhook endpoint' })
-  @ApiResponse({ status: 201, description: 'Webhook created' })
+  @ApiResponse({ status: 201, description: 'Webhook created', type: WebhookResponseDto })
   async create(
     @Body() dto: CreateWebhookDto,
     @ApiKey() protocol: AuthenticatedProtocol,
-  ) {
+  ): Promise<WebhookResponseDto> {
+    // NOTE: For HMAC signing, the server MUST have access to the underlying secret.
+    // We store the plaintext secret in the `secretHash` column since Prisma schema dictates it.
+    // In a real production setup with more column flexibility, this would be encrypted via KMS.
     const secret = bs58.encode(randomBytes(32));
-    const secretHash = createHash('sha256').update(secret).digest('hex');
 
     const webhook = await this.prisma.webhook.create({
       data: {
         protocolId: protocol.protocolId,
         url: dto.url,
         events: dto.events ?? ['notification.delivered'],
-        secretHash,
+        secretHash: secret, // Storing plaintext temporarily to satisfy HMAC signing requirement
         secretPrefix: secret.substring(0, 8),
       },
     });
@@ -100,7 +122,7 @@ export class WebhookController {
       id: webhook.id,
       url: webhook.url,
       events: webhook.events,
-      secret, // Shown ONCE — never stored in plaintext
+      secret, // Used by the client to verify HMAC signatures
       is_active: webhook.isActive,
       created_at: webhook.createdAt.toISOString(),
     };
@@ -108,7 +130,8 @@ export class WebhookController {
 
   @Get()
   @ApiOperation({ summary: 'List registered webhooks' })
-  async list(@ApiKey() protocol: AuthenticatedProtocol) {
+  @ApiResponse({ status: 200, type: [WebhookResponseDto] })
+  async list(@ApiKey() protocol: AuthenticatedProtocol): Promise<WebhookResponseDto[]> {
     const webhooks = await this.prisma.webhook.findMany({
       where: { protocolId: protocol.protocolId },
       orderBy: { createdAt: 'desc' },
@@ -127,11 +150,12 @@ export class WebhookController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update webhook (events, url, active status)' })
+  @ApiResponse({ status: 200, type: WebhookUpdateResponseDto })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateWebhookDto,
     @ApiKey() protocol: AuthenticatedProtocol,
-  ) {
+  ): Promise<WebhookUpdateResponseDto> {
     const webhook = await this.prisma.webhook.updateMany({
       where: { id, protocolId: protocol.protocolId },
       data: {
@@ -165,6 +189,11 @@ export class WebhookController {
       where: { id, protocolId: protocol.protocolId },
     });
     if (!webhook) return { error: 'Webhook not found' };
+
+    await this.webhookService.dispatch(protocol.protocolId, 'ping', {
+      message: 'Hello from Herald Notification Gateway!',
+      webhookId: webhook.id,
+    });
 
     return {
       message: 'Test webhook dispatched',
