@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 import { loadConfiguration } from './config/configuration.js';
 import { PrismaModule } from './database/prisma.module.js';
@@ -14,6 +14,12 @@ import { WebhookModule } from './modules/webhook/webhook.module.js';
 import { BounceModule } from './modules/bounce/bounce.module.js';
 import { AnalyticsModule } from './modules/analytics/analytics.module.js';
 import { ProtocolModule } from './modules/protocol/protocol.module.js';
+import { DomainModule } from './modules/domain/domain.module.js';
+import { ReceiptModule } from './modules/receipt/receipt.module.js';
+import { SolanaModule } from './solana/solana.module.js';
+import { LoggerModule } from 'nestjs-pino';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { MetricsController } from './modules/health/metrics.controller.js';
 
 /**
  * AppModule — root composition module for Herald Notification Gateway.
@@ -58,6 +64,20 @@ import { ProtocolModule } from './modules/protocol/protocol.module.js';
     BounceModule,
     AnalyticsModule,
     ProtocolModule,
+    DomainModule,
+    ReceiptModule,
+    SolanaModule,
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
+        autoLogging: {
+          ignore: (req) => ['/health', '/metrics'].includes(req.url || ''),
+        },
+      },
+    }),
+    PrometheusModule.register({
+      controller: MetricsController,
+    }),
   ],
 
   providers: [
@@ -78,4 +98,4 @@ import { ProtocolModule } from './modules/protocol/protocol.module.js';
 
   exports: [Redis],
 })
-export class AppModule {}
+export class AppModule { }

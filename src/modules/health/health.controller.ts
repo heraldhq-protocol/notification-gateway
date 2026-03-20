@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service.js';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 
 /**
@@ -17,7 +17,7 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly redis: Redis,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({ summary: 'Health check — DB, Redis, Solana, SMTP status' })
