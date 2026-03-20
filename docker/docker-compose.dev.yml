@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────
+# Herald Notification Gateway — Local Development Stack
+# ─────────────────────────────────────────────────────────────────────
+# Usage: docker compose -f docker/docker-compose.dev.yml up -d
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: herald-postgres
+    environment:
+      POSTGRES_USER: herald
+      POSTGRES_PASSWORD: herald_dev
+      POSTGRES_DB: herald_gateway
+    ports:
+      - "5432:5432"
+    volumes:
+      - herald_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U herald"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: herald-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - herald_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: herald-mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      MH_STORAGE: memory
+      MH_UI_WEB_PATH: /
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: herald-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+volumes:
+  herald_pg_data:
+  herald_redis_data:

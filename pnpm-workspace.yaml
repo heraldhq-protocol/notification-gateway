@@ -1,0 +1,10 @@
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - '@prisma/engines'
+  - '@scarf/scarf'
+  - bigint-buffer
+  - bufferutil
+  - msgpackr-extract
+  - prisma
+  - unrs-resolver
+  - utf-8-validate
