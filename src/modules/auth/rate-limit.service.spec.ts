@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RateLimitService } from './rate-limit.service';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
+import { RateLimitService } from './rate-limit.service.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────
 

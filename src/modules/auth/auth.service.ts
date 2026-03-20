@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto';
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
-import Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import { PrismaService } from '../../database/prisma.service.js';
 import type {
   AuthenticatedProtocol,
@@ -27,7 +27,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: Redis,
-  ) {}
+  ) { }
 
   /**
    * Validates an API key and returns the associated protocol.
@@ -96,7 +96,7 @@ export class AuthService {
     // 4. Update last_used_at asynchronously (don't block response)
     this.prisma.apiKey
       .update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } })
-      .catch(() => {});
+      .catch(() => { });
 
     return result;
   }
