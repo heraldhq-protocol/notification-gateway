@@ -1,98 +1,287 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Herald Notification Gateway
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> **Privacy-preserving notification delivery for Solana protocols.**
+>
+> Protocols send notifications via REST API → Herald resolves the recipient's on-chain identity → decrypts the email inside a TEE → delivers via email → writes a ZK delivery receipt on Solana.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+```
+                         ┌─────────────────────────────────────────────────────────┐
+                         │                   Herald Gateway                       │
+  Protocol (SDK)         │                                                         │
+  ───────────────►       │  API ─► Auth ─► Notify ─► Queue ─► Worker ─► Mail ─►   │
+  POST /v1/notify        │                   │                  │                  │
+                         │                   ▼                  ▼                  │
+                         │              Routing             Receipt               │
+                         │           (Solana PDA             (Light               │
+                         │            + Redis)              Protocol)             │
+                         └─────────────────────────────────────────────────────────┘
 ```
 
-## Compile and run the project
+## Quick Start
 
 ```bash
-# development
-$ pnpm run start
+# 1. Clone and install
+git clone https://github.com/herald-protocol/herald-notification-gateway.git
+cd herald-notification-gateway
+pnpm install
 
-# watch mode
-$ pnpm run start:dev
+# 2. Start infrastructure (Postgres, Redis, Mailhog)
+docker compose -f docker/docker-compose.dev.yml up -d
 
-# production mode
-$ pnpm run start:prod
+# 3. Generate Prisma client and run migrations
+npx prisma generate
+npx prisma migrate dev
+
+# 4. Start the development server
+pnpm run start:dev
+
+# 5. Open Swagger docs
+open http://localhost:3000/docs
 ```
 
-## Run tests
+## Tech Stack
+
+| Layer          | Technology                                    |
+|:---------------|:----------------------------------------------|
+| Runtime        | Node.js 20 LTS                                |
+| Framework      | NestJS 11                                      |
+| Language       | TypeScript 5.4                                 |
+| Database       | PostgreSQL 16 (Prisma 7 ORM)                   |
+| Cache / Queue  | Redis 7 (ioredis) + BullMQ                     |
+| Blockchain     | Solana (`@solana/web3.js`, `@herald-protocol/sdk`) |
+| Email          | Nodemailer / Resend / AWS SES                  |
+| Templating     | MJML + Handlebars + Juice (CSS inlining)       |
+| Validation     | Zod (config) + class-validator (DTOs)          |
+| API Docs       | Swagger / OpenAPI 3.0                          |
+| Hosting        | AWS ECS Fargate (multi-AZ), us-east-1          |
+
+## Project Structure
+
+```
+src/
+├── main.ts                         # Bootstrap: Helmet, CORS, Swagger, pipes, filters
+├── app.module.ts                   # Root module — wires all feature modules
+│
+├── config/
+│   ├── configuration.schema.ts     # Zod schema — 40+ validated env vars
+│   ├── configuration.ts            # Factory function (Zod → NestJS ConfigModule)
+│   └── index.ts                    # Barrel export
+│
+├── database/
+│   ├── prisma.service.ts           # PrismaClient lifecycle management
+│   └── prisma.module.ts            # Global Prisma provider
+│
+├── solana/
+│   ├── rpc-manager.service.ts      # Helius primary / QuickNode fallback + circuit breaker
+│   ├── solana.service.ts           # Herald SDK ReadClient for PDA lookups
+│   └── solana.module.ts
+│
+├── common/
+│   ├── types/                      # AuthenticatedProtocol, IdentityAccount, JobData
+│   ├── decorators/                 # @ApiKey(), @CorrelationId()
+│   ├── dto/                        # PaginationDto, ApiErrorResponseDto
+│   ├── exceptions/                 # HeraldException hierarchy + global ExceptionFilter
+│   ├── guards/                     # AuthGuard (API key), ScopeGuard (permissions)
+│   ├── interceptors/               # LoggingInterceptor (PII-redacted), Timeout, ResponseTime
+│   └── pipes/                      # SolanaPubkeyPipe, UlidPipe
+│
+└── modules/
+    ├── auth/                       # AuthService (key hashing, Redis cache, PG lookup)
+    │   ├── auth.service.ts         #   + RateLimitService (sliding window via ZADD)
+    │   └── rate-limit.service.ts
+    │
+    ├── health/                     # GET /health — DB, Redis, Solana status
+    │
+    ├── notify/                     # Core business logic
+    │   ├── dto/notify.dto.ts       #   Swagger-documented request/response DTOs
+    │   ├── notify.controller.ts    #   POST /v1/notify, /v1/notify/batch, GET /v1/notifications
+    │   └── notify.service.ts       #   Idempotency → PDA lookup → opt-in check → DB → queue
+    │
+    ├── routing/                    # Wallet → email resolution
+    │   ├── routing.service.ts      #   Redis-cached PDA lookup + TEE delegation
+    │   └── enclave.service.ts      #   Nitro Enclave socket (prod) / mock (dev)
+    │
+    ├── queue/                      # Async processing
+    │   ├── queue.constants.ts      #   5 named queues (notification, receipt-batch, webhook, bounce, digest)
+    │   ├── queue.service.ts        #   Enqueue with 3-retry exponential backoff
+    │   └── workers/
+    │       └── mail.worker.ts      #   PDA → TEE decrypt → template render → SMTP send → status update
+    │
+    ├── mail/                       # Environment-aware email dispatch
+    │   ├── mail.service.ts         #   Auto-fallback: SES → SMTP
+    │   └── providers/
+    │       ├── provider.interface.ts
+    │       ├── smtp.provider.ts    #   Development (Mailhog)
+    │       ├── resend.provider.ts  #   Staging (Resend API)
+    │       └── ses.provider.ts     #   Production (AWS SES raw email)
+    │
+    ├── template/                   # Email rendering pipeline
+    │   ├── template.service.ts     #   Handlebars → MJML → Juice (CSS inlining)
+    │   └── templates/defi-alert/   #   MJML template + plain text fallback
+    │
+    ├── webhook/                    # Webhook CRUD + dispatch
+    ├── bounce/                     # SES SNS bounce/complaint handler
+    ├── analytics/                  # Delivery stats + usage/quota
+    └── protocol/                   # Protocol self-service (GET /v1/protocols/me)
+```
+
+## API Endpoints
+
+All endpoints (except `/health`) require `Authorization: Bearer hrld_live_xxx`.
+
+| Method | Path                      | Description                              |
+|:-------|:--------------------------|:-----------------------------------------|
+| GET    | `/health`                 | Service health status (no auth)          |
+| POST   | `/v1/notify`              | Send notification to a wallet (202)      |
+| POST   | `/v1/notify/batch`        | Batch send up to 100 (202)               |
+| GET    | `/v1/notifications/:id`   | Get notification status                  |
+| GET    | `/v1/notifications`       | List notifications (paginated)           |
+| POST   | `/v1/webhooks`            | Register webhook endpoint                |
+| GET    | `/v1/webhooks`            | List registered webhooks                 |
+| PATCH  | `/v1/webhooks/:id`        | Update webhook                           |
+| DELETE | `/v1/webhooks/:id`        | Remove webhook                           |
+| GET    | `/v1/analytics`           | Delivery analytics (7d/30d/90d)          |
+| GET    | `/v1/usage`               | Current usage vs. quota                  |
+| GET    | `/v1/protocols/me`        | Protocol self-service info               |
+
+Full interactive documentation is available at **http://localhost:3000/docs** (Swagger UI).
+
+## Notification Flow
+
+```
+Protocol calls POST /v1/notify
+         │
+         ▼
+┌─── AuthGuard ───┐     ┌── RateLimit ──┐
+│ Bearer hrld_xxx │ ──► │ ZADD sliding  │
+│ SHA-256 → Redis │     │ window check  │
+│ → PostgreSQL    │     └───────────────┘
+└─────────────────┘           │
+                              ▼
+                    ┌── NotifyService ──────────────┐
+                    │ 1. Idempotency check (UUID)   │
+                    │ 2. PDA lookup (Redis cache)   │
+                    │ 3. Opt-in flag check          │
+                    │ 4. INSERT notification (PG)   │
+                    │ 5. Enqueue BullMQ job          │
+                    │ 6. Return 202 + ULID           │
+                    └───────────────────────────────┘
+                              │
+                              ▼ (async worker)
+                    ┌── MailWorker ──────────────────┐
+                    │ 1. Resolve identity (Solana)   │
+                    │ 2. Decrypt email via TEE       │
+                    │    (Nitro Enclave socket)       │
+                    │ 3. Render template              │
+                    │    (Handlebars → MJML → Juice) │
+                    │ 4. Send email (SES/Resend/SMTP)│
+                    │ 5. UPDATE notification status   │
+                    │ 6. Email var goes out of scope  │
+                    │    (SEC-001: GC collects)       │
+                    └────────────────────────────────┘
+```
+
+## Security Model
+
+### Zero-PII Design
+
+| Data              | Storage    | Notes                                      |
+|:------------------|:-----------|:-------------------------------------------|
+| Wallet addresses  | SHA-256    | Only hashes stored in PostgreSQL            |
+| API keys          | SHA-256    | Plaintext shown once at creation            |
+| Email addresses   | Never      | Encrypted on-chain, decrypted only in TEE   |
+| Webhook secrets   | SHA-256    | Plaintext shown once at creation            |
+| Subjects          | SHA-256    | Not stored in plaintext in the database     |
+
+### API Key Format
+
+```
+hrld_live_4xR9mKp2nQwBvTsYjL8dHcFoEa3ZiXuW   (production)
+hrld_test_7yN1pKq4mSwBvRsXjM9eJcGoFb2AiYuV   (sandbox)
+```
+
+### Rate Limits
+
+| Tier        | Requests/sec | Burst | Monthly     |
+|:------------|:-------------|:------|:------------|
+| Developer   | 2            | 10    | 1,000       |
+| Growth      | 20           | 100   | 50,000      |
+| Scale       | 100          | 500   | 250,000     |
+| Enterprise  | 500          | 2,000 | 1,000,000   |
+
+## Environment Variables
+
+Configuration is validated at startup using Zod (see `src/config/configuration.schema.ts`).
+
+```env
+# Required
+DATABASE_URL=postgresql://herald:herald_dev@localhost:5432/herald_gateway
+
+# Solana
+SOLANA_RPC_URL=http://localhost:8899
+HERALD_PROGRAM_ID=2pxjAf8tLCakKVDuN4vY51B5TeaEQk4koPuk9NZvWqdf
+
+# Mail provider (smtp | resend | ses)
+MAIL_PROVIDER=smtp
+
+# See .env for full list with defaults
+```
+
+## Docker
 
 ```bash
-# unit tests
-$ pnpm run test
+# Development stack (Postgres + Redis + Mailhog)
+docker compose -f docker/docker-compose.dev.yml up -d
 
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+# Production build
+docker build -f docker/Dockerfile -t herald-gateway .
+docker run -p 3000:3000 --env-file .env herald-gateway
 ```
 
-## Deployment
+### Development Services
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+| Service          | Port  | URL                         |
+|:-----------------|:------|:----------------------------|
+| Gateway API      | 3000  | http://localhost:3000       |
+| Swagger Docs     | 3000  | http://localhost:3000/docs  |
+| PostgreSQL       | 5432  | localhost:5432              |
+| Redis            | 6379  | localhost:6379              |
+| Mailhog SMTP     | 1025  | localhost:1025              |
+| Mailhog Web UI   | 8025  | http://localhost:8025       |
+| Redis Commander  | 8081  | http://localhost:8081       |
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Database Schema
+
+8 tables following zero-PII design:
+
+- **protocols** — registered protocol accounts (tier, sends, subscription)
+- **api_keys** — SHA-256 hashed keys with scopes and environments
+- **notifications** — delivery lifecycle tracking (status, receipt_tx, bounce)
+- **webhooks** — registered webhook endpoints per protocol
+- **webhook_deliveries** — delivery attempt log
+- **dkim_keys** — DKIM key management with DNS verification status
+- **email_bounces** — bounce/complaint tracking (hard/soft/complaint)
+- **digest_queue** — batched notification scheduling
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# View schema
+npx prisma studio
+
+# Create migration
+npx prisma migrate dev --name <description>
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Scripts
 
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```bash
+pnpm run start:dev    # Development with hot reload
+pnpm run build        # TypeScript compilation
+pnpm run start:prod   # Production start
+pnpm run test         # Unit tests
+pnpm run test:e2e     # End-to-end tests
+pnpm run lint         # ESLint
+```
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED — proprietary software.
