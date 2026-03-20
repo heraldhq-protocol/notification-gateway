@@ -1,8 +1,5 @@
 import { ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuthGuard } from './auth.guard';
-import { AuthService } from '../../modules/auth/auth.service';
-import { RateLimitService } from '../../modules/auth/rate-limit.service';
+import { AuthGuard } from './auth.guard.js';
 
 // ── Mocks ─────────────────────────────────────────────────────────
 
