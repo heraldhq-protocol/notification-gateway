@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger, Inject } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../database/prisma.service';
 import type {
@@ -26,7 +26,7 @@ export class AuthService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: Redis,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) { }
 
   /**

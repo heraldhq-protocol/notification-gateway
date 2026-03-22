@@ -17,9 +17,12 @@ import { ProtocolModule } from './modules/protocol/protocol.module';
 import { DomainModule } from './modules/domain/domain.module';
 import { ReceiptModule } from './modules/receipt/receipt.module';
 import { SolanaModule } from './solana/solana.module';
+import { BillingModule } from './modules/billing/billing.module';
+
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { MetricsController } from './modules/health/metrics.controller';
+import { RedisModule } from './modules/redis/redis.module';
 
 /**
  * AppModule — root composition module for Herald Notification Gateway.
@@ -38,6 +41,9 @@ import { MetricsController } from './modules/health/metrics.controller';
 
     // ── Database (PostgreSQL via Prisma) ──────────────────────
     PrismaModule,
+
+    // ── Redis ─────────────────────────────────────────────────
+    RedisModule,
 
     // ── BullMQ (Redis-backed queues) ──────────────────────────
     BullModule.forRootAsync({
@@ -67,6 +73,7 @@ import { MetricsController } from './modules/health/metrics.controller';
     DomainModule,
     ReceiptModule,
     SolanaModule,
+    BillingModule,
     LoggerModule.forRoot({
       pinoHttp: {
         transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
@@ -79,23 +86,5 @@ import { MetricsController } from './modules/health/metrics.controller';
       controller: MetricsController,
     }),
   ],
-
-  providers: [
-    // ── Redis Client (shared) ─────────────────────────────────
-    {
-      provide: Redis,
-      useFactory: (config: ConfigService) =>
-        new Redis(config.get<string>('REDIS_URL', 'redis://localhost:6379'), {
-          maxRetriesPerRequest: 3,
-          enableReadyCheck: true,
-          retryStrategy(times) {
-            return Math.min(times * 200, 5000);
-          },
-        }),
-      inject: [ConfigService],
-    },
-  ],
-
-  exports: [Redis],
 })
 export class AppModule { }
