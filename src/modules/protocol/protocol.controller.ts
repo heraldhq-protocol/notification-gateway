@@ -1,9 +1,9 @@
 import { Controller, Get, UseGuards, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { ProtocolService } from './protocol.service.js';
-import { AuthGuard } from '../../common/guards/auth.guard.js';
-import { ApiKey } from '../../common/decorators/api-key.decorator.js';
-import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js';
+import { ProtocolService } from './protocol.service';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { ApiKey } from '../../common/decorators/api-key.decorator';
+import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 
 /**
  * ProtocolController — protocol self-service endpoints.

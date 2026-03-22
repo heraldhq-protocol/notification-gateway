@@ -5,7 +5,7 @@ import type {
     IMailProvider,
     SendEmailMessage,
     SendEmailResult,
-} from './provider.interface.js';
+} from './provider.interface';
 
 @Injectable()
 export class SendgridProvider implements IMailProvider {

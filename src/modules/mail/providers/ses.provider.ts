@@ -10,7 +10,7 @@ import type {
   IMailProvider,
   SendEmailMessage,
   SendEmailResult,
-} from './provider.interface.js';
+} from './provider.interface';
 
 /**
  * SES Provider — Production: AWS SES for highest deliverability.

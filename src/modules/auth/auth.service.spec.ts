@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
-import { AuthService } from './auth.service.js';
-import { PrismaService } from '../../database/prisma.service.js';
+import { AuthService } from './auth.service';
+import { PrismaService } from '../../database/prisma.service';
 import { Redis } from 'ioredis';
 
 // ── Mocks ─────────────────────────────────────────────────────────

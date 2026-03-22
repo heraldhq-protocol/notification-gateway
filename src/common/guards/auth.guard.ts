@@ -5,8 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { AuthService } from '../../modules/auth/auth.service.js';
-import type { AuthenticatedProtocol } from '../types/protocol.types.js';
+import { AuthService } from '../../modules/auth/auth.service';
+import type { AuthenticatedProtocol } from '../types/protocol.types';
 
 /**
  * AuthGuard — validates the Bearer API key on every protected route.
@@ -19,7 +19,7 @@ import type { AuthenticatedProtocol } from '../types/protocol.types.js';
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const request = ctx

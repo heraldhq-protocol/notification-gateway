@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
-import { SolanaService } from '../../solana/solana.service.js';
-import { EnclaveService } from './enclave.service.js';
-import type { IdentityAccount } from '../../common/types/notification.types.js';
+import { SolanaService } from '../../solana/solana.service';
+import { EnclaveService } from './enclave.service';
+import type { IdentityAccount } from '../../common/types/notification.types';
 
 /**
  * RoutingService — resolves wallet pubkeys to identity accounts.

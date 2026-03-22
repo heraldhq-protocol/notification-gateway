@@ -7,8 +7,8 @@
 // ────────────────────────────────────────────────────────────────────
 
 generator client {
-  provider = "prisma-client"
-  output   = "./generated/prisma"
+  provider = "prisma-client-js"
+  output   = "generated/prisma"
 }
 
 datasource db {
@@ -36,6 +36,9 @@ model Protocol {
   webhooks      Webhook[]
   dkimKeys      DkimKey[]
   digestQueue   DigestQueue[]
+  subscription  Subscription?
+  payments      Payment[]
+  helioEvents   HelioWebhookEvent[]
 
   @@index([protocolPubkey], name: "idx_protocols_pubkey")
   @@map("protocols")
@@ -190,4 +193,66 @@ model DigestQueue {
 
   @@unique([walletHash, protocolId, queuedAt])
   @@map("digest_queue")
+}
+
+// ── Billing ────────────────────────────────────────────────────────
+
+model Subscription {
+  id                    String    @id @default(uuid()) @db.Uuid
+  protocolId            String    @unique @map("protocol_id") @db.Uuid
+  tier                  Int       @default(0) @db.SmallInt
+  status                String    @default("inactive") @db.VarChar(20)
+  helioSubscriptionId   String?   @unique @map("helio_subscription_id") @db.VarChar(100)
+  helioCustomerId       String?   @map("helio_customer_id") @db.VarChar(100)
+  currentPeriodStart    DateTime? @map("current_period_start") @db.Timestamptz()
+  currentPeriodEnd      DateTime? @map("current_period_end") @db.Timestamptz()
+  sendsThisPeriod       BigInt    @default(0) @map("sends_this_period")
+  periodResetAt         DateTime  @default(dbgenerated("NOW() + INTERVAL '30 days'")) @map("period_reset_at") @db.Timestamptz()
+  cancelAtPeriodEnd     Boolean   @default(false) @map("cancel_at_period_end")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([status], name: "idx_subscriptions_status")
+  @@index([currentPeriodEnd], name: "idx_subscriptions_expiry")
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                    String    @id @default(uuid()) @db.Uuid
+  protocolId            String    @map("protocol_id") @db.Uuid
+  amountUsdc            BigInt    @map("amount_usdc")
+  tokenSymbol           String    @default("USDC") @map("token_symbol") @db.VarChar(10)
+  tokenMint             String?   @map("token_mint") @db.VarChar(44)
+  paymentSource         String    @map("payment_source") @db.VarChar(30)
+  helioTransactionId    String?   @unique @map("helio_transaction_id") @db.VarChar(100)
+  solanaTxSignature     String?   @map("solana_tx_signature") @db.VarChar(88)
+  periodsPaid           Int       @default(1) @map("periods_paid") @db.SmallInt
+  periodStart           DateTime  @map("period_start") @db.Timestamptz()
+  periodEnd             DateTime  @map("period_end") @db.Timestamptz()
+  status                String    @default("completed") @db.VarChar(20)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, createdAt(sort: Desc)], name: "idx_payments_protocol")
+  @@map("payments")
+}
+
+model HelioWebhookEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  helioEventId    String    @unique @map("helio_event_id") @db.VarChar(100)
+  eventType       String    @map("event_type") @db.VarChar(50)
+  protocolId      String?   @map("protocol_id") @db.Uuid
+  payloadHash     String    @map("payload_hash") @db.VarChar(64)
+  processed       Boolean   @default(false)
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz()
+  error           String?   @db.Text
+  receivedAt      DateTime  @default(now()) @map("received_at") @db.Timestamptz()
+
+  protocol Protocol? @relation(fields: [protocolId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, receivedAt(sort: Desc)], name: "idx_helio_events_type")
+  @@map("helio_webhook_events")
 }

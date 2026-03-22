@@ -6,7 +6,7 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { AuthenticatedProtocol } from '../types/protocol.types.js';
+import type { AuthenticatedProtocol } from '../types/protocol.types';
 
 export const SCOPES_KEY = 'scopes';
 
@@ -23,7 +23,7 @@ export const RequiredScopes = (...scopes: string[]) =>
  */
 @Injectable()
 export class ScopeGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) { }
 
   canActivate(ctx: ExecutionContext): boolean {
     const requiredScopes = this.reflector.getAllAndOverride<string[]>(

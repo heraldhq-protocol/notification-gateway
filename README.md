@@ -122,7 +122,12 @@ src/
     ├── webhook/                    # Webhook CRUD + dispatch
     ├── bounce/                     # SES SNS bounce/complaint handler
     ├── analytics/                  # Delivery stats + usage/quota
-    └── protocol/                   # Protocol self-service (GET /v1/protocols/me)
+    ├── protocol/                   # Protocol self-service (GET /v1/protocols/me)
+    └── billing/                    # Helio & Solana billing integration
+        ├── helio/                  #   Checkout generation and Webhook verification
+        ├── subscription/           #   Lifecycle management, Schedulers, and Guards
+        ├── onchain/                #   Sync off-chain state to herald_privacy_registry
+        └── repositories/           #   Prisma wrappers for billing models
 ```
 
 ## API Endpoints
@@ -143,6 +148,9 @@ All endpoints (except `/health`) require `Authorization: Bearer hrld_live_xxx`.
 | GET    | `/v1/analytics`           | Delivery analytics (7d/30d/90d)          |
 | GET    | `/v1/usage`               | Current usage vs. quota                  |
 | GET    | `/v1/protocols/me`        | Protocol self-service info               |
+| GET    | `/v1/billing/status`      | Check subscription limits and tier       |
+| GET    | `/v1/billing/checkout`    | Generate Helio checkout URL              |
+| POST   | `/v1/billing/helio/webhook` | Helio payment webhooks (no auth)       |
 
 Full interactive documentation is available at **http://localhost:3000/docs** (Swagger UI).
 
@@ -220,6 +228,14 @@ DATABASE_URL=postgresql://herald:herald_dev@localhost:5432/herald_gateway
 # Solana
 SOLANA_RPC_URL=http://localhost:8899
 HERALD_PROGRAM_ID=2pxjAf8tLCakKVDuN4vY51B5TeaEQk4koPuk9NZvWqdf
+DEV_AUTHORITY_KEYPAIR_PATH=scripts/test-authority-keypair.json
+
+# Helio Billing
+HELIO_API_KEY=sk_live_...
+HELIO_WEBHOOK_SECRET=wh_sec_...
+HELIO_TEMPLATE_GROWTH=tmp_req_...
+HELIO_TEMPLATE_SCALE=tmp_req_...
+HELIO_TEMPLATE_ENTERPRISE=tmp_req_...
 
 # Mail provider (smtp | resend | ses)
 MAIL_PROVIDER=smtp
@@ -252,7 +268,7 @@ docker run -p 3000:3000 --env-file .env herald-gateway
 
 ## Database Schema
 
-8 tables following zero-PII design:
+11 tables following zero-PII design:
 
 - **protocols** — registered protocol accounts (tier, sends, subscription)
 - **api_keys** — SHA-256 hashed keys with scopes and environments
@@ -262,6 +278,9 @@ docker run -p 3000:3000 --env-file .env herald-gateway
 - **dkim_keys** — DKIM key management with DNS verification status
 - **email_bounces** — bounce/complaint tracking (hard/soft/complaint)
 - **digest_queue** — batched notification scheduling
+- **subscriptions** — Active billing subscriptions mapped to protocols
+- **payments** — Historically successful payments from USDC/USDT directly or via Helio
+- **helio_webhook_events** — Processed events payload hashes for strong idempotency
 
 ```bash
 # View schema

@@ -17,17 +17,18 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
-import { NotifyService } from './notify.service.js';
+import { NotifyService } from './notify.service';
 import {
   NotifyDto,
   NotifyBatchDto,
   NotifyResponseDto,
   NotificationStatusDto,
-} from './dto/notify.dto.js';
-import { AuthGuard } from '../../common/guards/auth.guard.js';
-import { ApiKey } from '../../common/decorators/api-key.decorator.js';
-import { PaginationDto } from '../../common/dto/pagination.dto.js';
-import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js';
+} from './dto/notify.dto';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { SubscriptionGuard } from '../billing/subscription/subscription.guard';
+import { ApiKey } from '../../common/decorators/api-key.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 
 /**
  * NotifyController — notification send and status endpoints.
@@ -39,7 +40,7 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js
 @UseGuards(AuthGuard)
 @Controller('v1')
 export class NotifyController {
-  constructor(private readonly notifyService: NotifyService) {}
+  constructor(private readonly notifyService: NotifyService) { }
 
   /**
    * POST /v1/notify — Send a single notification.
@@ -47,6 +48,7 @@ export class NotifyController {
    */
   @Post('notify')
   @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(SubscriptionGuard)
   @ApiOperation({
     summary: 'Send a notification to a wallet',
     description:
@@ -76,6 +78,7 @@ export class NotifyController {
    */
   @Post('notify/batch')
   @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(SubscriptionGuard)
   @ApiOperation({
     summary: 'Send batch notifications (up to 100)',
     description:

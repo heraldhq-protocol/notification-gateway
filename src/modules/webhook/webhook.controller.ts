@@ -25,10 +25,10 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PrismaService } from '../../database/prisma.service.js';
-import { AuthGuard } from '../../common/guards/auth.guard.js';
-import { ApiKey } from '../../common/decorators/api-key.decorator.js';
-import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js';
+import { PrismaService } from '../../database/prisma.service';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { ApiKey } from '../../common/decorators/api-key.decorator';
+import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import { createHash, randomBytes } from 'crypto';
 import bs58 from 'bs58';
 
@@ -82,7 +82,7 @@ export class WebhookUpdateResponseDto {
   @ApiProperty() updated: boolean;
 }
 
-import { WebhookService } from './webhook.service.js';
+import { WebhookService } from './webhook.service';
 
 // ── Controller ─────────────────────────────────────────────────────
 

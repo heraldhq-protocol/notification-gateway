@@ -3,9 +3,9 @@ import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PublicKey, Keypair, Connection, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
-import { QueueNames } from '../queue/queue.constants.js';
-import { LightClientService } from './light-client.service.js';
-import { PrismaService } from '../../database/prisma.service.js';
+import { QueueNames } from '../queue/queue.constants';
+import { LightClientService } from './light-client.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AuthorityClient } from '@herald-protocol/sdk';
 import bs58 from 'bs58';
 

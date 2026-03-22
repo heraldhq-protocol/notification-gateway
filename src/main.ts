@@ -4,11 +4,11 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
-import { AppModule } from './app.module.js';
-import { HeraldExceptionFilter } from './common/exceptions/exception.filter.js';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor.js';
-import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor.js';
-import { ResponseTimeInterceptor } from './common/interceptors/response-time.interceptor.js';
+import { AppModule } from './app.module';
+import { HeraldExceptionFilter } from './common/exceptions/exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
+import { ResponseTimeInterceptor } from './common/interceptors/response-time.interceptor';
 
 /**
  * Herald Notification Gateway — Bootstrap

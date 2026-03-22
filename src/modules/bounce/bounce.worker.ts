@@ -1,8 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
-import { QueueNames } from '../queue/queue.constants.js';
-import { BounceService } from './bounce.service.js';
+import { QueueNames } from '../queue/queue.constants';
+import { BounceService } from './bounce.service';
 
 @Processor(QueueNames.BOUNCE)
 export class BounceWorker extends WorkerHost {

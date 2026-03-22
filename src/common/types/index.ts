@@ -1,2 +1,2 @@
-export * from './protocol.types.js';
-export * from './notification.types.js';
+export * from './protocol.types';
+export * from './notification.types';

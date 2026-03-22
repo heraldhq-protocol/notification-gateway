@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ulid } from 'ulid';
-import { PrismaService } from '../../database/prisma.service.js';
-import { RoutingService } from '../routing/routing.service.js';
-import { QueueService } from '../queue/queue.service.js';
-import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js';
-import type { IdentityAccount } from '../../common/types/notification.types.js';
-import type { NotifyDto, NotifyResponseDto } from './dto/notify.dto.js';
+import { PrismaService } from '../../database/prisma.service';
+import { RoutingService } from '../routing/routing.service';
+import { QueueService } from '../queue/queue.service';
+import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
+import type { IdentityAccount } from '../../common/types/notification.types';
+import type { NotifyDto, NotifyResponseDto } from './dto/notify.dto';
 
 /**
  * NotifyService — orchestrates the synchronous part of notification delivery.
@@ -30,7 +30,7 @@ export class NotifyService {
     private readonly routingService: RoutingService,
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async queueNotification(
     dto: NotifyDto,

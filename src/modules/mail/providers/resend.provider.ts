@@ -5,7 +5,7 @@ import type {
   IMailProvider,
   SendEmailMessage,
   SendEmailResult,
-} from './provider.interface.js';
+} from './provider.interface';
 
 /**
  * Resend Provider — Staging: Resend API for reliable sandbox delivery.

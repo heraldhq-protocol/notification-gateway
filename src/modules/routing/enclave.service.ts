@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nacl from 'tweetnacl';
-import { RoutingUnavailableException } from '../../common/exceptions/herald.exception.js';
+import { RoutingUnavailableException } from '../../common/exceptions/herald.exception';
 
 export interface DecryptParams {
   encryptedEmail: Uint8Array;
@@ -21,7 +21,7 @@ export interface DecryptParams {
 export class EnclaveService {
   private readonly logger = new Logger(EnclaveService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) { }
 
   /**
    * Decrypt an encrypted email.

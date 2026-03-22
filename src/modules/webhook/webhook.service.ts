@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { QueueNames } from '../queue/queue.constants.js';
-import { PrismaService } from '../../database/prisma.service.js';
+import { QueueNames } from '../queue/queue.constants';
+import { PrismaService } from '../../database/prisma.service';
 
 export interface WebhookPayload {
     eventId: string;

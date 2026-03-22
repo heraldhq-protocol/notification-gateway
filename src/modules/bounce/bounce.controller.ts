@@ -9,9 +9,9 @@ import {
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { QueueNames } from '../queue/queue.constants.js';
-import { PrismaService } from '../../database/prisma.service.js';
-import { SesSnsPayloadDto } from './dto/ses-sns.dto.js';
+import { QueueNames } from '../queue/queue.constants';
+import { PrismaService } from '../../database/prisma.service';
+import { SesSnsPayloadDto } from './dto/ses-sns.dto';
 
 
 /**

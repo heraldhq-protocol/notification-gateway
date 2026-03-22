@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Response, Request } from 'express';
-import { HeraldException } from './herald.exception.js';
+import { HeraldException } from './herald.exception';
 
 /**
  * Global exception filter — converts all exceptions to structured JSON.

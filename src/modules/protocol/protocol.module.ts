@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ProtocolController } from './protocol.controller.js';
-import { AuthModule } from '../auth/auth.module.js';
-import { ProtocolService } from './protocol.service.js';
+import { ProtocolController } from './protocol.controller';
+import { AuthModule } from '../auth/auth.module';
+import { ProtocolService } from './protocol.service';
 
 @Module({
   imports: [AuthModule],

@@ -65,6 +65,16 @@ export const EnvironmentSchema = z.object({
   // ── Herald Auth ───────────────────────────────────────────────────
   HERALD_AUTHORITY_KMS_KEY_ID: z.string().optional(),
   HERALD_MERKLE_TREE_ADDRESS: z.string().optional(),
+  DEV_AUTHORITY_KEYPAIR_PATH: z.string().optional(),
+
+  // ── Helio Billing ───────────────────────────────────────────────────
+  HELIO_API_KEY: z.string().optional(),
+  HELIO_WEBHOOK_SECRET: z.string().min(32).optional(),
+  HELIO_TEMPLATE_GROWTH: z.string().optional(),
+  HELIO_TEMPLATE_SCALE: z.string().optional(),
+  HELIO_TEMPLATE_ENTERPRISE: z.string().optional(),
+  HELIO_CHECKOUT_SUCCESS_URL: z.string().url().default('https://app.herald.xyz/billing/success'),
+  HELIO_CHECKOUT_CANCEL_URL: z.string().url().default('https://app.herald.xyz/billing'),
 
   // ── Webhooks ──────────────────────────────────────────────────────
   WEBHOOK_SIGNING_SECRET: z

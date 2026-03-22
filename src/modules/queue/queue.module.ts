@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { QueueNames } from './queue.constants.js';
-import { QueueService } from './queue.service.js';
-import { MailWorker } from './workers/mail.worker.js';
-import { RoutingModule } from '../routing/routing.module.js';
-import { MailModule } from '../mail/mail.module.js';
-import { TemplateModule } from '../template/template.module.js';
+import { QueueNames } from './queue.constants';
+import { QueueService } from './queue.service';
+import { MailWorker } from './workers/mail.worker';
+import { RoutingModule } from '../routing/routing.module';
+import { MailModule } from '../mail/mail.module';
+import { TemplateModule } from '../template/template.module';
 
 @Module({
   imports: [
@@ -23,4 +23,4 @@ import { TemplateModule } from '../template/template.module.js';
   providers: [QueueService, MailWorker],
   exports: [QueueService],
 })
-export class QueueModule {}
+export class QueueModule { }

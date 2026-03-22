@@ -3,23 +3,23 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { Redis } from 'ioredis';
 
-import { loadConfiguration } from './config/configuration.js';
-import { PrismaModule } from './database/prisma.module.js';
+import { loadConfiguration } from './config/configuration';
+import { PrismaModule } from './database/prisma.module';
 
 // Feature modules
-import { AuthModule } from './modules/auth/auth.module.js';
-import { NotifyModule } from './modules/notify/notify.module.js';
-import { HealthModule } from './modules/health/health.module.js';
-import { WebhookModule } from './modules/webhook/webhook.module.js';
-import { BounceModule } from './modules/bounce/bounce.module.js';
-import { AnalyticsModule } from './modules/analytics/analytics.module.js';
-import { ProtocolModule } from './modules/protocol/protocol.module.js';
-import { DomainModule } from './modules/domain/domain.module.js';
-import { ReceiptModule } from './modules/receipt/receipt.module.js';
-import { SolanaModule } from './solana/solana.module.js';
+import { AuthModule } from './modules/auth/auth.module';
+import { NotifyModule } from './modules/notify/notify.module';
+import { HealthModule } from './modules/health/health.module';
+import { WebhookModule } from './modules/webhook/webhook.module';
+import { BounceModule } from './modules/bounce/bounce.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { ProtocolModule } from './modules/protocol/protocol.module';
+import { DomainModule } from './modules/domain/domain.module';
+import { ReceiptModule } from './modules/receipt/receipt.module';
+import { SolanaModule } from './solana/solana.module';
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
-import { MetricsController } from './modules/health/metrics.controller.js';
+import { MetricsController } from './modules/health/metrics.controller';
 
 /**
  * AppModule — root composition module for Herald Notification Gateway.

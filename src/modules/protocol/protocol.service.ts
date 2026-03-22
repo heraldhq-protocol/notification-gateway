@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class ProtocolService {
     constructor(private readonly prisma: PrismaService) { }
+
+    async findById(protocolId: string) {
+        return this.prisma.protocol.findUnique({ where: { id: protocolId } });
+    }
+
+    async findIdByPubkey(protocolPubkey: string): Promise<string | null> {
+        const p = await this.prisma.protocol.findUnique({ where: { protocolPubkey }, select: { id: true } });
+        return p?.id ?? null;
+    }
 
     async getProtocolInfo(protocolId: string) {
         const p = await this.prisma.protocol.findUnique({

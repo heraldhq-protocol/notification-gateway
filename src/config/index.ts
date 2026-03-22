@@ -1,2 +1,2 @@
-export { loadConfiguration, type GatewayConfig } from './configuration.js';
-export { EnvironmentSchema } from './configuration.schema.js';
+export { loadConfiguration, type GatewayConfig } from './configuration';
+export { EnvironmentSchema } from './configuration.schema';

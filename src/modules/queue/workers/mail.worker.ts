@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { QueueNames } from '../queue.constants.js';
-import { RoutingService } from '../../routing/routing.service.js';
-import { MailService } from '../../mail/mail.service.js';
-import { TemplateService } from '../../template/template.service.js';
-import { PrismaService } from '../../../database/prisma.service.js';
-import type { NotificationJobData } from '../../../common/types/notification.types.js';
+import { QueueNames } from '../queue.constants';
+import { RoutingService } from '../../routing/routing.service';
+import { MailService } from '../../mail/mail.service';
+import { TemplateService } from '../../template/template.service';
+import { PrismaService } from '../../../database/prisma.service';
+import type { NotificationJobData } from '../../../common/types/notification.types';
 import { createHash } from 'crypto';
 
 /**

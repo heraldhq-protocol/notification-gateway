@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import type { AuthenticatedProtocol } from '../types/protocol.types.js';
+import type { AuthenticatedProtocol } from '../types/protocol.types';
 
 /**
  * @ApiKey() parameter decorator — extracts the authenticated protocol

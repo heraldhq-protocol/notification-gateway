@@ -6,10 +6,10 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
-import { AnalyticsService } from './analytics.service.js';
-import { AuthGuard } from '../../common/guards/auth.guard.js';
-import { ApiKey } from '../../common/decorators/api-key.decorator.js';
-import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js';
+import { AnalyticsService } from './analytics.service';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { ApiKey } from '../../common/decorators/api-key.decorator';
+import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 
 /**
  * AnalyticsController — delivery analytics and usage stats.

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { WebhookController } from './webhook.controller.js';
-import { WebhookService } from './webhook.service.js';
-import { WebhookWorker } from './webhook.worker.js';
-import { QueueNames } from '../queue/queue.constants.js';
+import { WebhookController } from './webhook.controller';
+import { WebhookService } from './webhook.service';
+import { WebhookWorker } from './webhook.worker';
+import { QueueNames } from '../queue/queue.constants';
 
 @Module({
   imports: [

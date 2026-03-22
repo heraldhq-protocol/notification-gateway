@@ -3,9 +3,9 @@ import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import axios from 'axios';
 import { createHmac } from 'crypto';
-import { QueueNames } from '../queue/queue.constants.js';
-import { PrismaService } from '../../database/prisma.service.js';
-import { WebhookPayload } from './webhook.service.js';
+import { QueueNames } from '../queue/queue.constants';
+import { PrismaService } from '../../database/prisma.service';
+import { WebhookPayload } from './webhook.service';
 
 interface WebhookJobData {
     webhookId: string;

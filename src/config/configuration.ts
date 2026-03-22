@@ -1,7 +1,7 @@
 import {
   EnvironmentSchema,
   type GatewayConfig,
-} from './configuration.schema.js';
+} from './configuration.schema';
 
 /**
  * NestJS ConfigModule factory function.
@@ -21,4 +21,4 @@ export function loadConfiguration(): GatewayConfig {
   return result.data;
 }
 
-export { type GatewayConfig } from './configuration.schema.js';
+export { type GatewayConfig } from './configuration.schema';

@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from 'crypto';
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/prisma.service';
 import type {
   AuthenticatedProtocol,
   GeneratedApiKey,
-} from '../../common/types/protocol.types.js';
+} from '../../common/types/protocol.types';
 import bs58 from 'bs58';
 
 /**

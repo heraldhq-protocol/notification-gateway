@@ -4,7 +4,7 @@ import type {
   TierLimit,
   RateLimitResult,
   AuthenticatedProtocol,
-} from '../../common/types/protocol.types.js';
+} from '../../common/types/protocol.types';
 
 /**
  * RateLimitService — sliding window rate limiting using Redis ZADD.

@@ -17,10 +17,10 @@ import {
     ApiProperty,
 } from '@nestjs/swagger';
 import { IsString } from 'class-validator';
-import { AuthGuard } from '../../common/guards/auth.guard.js';
-import { ApiKey } from '../../common/decorators/api-key.decorator.js';
-import type { AuthenticatedProtocol } from '../../common/types/protocol.types.js';
-import { DkimService } from './dkim.service.js';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { ApiKey } from '../../common/decorators/api-key.decorator';
+import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
+import { DkimService } from './dkim.service';
 
 export class CreateDomainDto {
     @ApiProperty({ example: 'alerts.myprotocol.com' })

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { NotifyController } from './notify.controller.js';
-import { NotifyService } from './notify.service.js';
-import { AuthModule } from '../auth/auth.module.js';
-import { RoutingModule } from '../routing/routing.module.js';
-import { QueueModule } from '../queue/queue.module.js';
+import { NotifyController } from './notify.controller';
+import { NotifyService } from './notify.service';
+import { AuthModule } from '../auth/auth.module';
+import { RoutingModule } from '../routing/routing.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [AuthModule, RoutingModule, QueueModule],
@@ -11,4 +11,4 @@ import { QueueModule } from '../queue/queue.module.js';
   providers: [NotifyService],
   exports: [NotifyService],
 })
-export class NotifyModule {}
+export class NotifyModule { }

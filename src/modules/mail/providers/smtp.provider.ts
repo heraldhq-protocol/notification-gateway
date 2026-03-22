@@ -5,7 +5,7 @@ import type {
   IMailProvider,
   SendEmailMessage,
   SendEmailResult,
-} from './provider.interface.js';
+} from './provider.interface';
 
 /**
  * SMTP Provider — Development: Nodemailer + Mailhog (localhost:1025).

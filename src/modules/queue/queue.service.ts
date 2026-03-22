@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { QueueNames } from './queue.constants.js';
+import { QueueNames } from './queue.constants';
 import type {
   NotificationJobData,
   WebhookJobData,
-} from '../../common/types/notification.types.js';
+} from '../../common/types/notification.types';
 
 /**
  * QueueService — enqueues jobs to BullMQ queues.
@@ -24,7 +24,7 @@ export class QueueService {
 
     @InjectQueue(QueueNames.BOUNCE)
     private readonly bounceQueue: Queue,
-  ) {}
+  ) { }
 
   /**
    * Enqueue a notification for async delivery.

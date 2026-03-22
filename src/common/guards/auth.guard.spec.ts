@@ -1,5 +1,5 @@
 import { ExecutionContext } from '@nestjs/common';
-import { AuthGuard } from './auth.guard.js';
+import { AuthGuard } from './auth.guard';
 
 // ── Mocks ─────────────────────────────────────────────────────────
 
