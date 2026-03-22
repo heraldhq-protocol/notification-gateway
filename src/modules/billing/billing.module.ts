@@ -7,6 +7,8 @@ import { SolanaModule } from '../../solana/solana.module.js';
 import { MailModule } from '../mail/mail.module.js';
 import { ProtocolModule } from '../protocol/protocol.module.js';
 import { TemplateModule } from '../template/template.module.js';
+import { AuthModule } from '../auth/auth.module.js';
+
 
 import { BillingController } from './billing.controller.js';
 import { BillingService } from './billing.service.js';
@@ -27,6 +29,7 @@ import { HelioEventRepository } from './repositories/helio-event.repository.js';
 
 @Module({
     imports: [
+        AuthModule,
         PrismaModule,
         MailModule,
         ProtocolModule,
@@ -57,6 +60,8 @@ import { HelioEventRepository } from './repositories/helio-event.repository.js';
         BillingService,
         SubscriptionService,
         SubscriptionGuard,
+        SubscriptionRepository,
+        HelioService,
     ],
 })
 export class BillingModule { }

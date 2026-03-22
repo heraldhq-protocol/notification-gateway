@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { SolanaService } from '../../solana/solana.service';
 import { EnclaveService } from './enclave.service';
@@ -25,7 +25,7 @@ export class RoutingService {
   constructor(
     private readonly solanaService: SolanaService,
     private readonly enclaveService: EnclaveService,
-    private readonly redis: Redis,
+    @Inject("REDIS_CLIENT") private readonly redis: Redis,
   ) { }
 
   /**

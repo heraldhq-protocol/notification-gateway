@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import type {
   TierLimit,
@@ -26,7 +26,7 @@ export class RateLimitService {
 
   private readonly logger = new Logger(RateLimitService.name);
 
-  constructor(private readonly redis: Redis) { }
+  constructor(@Inject("REDIS_CLIENT") private readonly redis: Redis) { }
 
   /**
    * Check and increment the sliding window counter.

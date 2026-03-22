@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
 import { Redis } from 'ioredis';
@@ -15,7 +15,7 @@ import { ConfigService } from '@nestjs/config';
 export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: Redis,
+    @Inject("REDIS_CLIENT") private readonly redis: Redis,
     private readonly config: ConfigService,
   ) { }
 
