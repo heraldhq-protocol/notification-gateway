@@ -61,13 +61,34 @@ export class MailWorker extends WorkerHost {
       // ── Step 2: Decrypt email via TEE ─────────────────────────
       const email = await this.routingService.decryptEmailInEnclave(identity);
 
-      // ── Step 3: Render email template ─────────────────────────
+      // ── Step 3: Fetch custom sender domain ────────────────────
+      const customDomainRecord = await this.prisma.dkimKey.findFirst({
+        where: {
+          protocolId: job.data.protocolId,
+          isActive: true,
+          dnsVerified: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      const senderDomain = customDomainRecord
+        ? customDomainRecord.domain
+        : 'useherald.xyz';
+
+      // ── Step 4: Render email template ─────────────────────────
       const templateName = this.getTemplateName(category);
+
+      // Anti-Spam subject formatting to improve deliverability (mimicking ByBit structure)
+      const catFriendly =
+        category === 'defi'
+          ? 'DeFi'
+          : category.charAt(0).toUpperCase() + category.slice(1);
+      const formattedSubject = `[${protocolName} | ${catFriendly} Alert] ${subject}`;
+
       const { html, text } = await this.templateService.render({
         template: templateName,
         variables: {
           protocolName,
-          subject,
+          subject: formattedSubject,
           body,
           category,
           unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/${notificationId}`,
@@ -75,12 +96,12 @@ export class MailWorker extends WorkerHost {
         },
       });
 
-      // ── Step 4: Send email ────────────────────────────────────
+      // ── Step 5: Send email ────────────────────────────────────
       const sendResult = await this.mailService.send({
         to: email, // In-memory only — never logged
-        from: `${protocolName} via Herald <noreply@useherald.xyz>`,
+        from: `${protocolName} via Herald <noreply@${senderDomain}>`,
         replyTo: 'support@useherald.xyz',
-        subject,
+        subject: formattedSubject,
         html,
         text,
         headers: {
@@ -89,7 +110,7 @@ export class MailWorker extends WorkerHost {
         },
       });
 
-      // ── Step 5: Update notification record ────────────────────
+      // ── Step 6: Update notification record ────────────────────
       await this.prisma.notification.update({
         where: { id: notificationId },
         data: {

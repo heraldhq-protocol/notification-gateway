@@ -38,6 +38,7 @@ export class DkimKeyResponseDto {
   @ApiProperty() selector: string;
   @ApiProperty() dnsRecordName: string;
   @ApiProperty() dnsRecordValue: string;
+  @ApiProperty() instructions: string;
 }
 
 @ApiTags('Domains')
@@ -74,6 +75,35 @@ export class DomainController {
       dns_verified: k.dnsVerified,
       created_at: k.createdAt,
     }));
+  }
+
+  @Post(':id/verify')
+  @ApiOperation({ summary: 'Verify DNS TXT record is live for a domain' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Returns dns_verified=true if the DKIM TXT record resolves correctly',
+  })
+  async verify(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    return this.dkimService.verifyDomain(id, protocol.protocolId);
+  }
+
+  @Post(':id/ses-register')
+  @ApiOperation({
+    summary: 'Register domain as SES email identity and enable DKIM signing',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns SES verification status and DKIM signing state',
+  })
+  async sesRegister(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    return this.dkimService.registerWithSes(id, protocol.protocolId);
   }
 
   @Delete(':id')
