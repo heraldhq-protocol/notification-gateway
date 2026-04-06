@@ -6,17 +6,17 @@ import { BounceService } from './bounce.service';
 
 @Processor(QueueNames.BOUNCE)
 export class BounceWorker extends WorkerHost {
-    private readonly logger = new Logger(BounceWorker.name);
+  private readonly logger = new Logger(BounceWorker.name);
 
-    constructor(private readonly bounceService: BounceService) {
-        super();
+  constructor(private readonly bounceService: BounceService) {
+    super();
+  }
+
+  async process(job: Job<any, any, string>): Promise<void> {
+    this.logger.debug(`Processing bounce job ${job.id}`);
+
+    if (job.name === 'ses-bounce') {
+      await this.bounceService.processSesBounce(job.data);
     }
-
-    async process(job: Job<any, any, string>): Promise<void> {
-        this.logger.debug(`Processing bounce job ${job.id}`);
-
-        if (job.name === 'ses-bounce') {
-            await this.bounceService.processSesBounce(job.data);
-        }
-    }
+  }
 }

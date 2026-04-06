@@ -73,8 +73,14 @@ export const EnvironmentSchema = z.object({
   HELIO_TEMPLATE_GROWTH: z.string().optional(),
   HELIO_TEMPLATE_SCALE: z.string().optional(),
   HELIO_TEMPLATE_ENTERPRISE: z.string().optional(),
-  HELIO_CHECKOUT_SUCCESS_URL: z.string().url().default('https://app.herald.xyz/billing/success'),
-  HELIO_CHECKOUT_CANCEL_URL: z.string().url().default('https://app.herald.xyz/billing'),
+  HELIO_CHECKOUT_SUCCESS_URL: z
+    .string()
+    .url()
+    .default('https://app.herald.xyz/billing/success'),
+  HELIO_CHECKOUT_CANCEL_URL: z
+    .string()
+    .url()
+    .default('https://app.herald.xyz/billing'),
 
   // ── Webhooks ──────────────────────────────────────────────────────
   WEBHOOK_SIGNING_SECRET: z

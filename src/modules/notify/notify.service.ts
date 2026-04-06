@@ -30,7 +30,7 @@ export class NotifyService {
     private readonly routingService: RoutingService,
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
-  ) { }
+  ) {}
 
   async queueNotification(
     dto: NotifyDto,

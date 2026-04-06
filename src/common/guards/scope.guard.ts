@@ -23,7 +23,7 @@ export const RequiredScopes = (...scopes: string[]) =>
  */
 @Injectable()
 export class ScopeGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(ctx: ExecutionContext): boolean {
     const requiredScopes = this.reflector.getAllAndOverride<string[]>(

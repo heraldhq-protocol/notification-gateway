@@ -5,4 +5,4 @@ import { TemplateService } from './template.service';
   providers: [TemplateService],
   exports: [TemplateService],
 })
-export class TemplateModule { }
+export class TemplateModule {}

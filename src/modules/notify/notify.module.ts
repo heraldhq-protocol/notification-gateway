@@ -6,11 +6,10 @@ import { RoutingModule } from '../routing/routing.module';
 import { QueueModule } from '../queue/queue.module';
 import { BillingModule } from '../billing/billing.module';
 
-
 @Module({
   imports: [AuthModule, RoutingModule, QueueModule, BillingModule],
   controllers: [NotifyController],
   providers: [NotifyService],
   exports: [NotifyService],
 })
-export class NotifyModule { }
+export class NotifyModule {}

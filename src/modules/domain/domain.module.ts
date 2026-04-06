@@ -4,9 +4,9 @@ import { DkimService } from './dkim.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-    imports: [AuthModule],
-    controllers: [DomainController],
-    providers: [DkimService],
-    exports: [DkimService],
+  imports: [AuthModule],
+  controllers: [DomainController],
+  providers: [DkimService],
+  exports: [DkimService],
 })
-export class DomainModule { }
+export class DomainModule {}

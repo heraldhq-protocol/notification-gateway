@@ -76,7 +76,10 @@ import { RedisModule } from './modules/redis/redis.module';
     BillingModule,
     LoggerModule.forRoot({
       pinoHttp: {
-        transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
+        transport:
+          process.env.NODE_ENV === 'development'
+            ? { target: 'pino-pretty' }
+            : undefined,
         autoLogging: {
           ignore: (req) => ['/health', '/metrics'].includes(req.url || ''),
         },
@@ -87,4 +90,4 @@ import { RedisModule } from './modules/redis/redis.module';
     }),
   ],
 })
-export class AppModule { }
+export class AppModule {}

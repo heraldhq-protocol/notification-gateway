@@ -1,7 +1,4 @@
-import {
-  EnvironmentSchema,
-  type GatewayConfig,
-} from './configuration.schema';
+import { EnvironmentSchema, type GatewayConfig } from './configuration.schema';
 
 /**
  * NestJS ConfigModule factory function.

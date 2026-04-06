@@ -15,9 +15,9 @@ import { ConfigService } from '@nestjs/config';
 export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject("REDIS_CLIENT") private readonly redis: Redis,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly config: ConfigService,
-  ) { }
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Health check — DB, Redis, Solana, SMTP status' })

@@ -6,12 +6,12 @@ import { LightClientService } from './light-client.service';
 import { ReceiptWorker } from './receipt.worker';
 
 @Module({
-    imports: [
-        BullModule.registerQueue({
-            name: QueueNames.RECEIPT_BATCH,
-        }),
-    ],
-    providers: [ReceiptService, LightClientService, ReceiptWorker],
-    exports: [ReceiptService],
+  imports: [
+    BullModule.registerQueue({
+      name: QueueNames.RECEIPT_BATCH,
+    }),
+  ],
+  providers: [ReceiptService, LightClientService, ReceiptWorker],
+  exports: [ReceiptService],
 })
-export class ReceiptModule { }
+export class ReceiptModule {}

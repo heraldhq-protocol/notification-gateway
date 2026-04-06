@@ -6,9 +6,9 @@ import type { Response } from 'express';
 @ApiTags('Health')
 @Controller('metrics')
 export class MetricsController extends PrometheusController {
-    @Get()
-    @ApiOperation({ summary: 'Prometheus metrics' })
-    async index(@Res({ passthrough: true }) response: Response) {
-        return super.index(response);
-    }
+  @Get()
+  @ApiOperation({ summary: 'Prometheus metrics' })
+  async index(@Res({ passthrough: true }) response: Response) {
+    return super.index(response);
+  }
 }

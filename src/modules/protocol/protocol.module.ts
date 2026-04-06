@@ -9,4 +9,4 @@ import { ProtocolService } from './protocol.service';
   providers: [ProtocolService],
   exports: [ProtocolService],
 })
-export class ProtocolModule { }
+export class ProtocolModule {}

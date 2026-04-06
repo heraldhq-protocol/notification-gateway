@@ -71,7 +71,8 @@ export class WebhookResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() url: string;
   @ApiProperty() events: string[];
-  @ApiPropertyOptional({ description: 'Shown ONCE upon creation' }) secret?: string;
+  @ApiPropertyOptional({ description: 'Shown ONCE upon creation' })
+  secret?: string;
   @ApiProperty() is_active: boolean;
   @ApiPropertyOptional() failure_count?: number;
   @ApiPropertyOptional() last_success_at?: string | null;
@@ -94,11 +95,15 @@ export class WebhookController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webhookService: WebhookService,
-  ) { }
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Register a webhook endpoint' })
-  @ApiResponse({ status: 201, description: 'Webhook created', type: WebhookResponseDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Webhook created',
+    type: WebhookResponseDto,
+  })
   async create(
     @Body() dto: CreateWebhookDto,
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -131,7 +136,9 @@ export class WebhookController {
   @Get()
   @ApiOperation({ summary: 'List registered webhooks' })
   @ApiResponse({ status: 200, type: [WebhookResponseDto] })
-  async list(@ApiKey() protocol: AuthenticatedProtocol): Promise<WebhookResponseDto[]> {
+  async list(
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ): Promise<WebhookResponseDto[]> {
     const webhooks = await this.prisma.webhook.findMany({
       where: { protocolId: protocol.protocolId },
       orderBy: { createdAt: 'desc' },

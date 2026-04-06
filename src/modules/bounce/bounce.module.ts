@@ -14,4 +14,4 @@ import { QueueNames } from '../queue/queue.constants';
   controllers: [BounceController],
   providers: [BounceService, BounceWorker],
 })
-export class BounceModule { }
+export class BounceModule {}

@@ -23,4 +23,4 @@ import { TemplateModule } from '../template/template.module';
   providers: [QueueService, MailWorker],
   exports: [QueueService],
 })
-export class QueueModule { }
+export class QueueModule {}

@@ -6,7 +6,13 @@ import { SesProvider } from './providers/ses.provider';
 import { SendgridProvider } from './providers/sendgrid.provider';
 
 @Module({
-  providers: [MailService, SmtpProvider, ResendProvider, SesProvider, SendgridProvider],
+  providers: [
+    MailService,
+    SmtpProvider,
+    ResendProvider,
+    SesProvider,
+    SendgridProvider,
+  ],
   exports: [MailService],
 })
-export class MailModule { }
+export class MailModule {}

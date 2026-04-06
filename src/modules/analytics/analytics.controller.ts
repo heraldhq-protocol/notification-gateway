@@ -19,7 +19,7 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 @UseGuards(AuthGuard)
 @Controller('v1')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) { }
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('analytics')
   @ApiOperation({ summary: 'Get delivery analytics overview' })

@@ -24,7 +24,7 @@ export class QueueService {
 
     @InjectQueue(QueueNames.BOUNCE)
     private readonly bounceQueue: Queue,
-  ) { }
+  ) {}
 
   /**
    * Enqueue a notification for async delivery.

@@ -17,4 +17,4 @@ import { AuthModule } from '../auth/auth.module';
   providers: [WebhookService, WebhookWorker],
   exports: [WebhookService],
 })
-export class WebhookModule { }
+export class WebhookModule {}

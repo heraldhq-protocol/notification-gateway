@@ -9,4 +9,4 @@ import { AnalyticsService } from './analytics.service';
   providers: [AnalyticsService],
   exports: [AnalyticsService],
 })
-export class AnalyticsModule { }
+export class AnalyticsModule {}

@@ -40,7 +40,7 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 @UseGuards(AuthGuard)
 @Controller('v1')
 export class NotifyController {
-  constructor(private readonly notifyService: NotifyService) { }
+  constructor(private readonly notifyService: NotifyService) {}
 
   /**
    * POST /v1/notify — Send a single notification.

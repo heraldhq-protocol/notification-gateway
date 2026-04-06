@@ -21,7 +21,7 @@ export interface DecryptParams {
 export class EnclaveService {
   private readonly logger = new Logger(EnclaveService.name);
 
-  constructor(private readonly config: ConfigService) { }
+  constructor(private readonly config: ConfigService) {}
 
   /**
    * Decrypt an encrypted email.
@@ -97,6 +97,7 @@ export class EnclaveService {
    * In real dev with local validator, this would use known test keypairs.
    */
   private async mockDecrypt(_params: DecryptParams): Promise<string> {
+    await Promise.resolve();
     // In dev mode, return a mock email for testing
     return `test-${_params.ownerPubkey.slice(0, 8)}@herald-dev.xyz`;
   }

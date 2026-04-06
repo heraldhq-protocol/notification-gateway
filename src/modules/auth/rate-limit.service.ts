@@ -26,7 +26,7 @@ export class RateLimitService {
 
   private readonly logger = new Logger(RateLimitService.name);
 
-  constructor(@Inject("REDIS_CLIENT") private readonly redis: Redis) { }
+  constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   /**
    * Check and increment the sliding window counter.
@@ -37,7 +37,7 @@ export class RateLimitService {
     tier: number,
   ): Promise<RateLimitResult> {
     const limit =
-      RateLimitService.TIER_LIMITS[tier] ?? RateLimitService.TIER_LIMITS[0]!;
+      RateLimitService.TIER_LIMITS[tier] ?? RateLimitService.TIER_LIMITS[0];
     const now = Date.now();
     const window = 1000; // 1 second sliding window
     const key = `rl:${protocolId}`;
@@ -84,7 +84,7 @@ export class RateLimitService {
   /** Get tier limits for display. */
   getTierLimits(tier: number): TierLimit {
     return (
-      RateLimitService.TIER_LIMITS[tier] ?? RateLimitService.TIER_LIMITS[0]!
+      RateLimitService.TIER_LIMITS[tier] ?? RateLimitService.TIER_LIMITS[0]
     );
   }
 }

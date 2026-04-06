@@ -8,4 +8,4 @@ import { SolanaModule } from '../../solana/solana.module';
   providers: [RoutingService, EnclaveService],
   exports: [RoutingService, EnclaveService],
 })
-export class RoutingModule { }
+export class RoutingModule {}

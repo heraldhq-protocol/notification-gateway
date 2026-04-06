@@ -25,8 +25,8 @@ export class RoutingService {
   constructor(
     private readonly solanaService: SolanaService,
     private readonly enclaveService: EnclaveService,
-    @Inject("REDIS_CLIENT") private readonly redis: Redis,
-  ) { }
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  ) {}
 
   /**
    * Resolve a wallet pubkey to its IdentityAccount.
@@ -49,7 +49,7 @@ export class RoutingService {
       await this.solanaService.fetchIdentityAccount(walletPubkey);
 
     if (!identity) {
-      await this.redis.setex(cacheKey, 60, 'NOT_REGISTERED').catch(() => { });
+      await this.redis.setex(cacheKey, 60, 'NOT_REGISTERED').catch(() => {});
       return null;
     }
 
@@ -66,7 +66,7 @@ export class RoutingService {
         RoutingService.PDA_CACHE_TTL_SECONDS,
         JSON.stringify(serializable),
       )
-      .catch(() => { });
+      .catch(() => {});
 
     return identity;
   }

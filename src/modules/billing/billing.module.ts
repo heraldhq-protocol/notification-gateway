@@ -9,7 +9,6 @@ import { ProtocolModule } from '../protocol/protocol.module.js';
 import { TemplateModule } from '../template/template.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 
-
 import { BillingController } from './billing.controller.js';
 import { BillingService } from './billing.service.js';
 
@@ -28,40 +27,35 @@ import { PaymentRepository } from './repositories/payment.repository.js';
 import { HelioEventRepository } from './repositories/helio-event.repository.js';
 
 @Module({
-    imports: [
-        AuthModule,
-        PrismaModule,
-        MailModule,
-        ProtocolModule,
-        TemplateModule,
-        BullModule.registerQueue(
-            { name: 'billing-webhooks' }
-        ),
-        ScheduleModule.forRoot(),
-        SolanaModule,
-    ],
-    controllers: [
-        BillingController,
-        HelioWebhookController,
-    ],
-    providers: [
-        BillingService,
-        HelioService,
-        SubscriptionService,
-        OnChainRenewalService,
-        OnChainEventListenerService,
-        SubscriptionScheduler,
-        SubscriptionGuard,
-        SubscriptionRepository,
-        PaymentRepository,
-        HelioEventRepository,
-    ],
-    exports: [
-        BillingService,
-        SubscriptionService,
-        SubscriptionGuard,
-        SubscriptionRepository,
-        HelioService,
-    ],
+  imports: [
+    AuthModule,
+    PrismaModule,
+    MailModule,
+    ProtocolModule,
+    TemplateModule,
+    BullModule.registerQueue({ name: 'billing-webhooks' }),
+    ScheduleModule.forRoot(),
+    SolanaModule,
+  ],
+  controllers: [BillingController, HelioWebhookController],
+  providers: [
+    BillingService,
+    HelioService,
+    SubscriptionService,
+    OnChainRenewalService,
+    OnChainEventListenerService,
+    SubscriptionScheduler,
+    SubscriptionGuard,
+    SubscriptionRepository,
+    PaymentRepository,
+    HelioEventRepository,
+  ],
+  exports: [
+    BillingService,
+    SubscriptionService,
+    SubscriptionGuard,
+    SubscriptionRepository,
+    HelioService,
+  ],
 })
-export class BillingModule { }
+export class BillingModule {}

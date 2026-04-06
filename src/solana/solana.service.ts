@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PublicKey, Keypair, Transaction, TransactionInstruction, sendAndConfirmTransaction } from '@solana/web3.js';
+import {
+  PublicKey,
+  Keypair,
+  Transaction,
+  TransactionInstruction,
+  sendAndConfirmTransaction,
+} from '@solana/web3.js';
 import { ReadClient } from '@herald-protocol/sdk';
 import { findIdentityPda } from '@herald-protocol/sdk/pda';
 import { RpcManagerService } from './rpc-manager.service';
@@ -77,17 +83,26 @@ export class SolanaService {
   deriveIdentityPda(walletPubkey: string): PublicKey {
     const programId = new PublicKey(
       this.config.get<string>('HERALD_PROGRAM_ID') ??
-      '2pxjAf8tLCakKVDuN4vY51B5TeaEQk4koPuk9NZvWqdf',
+        '2pxjAf8tLCakKVDuN4vY51B5TeaEQk4koPuk9NZvWqdf',
     );
     const [pda] = findIdentityPda(new PublicKey(walletPubkey), programId);
     return pda;
   }
 
-  async sendAndConfirm(instructions: TransactionInstruction[], signers: Keypair[]): Promise<string> {
+  async sendAndConfirm(
+    instructions: TransactionInstruction[],
+    signers: Keypair[],
+  ): Promise<string> {
     const connection = this.rpcManager.getConnection();
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
-    const tx = new Transaction({ feePayer: signers[0].publicKey, blockhash, lastValidBlockHeight }).add(...instructions);
-    return sendAndConfirmTransaction(connection, tx, signers, { commitment: 'confirmed' });
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash('confirmed');
+    const tx = new Transaction({
+      feePayer: signers[0].publicKey,
+      blockhash,
+      lastValidBlockHeight,
+    }).add(...instructions);
+    return sendAndConfirmTransaction(connection, tx, signers, {
+      commitment: 'confirmed',
+    });
   }
 }
-

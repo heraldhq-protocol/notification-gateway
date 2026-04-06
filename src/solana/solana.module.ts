@@ -6,4 +6,4 @@ import { RpcManagerService } from './rpc-manager.service';
   providers: [SolanaService, RpcManagerService],
   exports: [SolanaService, RpcManagerService],
 })
-export class SolanaModule { }
+export class SolanaModule {}

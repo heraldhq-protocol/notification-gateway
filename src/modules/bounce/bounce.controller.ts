@@ -13,7 +13,6 @@ import { QueueNames } from '../queue/queue.constants';
 import { PrismaService } from '../../database/prisma.service';
 import { SesSnsPayloadDto } from './dto/ses-sns.dto';
 
-
 /**
  * BounceController — handles SES SNS bounce/complaint notifications.
  *
@@ -30,7 +29,7 @@ export class BounceController {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QueueNames.BOUNCE) private readonly bounceQueue: Queue,
-  ) { }
+  ) {}
 
   @Post('ses')
   @HttpCode(HttpStatus.OK)
@@ -47,7 +46,7 @@ export class BounceController {
     // Parse SES notification
     const message =
       typeof body.Message === 'string'
-        ? JSON.parse(body.Message as string)
+        ? JSON.parse(body.Message)
         : body.Message || body;
 
     // Enqueue for async processing

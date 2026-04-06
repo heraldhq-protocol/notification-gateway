@@ -19,7 +19,7 @@ import type { AuthenticatedProtocol } from '../types/protocol.types';
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const request = ctx

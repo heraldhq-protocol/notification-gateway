@@ -13,12 +13,14 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 @UseGuards(AuthGuard)
 @Controller('v1/protocols')
 export class ProtocolController {
-  constructor(private readonly protocolService: ProtocolService) { }
+  constructor(private readonly protocolService: ProtocolService) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Get your protocol info + subscription status' })
   async getMe(@ApiKey() protocol: AuthenticatedProtocol) {
-    const info = await this.protocolService.getProtocolInfo(protocol.protocolId);
+    const info = await this.protocolService.getProtocolInfo(
+      protocol.protocolId,
+    );
     if (!info) throw new NotFoundException('Protocol not found');
     return info;
   }
