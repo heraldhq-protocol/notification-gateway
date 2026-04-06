@@ -25,10 +25,11 @@ import {
   NotificationStatusDto,
 } from './dto/notify.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
 import { SubscriptionGuard } from '../billing/subscription/subscription.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 /**
  * NotifyController — notification send and status endpoints.
@@ -37,7 +38,7 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
  */
 @ApiTags('Notifications')
 @ApiBearerAuth()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ScopeGuard)
 @Controller('v1')
 export class NotifyController {
   constructor(private readonly notifyService: NotifyService) {}
@@ -49,6 +50,7 @@ export class NotifyController {
   @Post('notify')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(SubscriptionGuard)
+  @RequiredScopes('notify:write')
   @ApiOperation({
     summary: 'Send a notification to a wallet',
     description:
@@ -79,6 +81,7 @@ export class NotifyController {
   @Post('notify/batch')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(SubscriptionGuard)
+  @RequiredScopes('notify:write')
   @ApiOperation({
     summary: 'Send batch notifications (up to 100)',
     description:
@@ -115,6 +118,7 @@ export class NotifyController {
    * GET /v1/notifications/:id — Get notification status.
    */
   @Get('notifications/:id')
+  @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'Get notification status and receipt' })
   @ApiParam({ name: 'id', description: 'Notification ID (ULID)' })
   @ApiResponse({ status: 200, type: NotificationStatusDto })
@@ -130,6 +134,7 @@ export class NotifyController {
    * GET /v1/notifications — List notifications (paginated).
    */
   @Get('notifications')
+  @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'List notifications for your protocol' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })

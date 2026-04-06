@@ -40,7 +40,7 @@ async function bootstrap() {
   app.enableCors({
     origin:
       process.env.NODE_ENV === 'production'
-        ? ['https://app.herald.xyz', 'https://notify.herald.xyz']
+        ? ['https://app.useherald.xyz', 'https://notify.useherald.xyz']
         : '*',
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     credentials: true,

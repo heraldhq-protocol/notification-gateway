@@ -47,7 +47,7 @@ export const EnvironmentSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
 
   // ── Production (AWS SES) ──────────────────────────────────────────
-  SES_FROM_ADDRESS: z.string().default('noreply@herald.xyz'),
+  SES_FROM_ADDRESS: z.string().default('noreply@useherald.xyz'),
   SES_REGION: z.string().default('us-east-1'),
   SES_CONFIGURATION_SET: z.string().default('herald-main'),
 
@@ -76,11 +76,11 @@ export const EnvironmentSchema = z.object({
   HELIO_CHECKOUT_SUCCESS_URL: z
     .string()
     .url()
-    .default('https://app.herald.xyz/billing/success'),
+    .default('https://app.useherald.xyz/billing/success'),
   HELIO_CHECKOUT_CANCEL_URL: z
     .string()
     .url()
-    .default('https://app.herald.xyz/billing'),
+    .default('https://app.useherald.xyz/billing'),
 
   // ── Webhooks ──────────────────────────────────────────────────────
   WEBHOOK_SIGNING_SECRET: z
@@ -90,7 +90,7 @@ export const EnvironmentSchema = z.object({
   WEBHOOK_MAX_RETRIES: z.coerce.number().default(3),
 
   // ── Unsubscribe ───────────────────────────────────────────────────
-  UNSUBSCRIBE_BASE_URL: z.string().default('https://notify.herald.xyz'),
+  UNSUBSCRIBE_BASE_URL: z.string().default('https://notify.useherald.xyz'),
   UNSUBSCRIBE_JWT_SECRET: z
     .string()
     .min(16)

@@ -2,12 +2,12 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 
@@ -16,8 +16,9 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
  */
 @ApiTags('Analytics')
 @ApiBearerAuth()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ScopeGuard)
 @Controller('v1')
+@RequiredScopes('analytics:read')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 

@@ -14,7 +14,7 @@ import type { AuthenticatedProtocol } from '../types/protocol.types';
  * Flow:
  *   1. Extract Bearer token from Authorization header
  *   2. Call AuthService.validateApiKey (hash → Redis → PG)
- *   3. Attach authenticated protocol to request.protocol
+ *   3. Attach authenticated protocol to request.authProtocol
  *   4. Reject with 401 if invalid
  */
 @Injectable()
@@ -24,7 +24,7 @@ export class AuthGuard implements CanActivate {
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const request = ctx
       .switchToHttp()
-      .getRequest<Request & { protocol: AuthenticatedProtocol }>();
+      .getRequest<Request & { authProtocol: AuthenticatedProtocol }>();
 
     const authHeader = request.headers.authorization;
 
@@ -46,7 +46,7 @@ export class AuthGuard implements CanActivate {
       });
     }
 
-    (request as any).protocol = protocol;
+    (request as any).authProtocol = protocol;
     return true;
   }
 }

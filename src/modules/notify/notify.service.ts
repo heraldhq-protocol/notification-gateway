@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ulid } from 'ulid';
+import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../database/prisma.service';
 import { RoutingService } from '../routing/routing.service';
 import { QueueService } from '../queue/queue.service';
@@ -36,7 +36,7 @@ export class NotifyService {
     dto: NotifyDto,
     protocol: AuthenticatedProtocol,
   ): Promise<NotifyResponseDto> {
-    const notificationId = ulid();
+    const notificationId = uuidv4();
     const walletHash = this.sha256(dto.wallet);
     const subjectHash = this.sha256(dto.subject);
 

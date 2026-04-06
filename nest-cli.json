@@ -9,6 +9,10 @@
         "include": "../prisma/generated",
         "outDir": "dist/prisma",
         "watchAssets": true
+      },
+      {
+        "include": "modules/template/templates/**/*.hbs",
+        "watchAssets": true
       }
     ],
     "watchAssets": true

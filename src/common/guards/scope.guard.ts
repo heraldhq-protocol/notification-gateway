@@ -34,7 +34,7 @@ export class ScopeGuard implements CanActivate {
     if (!requiredScopes || requiredScopes.length === 0) return true;
 
     const request = ctx.switchToHttp().getRequest();
-    const protocol = request.protocol as AuthenticatedProtocol;
+    const protocol = request.authProtocol as AuthenticatedProtocol;
 
     if (!protocol) {
       throw new ForbiddenException({

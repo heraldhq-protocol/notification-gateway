@@ -12,6 +12,6 @@ import type { AuthenticatedProtocol } from '../types/protocol.types';
 export const ApiKey = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): AuthenticatedProtocol => {
     const request = ctx.switchToHttp().getRequest();
-    return request.protocol as AuthenticatedProtocol;
+    return request.authProtocol as AuthenticatedProtocol;
   },
 );

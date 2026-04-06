@@ -4,6 +4,7 @@
 /build
 /prisma/generated
 /src/generated
+/tmp
 
 # Logs
 logs

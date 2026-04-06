@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import nacl from 'tweetnacl';
 import { RoutingUnavailableException } from '../../common/exceptions/herald.exception';
 
 export interface DecryptParams {
@@ -94,12 +93,31 @@ export class EnclaveService {
 
   /**
    * Development mock: returns a deterministic test email.
-   * In real dev with local validator, this would use known test keypairs.
+   * Checks for DEV_DEBUG_EMAILS environment variable for manual overrides.
    */
   private async mockDecrypt(_params: DecryptParams): Promise<string> {
     await Promise.resolve();
-    // In dev mode, return a mock email for testing
-    return `test-${_params.ownerPubkey.slice(0, 8)}@herald-dev.xyz`;
+
+    // Check for debug mapping in .env
+    const mappingStr = this.config.get<string>('DEV_DEBUG_EMAILS');
+    if (mappingStr) {
+      try {
+        const mapping = JSON.parse(mappingStr);
+        if (mapping[_params.ownerPubkey]) {
+          this.logger.log(
+            `Using debug email override for ${_params.ownerPubkey}`,
+          );
+          return mapping[_params.ownerPubkey];
+        }
+      } catch (err) {
+        this.logger.error('Failed to parse DEV_DEBUG_EMAILS JSON', {
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    // fallback to deterministic mock
+    return `test-${_params.ownerPubkey.slice(0, 8)}@useherald-dev.xyz`;
   }
 
   private isValidEmail(s: unknown): boolean {

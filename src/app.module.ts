@@ -18,6 +18,7 @@ import { DomainModule } from './modules/domain/domain.module';
 import { ReceiptModule } from './modules/receipt/receipt.module';
 import { SolanaModule } from './solana/solana.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -74,6 +75,7 @@ import { RedisModule } from './modules/redis/redis.module';
     ReceiptModule,
     SolanaModule,
     BillingModule,
+    AdminModule,
     LoggerModule.forRoot({
       pinoHttp: {
         transport:

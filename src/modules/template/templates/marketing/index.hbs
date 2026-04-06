@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>{{subject}}</title>
+    <style>
+      /* Global styles */
+      body {
+        font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        font-size: 15px;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        -ms-text-size-adjust: 100%;
+        -webkit-text-size-adjust: 100%;
+        background-color: #060D18;
+        color: #CBD5E1;
+      }
+      table {
+        border-collapse: separate;
+        mso-table-lspace: 0pt;
+        mso-table-rspace: 0pt;
+        width: 100%;
+      }
+      table td {
+        font-family: inherit;
+        font-size: inherit;
+        vertical-align: top;
+      }
+
+      /* Container */
+      .wrapper {
+        width: 100%;
+        table-layout: fixed;
+        background-color: #060D18;
+        padding-bottom: 40px;
+      }
+      .main {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #0D1F35;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      /* Header */
+      .header {
+        background-color: #0A1628;
+        padding: 24px 32px;
+      }
+      .header-logo {
+        color: #00C896;
+        font-size: 20px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      /* Content Area */
+      .content {
+        padding: 32px;
+      }
+      .category-badge {
+        display: inline-block;
+        background: {{categoryColor category}};
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+      }
+      .protocol-name {
+        font-size: 14px;
+        color: #00C896;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #FFFFFF;
+        line-height: 1.3;
+        margin: 0 0 16px 0;
+      }
+      p {
+        margin: 0 0 16px 0;
+      }
+
+      /* Privacy Bar */
+      .privacy-notice {
+        background-color: #071520;
+        padding: 16px 32px;
+        font-size: 11px;
+        color: #2D4A5E;
+        text-align: center;
+      }
+
+      /* Footer */
+      .footer {
+        padding: 24px 32px;
+        font-size: 11px;
+        color: #4A5568;
+        text-align: center;
+      }
+      .footer a {
+        color: #64748B;
+        text-decoration: underline;
+      }
+      .herald-link {
+        color: #00C896 !important;
+        text-decoration: none !important;
+      }
+
+      /* Responsive */
+      @media only screen and (max-width: 620px) {
+        .main {
+          width: 100% !important;
+          border-radius: 0 !important;
+        }
+        .content {
+          padding: 24px !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td>&nbsp;</td>
+          <td class="main">
+            <!-- Header -->
+            <div class="header">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <a href="https://herald.xyz" class="header-logo">✉ Herald</a>
+                  </td>
+                  <td style="text-align: right; color: #64748B; font-size: 12px;">
+                    Sent via <strong class="herald-link">Herald</strong>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Body -->
+            <div class="content">
+              <div class="category-badge">{{category}}</div>
+              <div class="protocol-name">{{protocolName}}</div>
+              <h1>{{subject}}</h1>
+              <div class="body-text">
+                {{{body}}}
+              </div>
+            </div>
+
+            <!-- Privacy Notice -->
+            <div class="privacy-notice">
+              🔒 {{protocolName}} never sees your email address. Herald delivers
+              this message on their behalf — your privacy is protected on-chain.
+            </div>
+          </td>
+          <td>&nbsp;</td>
+        </tr>
+      </table>
+
+      <!-- Footer -->
+      <div class="footer">
+        You're receiving this because you registered with Herald at
+        <a href="https://notify.useherald.xyz" class="herald-link">notify.useherald.xyz</a>
+        <br /><br />
+        <a href="{{unsubscribeUrl}}">
+          Unsubscribe from {{protocolName}} notifications
+        </a>
+        <br /><br />
+        herald.xyz · notify.useherald.xyz
+      </div>
+    </div>
+  </body>
+</html>

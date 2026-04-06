@@ -71,7 +71,8 @@ export class AuthService {
     if (protocol.isSuspended) {
       throw new UnauthorizedException({
         error: 'AUTH_ACCOUNT_SUSPENDED',
-        message: 'Account suspended. Visit app.herald.xyz/billing to resolve.',
+        message:
+          'Account suspended. Visit app.useherald.xyz/billing to resolve.',
       });
     }
 

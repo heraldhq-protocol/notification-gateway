@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import mjml2html from 'mjml';
 import Handlebars from 'handlebars';
 import juice from 'juice';
-import { fileURLToPath } from 'url';
 
 export interface RenderParams {
   template: string;
@@ -19,9 +17,9 @@ export interface RenderedEmail {
 }
 
 /**
- * TemplateService — compiles MJML templates into cross-client HTML emails.
+ * TemplateService — compiles Handlebars templates into cross-client HTML emails.
  *
- * Pipeline: Handlebars (variable injection) → MJML (responsive email DSL) → juice (CSS inlining)
+ * Pipeline: Handlebars (variable injection) → juice (CSS inlining)
  *
  * Templates are loaded from the filesystem (templates/ directory).
  * Custom protocol templates are supported for Scale/Enterprise tiers.
@@ -32,8 +30,15 @@ export class TemplateService {
   private readonly templateDir: string;
 
   constructor() {
-    // Resolve template directory relative to this file
-    this.templateDir = path.join(__dirname, 'templates');
+    // Resolve template directory robustly for both local development and production
+    // Local: src/modules/template/templates
+    // Prod: dist/modules/template/templates
+    const isProd = process.env.NODE_ENV === 'production';
+    this.templateDir = isProd
+      ? path.join(process.cwd(), 'dist', 'modules', 'template', 'templates')
+      : path.join(process.cwd(), 'src', 'modules', 'template', 'templates');
+
+    this.logger.log(`Template directory initialized at: ${this.templateDir}`);
     this.registerHelpers();
   }
 
@@ -43,47 +48,42 @@ export class TemplateService {
   async render(params: RenderParams): Promise<RenderedEmail> {
     const { template, variables } = params;
 
-    let mjmlSource: string;
+    let hbsSource: string;
     try {
-      mjmlSource = await this.loadSystemTemplate(template);
+      hbsSource = await this.loadSystemTemplate(template);
     } catch {
       // Fallback to defi-alert if template not found
       this.logger.warn(`Template "${template}" not found, using defi-alert`);
-      mjmlSource = await this.loadSystemTemplate('defi-alert');
+      try {
+        hbsSource = await this.loadSystemTemplate('defi-alert');
+      } catch {
+        // Absolute fallback to base.hbs if even defi-alert is missing
+        this.logger.error('Failed to load fallback template defi-alert');
+        const basePath = path.join(this.templateDir, 'base.hbs');
+        hbsSource = await fs.promises.readFile(basePath, 'utf-8');
+      }
     }
 
-    // 1. Handlebars: inject variables into MJML source
-    const compiled = Handlebars.compile(mjmlSource);
-    const processedMjml = compiled(variables);
+    // 1. Handlebars: inject variables into HTML source
+    const compiled = Handlebars.compile(hbsSource);
+    const htmlWithVars = compiled(variables);
 
-    // 2. MJML: compile to responsive HTML
-    const { html, errors } = mjml2html(processedMjml, {
-      keepComments: false,
-      minify: true,
-    });
+    // 2. Juice: inline CSS for email client compatibility
+    const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
 
-    if (errors.length > 0) {
-      this.logger.warn('MJML compilation warnings', {
-        template,
-        errors: errors.map((e) => e.message),
-      });
-    }
-
-    // 3. Juice: inline CSS for email client compatibility
-    const inlinedHtml = juice(html, { removeStyleTags: false });
-
-    // 4. Plain text fallback
+    // 3. Plain text fallback
     const plainText = await this.renderPlainText(template, variables);
 
     return {
       html: inlinedHtml,
       text: plainText,
-      subject: variables.subject as string,
+      subject: (variables.subject as string) || 'Notification from Herald',
     };
   }
 
   private async loadSystemTemplate(name: string): Promise<string> {
-    const templatePath = path.join(this.templateDir, name, 'index.mjml');
+    const templatePath = path.join(this.templateDir, name, 'index.hbs');
+    this.logger.debug(`Loading template: ${templatePath}`);
     return fs.promises.readFile(templatePath, 'utf-8');
   }
 
@@ -108,7 +108,7 @@ export class TemplateService {
         `Unsubscribe: ${vars.unsubscribeUrl}`,
         '',
         '🔒 Privacy: Your email is protected by Herald.',
-        'herald.xyz · notify.herald.xyz',
+        'herald.xyz · notify.useherald.xyz',
       ].join('\n');
     }
   }

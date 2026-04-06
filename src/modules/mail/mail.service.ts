@@ -41,7 +41,7 @@ export class MailService {
         break;
       case 'ses':
         this.primaryProvider = this.sesProvider;
-        this.fallbackProvider = this.sendgridProvider; // fallback
+        this.fallbackProvider = this.resendProvider; // fallback
         break;
       case 'smtp':
       default:

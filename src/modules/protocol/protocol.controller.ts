@@ -2,6 +2,7 @@ import { Controller, Get, UseGuards, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProtocolService } from './protocol.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 
@@ -10,8 +11,9 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
  */
 @ApiTags('Protocol')
 @ApiBearerAuth()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ScopeGuard)
 @Controller('v1/protocols')
+@RequiredScopes('protocol:read')
 export class ProtocolController {
   constructor(private readonly protocolService: ProtocolService) {}
 

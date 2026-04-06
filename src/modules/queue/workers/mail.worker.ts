@@ -7,7 +7,6 @@ import { MailService } from '../../mail/mail.service';
 import { TemplateService } from '../../template/template.service';
 import { PrismaService } from '../../../database/prisma.service';
 import type { NotificationJobData } from '../../../common/types/notification.types';
-import { createHash } from 'crypto';
 
 /**
  * MailWorker — processes notification delivery jobs.
@@ -37,15 +36,8 @@ export class MailWorker extends WorkerHost {
   }
 
   async process(job: Job<NotificationJobData>): Promise<void> {
-    const {
-      notificationId,
-      wallet,
-      subject,
-      body,
-      category,
-      protocolName,
-      writeReceipt,
-    } = job.data;
+    const { notificationId, wallet, subject, body, category, protocolName } =
+      job.data;
 
     await this.prisma.notification.update({
       where: { id: notificationId },
@@ -78,16 +70,16 @@ export class MailWorker extends WorkerHost {
           subject,
           body,
           category,
-          unsubscribeUrl: `https://notify.herald.xyz/unsubscribe/${notificationId}`,
-          heraldLogoUrl: 'https://cdn.herald.xyz/logo-email.png',
+          unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/${notificationId}`,
+          heraldLogoUrl: 'https://cdn.useherald.xyz/logo-email.png',
         },
       });
 
       // ── Step 4: Send email ────────────────────────────────────
       const sendResult = await this.mailService.send({
         to: email, // In-memory only — never logged
-        from: `${protocolName} via Herald <noreply@herald.xyz>`,
-        replyTo: 'support@herald.xyz',
+        from: `${protocolName} via Herald <noreply@useherald.xyz>`,
+        replyTo: 'support@useherald.xyz',
         subject,
         html,
         text,
@@ -114,7 +106,7 @@ export class MailWorker extends WorkerHost {
       });
 
       // EMAIL VARIABLE IS NOW OUT OF SCOPE — GC will collect
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error('Notification delivery failed', {
         notificationId,
         error: (err as Error).message,
@@ -123,7 +115,7 @@ export class MailWorker extends WorkerHost {
         where: { id: notificationId },
         data: {
           status: 'failed',
-          errorCode: (err as Record<string, string>).code ?? 'DELIVERY_FAILED',
+          errorCode: String(err.code || err.statusCode || 'DELIVERY_FAILED'),
           retryCount: { increment: 1 },
         },
       });

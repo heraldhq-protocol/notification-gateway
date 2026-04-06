@@ -30,12 +30,12 @@ export class SubscriptionGuard implements CanActivate {
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
-    const protocol = req.protocol; // Assuming AuthenticatedRequest attaches Protocol
+    const protocol = req.authProtocol; // Set by AuthGuard
 
     if (!protocol) return true; // Let AuthGuard handle unauthorized
 
     const subscription = await this.subscriptionRepo.findByProtocolId(
-      protocol.id,
+      protocol.protocolId,
     );
 
     // Dev tier (0) is free
@@ -69,7 +69,7 @@ export class SubscriptionGuard implements CanActivate {
         sendsUsed: Number(subscription.sendsThisPeriod),
         sendsLimit: tierLimits,
         periodResetAt: subscription.periodResetAt.toISOString(),
-        upgradeUrl: 'https://app.herald.xyz/billing/upgrade',
+        upgradeUrl: 'https://app.useherald.xyz/billing/upgrade',
       });
     }
 
@@ -84,7 +84,7 @@ export class SubscriptionGuard implements CanActivate {
       );
       return result.checkoutUrl;
     } catch {
-      return 'https://app.herald.xyz/billing';
+      return 'https://app.useherald.xyz/billing';
     }
   }
 }

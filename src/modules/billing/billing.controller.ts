@@ -31,7 +31,7 @@ export class BillingController {
     summary: 'Get subscription status and usage for authenticated protocol',
   })
   async getStatus(@Req() req: any) {
-    return this.billingService.getStatus(req.protocol.protocolId);
+    return this.billingService.getStatus(req.authProtocol.protocolId);
   }
 
   @Post('checkout')
@@ -43,7 +43,7 @@ export class BillingController {
     @Body() dto: { tier: number; months?: number },
   ) {
     const protocol = await this.protocolService.findById(
-      req.protocol.protocolId,
+      req.authProtocol.protocolId,
     );
     if (!protocol) throw new Error('Protocol not found');
 
@@ -61,7 +61,7 @@ export class BillingController {
   })
   async cancelSubscription(@Req() req: any) {
     await this.subscriptionService.scheduleCancellation(
-      req.protocol.protocolId,
+      req.authProtocol.protocolId,
     );
     return { message: 'Subscription will cancel at end of current period.' };
   }
@@ -73,7 +73,7 @@ export class BillingController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.billingService.getPaymentHistory(req.protocol.protocolId, {
+    return this.billingService.getPaymentHistory(req.authProtocol.protocolId, {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
     });
@@ -88,6 +88,6 @@ export class BillingController {
   @Get('usage')
   @ApiOperation({ summary: 'Get current period usage stats' })
   async getUsage(@Req() req: any) {
-    return this.billingService.getUsageStats(req.protocol.protocolId);
+    return this.billingService.getUsageStats(req.authProtocol.protocolId);
   }
 }

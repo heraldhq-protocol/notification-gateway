@@ -6,7 +6,6 @@ import {
   Delete,
   Body,
   Param,
-  Query,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -16,6 +15,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiProperty,
+  ApiPropertyOptional,
 } from '@nestjs/swagger';
 import {
   IsString,
@@ -24,13 +25,14 @@ import {
   IsOptional,
   MaxLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
-import { createHash, randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
 import bs58 from 'bs58';
+import { WebhookService } from './webhook.service';
 
 // ── DTOs ───────────────────────────────────────────────────────────
 
@@ -83,13 +85,11 @@ export class WebhookUpdateResponseDto {
   @ApiProperty() updated: boolean;
 }
 
-import { WebhookService } from './webhook.service';
-
 // ── Controller ─────────────────────────────────────────────────────
 
 @ApiTags('Webhooks')
 @ApiBearerAuth()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ScopeGuard)
 @Controller('v1/webhooks')
 export class WebhookController {
   constructor(
@@ -98,6 +98,7 @@ export class WebhookController {
   ) {}
 
   @Post()
+  @RequiredScopes('webhook:write')
   @ApiOperation({ summary: 'Register a webhook endpoint' })
   @ApiResponse({
     status: 201,
@@ -134,6 +135,7 @@ export class WebhookController {
   }
 
   @Get()
+  @RequiredScopes('webhook:read')
   @ApiOperation({ summary: 'List registered webhooks' })
   @ApiResponse({ status: 200, type: [WebhookResponseDto] })
   async list(
@@ -156,6 +158,7 @@ export class WebhookController {
   }
 
   @Patch(':id')
+  @RequiredScopes('webhook:write')
   @ApiOperation({ summary: 'Update webhook (events, url, active status)' })
   @ApiResponse({ status: 200, type: WebhookUpdateResponseDto })
   async update(
@@ -176,6 +179,7 @@ export class WebhookController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @RequiredScopes('webhook:write')
   @ApiOperation({ summary: 'Remove webhook endpoint' })
   async remove(
     @Param('id') id: string,
@@ -187,6 +191,7 @@ export class WebhookController {
   }
 
   @Post(':id/test')
+  @RequiredScopes('webhook:write')
   @ApiOperation({ summary: 'Send a test payload to webhook endpoint' })
   async test(
     @Param('id') id: string,

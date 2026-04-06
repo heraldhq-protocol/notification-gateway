@@ -44,7 +44,7 @@ export class SolanaService {
     walletPubkey: string,
   ): Promise<IdentityAccount | null> {
     try {
-      const connection = this.rpcManager.getConnection();
+      // const connection = this.rpcManager.getConnection();
 
       // Use the SDK's ReadClient for proper deserialization
       const identity = await this.readClient.fetchIdentityAccount(
@@ -104,5 +104,52 @@ export class SolanaService {
     return sendAndConfirmTransaction(connection, tx, signers, {
       commitment: 'confirmed',
     });
+  }
+
+  /**
+   * Fetch ALL registered Herald identity accounts.
+   * WARNING: This uses getProgramAccounts which can be expensive.
+   * Should only be used for platform-wide broadcasts by Herald Admin.
+   */
+  async fetchAllIdentities(): Promise<string[]> {
+    try {
+      const connection = this.rpcManager.getConnection();
+      const programId = new PublicKey(
+        this.config.get<string>('HERALD_PROGRAM_ID') ??
+          '2pxjAf8tLCakKVDuN4vY51B5TeaEQk4koPuk9NZvWqdf',
+      );
+
+      // Anchor discriminator for "identityAccount"
+      const discriminator = Buffer.from([
+        194, 90, 181, 160, 182, 206, 116, 158,
+      ]);
+
+      const accounts = await connection.getProgramAccounts(programId, {
+        commitment: 'confirmed',
+        filters: [
+          {
+            memcmp: {
+              offset: 0,
+              bytes: discriminator.toString('base64'),
+              encoding: 'base64',
+            },
+          },
+        ],
+        // Only fetch the owner field (offset 8, size 32) + discriminator
+        // But getProgramAccounts typically returns full data or just pubkey
+        dataSlice: { offset: 8, length: 32 },
+      });
+
+      this.rpcManager.recordSuccess();
+
+      // Deserialise the owner pubkey from the data slice
+      return accounts.map((a) => new PublicKey(a.account.data).toBase58());
+    } catch (err) {
+      this.rpcManager.recordFailure();
+      this.logger.error('Failed to fetch all identities', {
+        error: (err as Error).message,
+      });
+      throw new RegistryUnavailableException();
+    }
   }
 }
