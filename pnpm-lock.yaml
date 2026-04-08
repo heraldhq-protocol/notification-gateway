@@ -18,8 +18,8 @@ importers:
         specifier: ^3.1024.0
         version: 3.1024.0
       '@herald-protocol/sdk':
-        specifier: file:..\herald-sdk-ts
-        version: file:../herald-sdk-ts(@nestjs/common@11.1.17(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+        specifier: ^1.1.0
+        version: 1.1.0(@nestjs/common@11.1.17(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@lightprotocol/stateless.js':
         specifier: ^0.23.3
         version: 0.23.3(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
@@ -753,8 +753,8 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@herald-protocol/sdk@file:../herald-sdk-ts':
-    resolution: {directory: ../herald-sdk-ts, type: directory}
+  '@herald-protocol/sdk@1.1.0':
+    resolution: {integrity: sha512-PHuXqLkZoRnATRE0k73m60MT4VaelYlNOIAFVCyXkS97FJxDPb4/UeuprweexKbFitVwlB5ESthQ4TaemLHSLw==}
     engines: {node: '>=18.0.0'}
 
   '@hono/node-server@1.19.9':
@@ -6036,7 +6036,7 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@herald-protocol/sdk@file:../herald-sdk-ts(@nestjs/common@11.1.17(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)':
+  '@herald-protocol/sdk@1.1.0(@nestjs/common@11.1.17(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)':
     dependencies:
       '@coral-xyz/anchor': 0.30.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@lightprotocol/stateless.js': 0.17.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)

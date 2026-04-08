@@ -1,0 +1,24 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ec2-13-60-198-43.eu-north-1.compute.amazonaws.com
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/notification-gateway
+            git pull origin main
+            pnpm install
+            pnpm build
+            pm2 restart herald-notification-gateway
