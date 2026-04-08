@@ -91,6 +91,7 @@ export class MailWorker extends WorkerHost {
           subject: formattedSubject,
           body,
           category,
+          recipientAddress: wallet,
           unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/${notificationId}`,
           heraldLogoUrl: 'https://cdn.useherald.xyz/logo-email.png',
         },
@@ -105,8 +106,11 @@ export class MailWorker extends WorkerHost {
         html,
         text,
         headers: {
+          'X-Herald-Protocol': protocolName,
           'X-Herald-Notification-Id': notificationId,
-          'X-Herald-Category': category,
+          'X-Herald-Timestamp': new Date().toISOString(),
+          'List-Unsubscribe': `<https://notify.useherald.xyz/unsubscribe/${notificationId}>`,
+          Precedence: 'bulk',
         },
       });
 

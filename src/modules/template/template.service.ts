@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 import juice from 'juice';
+import { marked } from 'marked';
 
 export interface RenderParams {
   template: string;
@@ -97,18 +98,34 @@ export class TemplateService {
       const compiled = Handlebars.compile(source);
       return compiled(vars);
     } catch {
-      // Generate a simple plain text version from variables
+      // Generate a refined plain text version for deliverability
+      const protocol = (vars.protocolName as string) || 'Herald';
+      const subject = (vars.subject as string) || 'Notification';
+      const recipient =
+        (vars.recipientAddress as string) || 'Encrypted Identity';
+
       return [
-        `${vars.protocolName}: ${vars.subject}`,
-        '─'.repeat(60),
+        'HERALD NOTIFICATION INFRASTRUCTURE',
+        '================================',
+        '',
+        `Source Protocol: ${protocol}`,
+        `Subject: ${subject}`,
+        '',
+        '--------------------------------',
         '',
         vars.body,
         '',
-        '─'.repeat(60),
-        `Unsubscribe: ${vars.unsubscribeUrl}`,
+        '--------------------------------',
         '',
-        '🔒 Privacy: Your email is protected by Herald.',
-        'herald.xyz · notify.useherald.xyz',
+        'Zero-PII delivery protocol • ' +
+          protocol +
+          ' cannot access recipient identity • Relayed by Herald Network',
+        '',
+        '--------------------------------',
+        '',
+        'Delivered via Herald API | https://useherald.xyz',
+        `Unsubscribe: ${vars.unsubscribeUrl}`,
+        `Recipient: ${recipient}`,
       ].join('\n');
     }
   }
@@ -124,12 +141,33 @@ export class TemplateService {
       'categoryColor',
       (category: string) =>
         ({
-          defi: '#D63031',
-          governance: '#5B35D5',
-          system: '#E8920A',
-          marketing: '#27AE60',
-        })[category] ?? '#64748B',
+          defi: '#00C896',
+          governance: '#8B5CF6',
+          system: '#F59E0B',
+          marketing: '#10B981',
+          security: '#EF4444',
+        })[category] ?? '#00C896',
     );
+    Handlebars.registerHelper(
+      'categoryClass',
+      (category: string) =>
+        ({
+          defi: 'defi',
+          governance: 'governance',
+          system: 'system',
+          marketing: 'marketing',
+          security: 'security',
+          liquidation: 'liquidation',
+          yield: 'yield',
+        })[category] ?? 'defi',
+    );
+    Handlebars.registerHelper('markdown', (content: string) => {
+      if (!content) return '';
+      // Convert markdown to HTML and return as safe string
+      return new Handlebars.SafeString(
+        marked.parse(content, { gfm: true }) as string,
+      );
+    });
     Handlebars.registerHelper('repeat', (str: string, count: number) =>
       str.repeat(count),
     );

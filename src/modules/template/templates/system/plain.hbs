@@ -1,13 +1,28 @@
+HERALD NOTIFICATION INFRASTRUCTURE ================================ Source
+Protocol:
 {{protocolName}}
-- System Alert:
+Subject:
 {{subject}}
-{{repeat '─' 60}}
+
+--------------------------------
 
 {{body}}
 
-────────────────────────────────────────────────────────── Unsubscribe:
-{{unsubscribeUrl}}
+{{#if txHash}}
+  Transaction Reference:
+  {{txHash}}
+{{/if}}
 
-🔒 Privacy:
+{{#if actionUrl}}
+  Action Required:
+  {{actionUrl}}
+{{/if}}
+
+-------------------------------- Zero-PII delivery protocol •
 {{protocolName}}
-never sees your email. Delivered via Herald. herald.xyz · notify.useherald.xyz
+cannot access recipient identity • Relayed by Herald Network
+-------------------------------- Delivered via Herald API |
+https://useherald.xyz Unsubscribe:
+{{unsubscribeUrl}}
+Recipient:
+{{recipientAddress}}
