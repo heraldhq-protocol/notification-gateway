@@ -49,7 +49,7 @@ export const EnvironmentSchema = z.object({
   // ── Production (AWS SES) ──────────────────────────────────────────
   SES_FROM_ADDRESS: z.string().default('noreply@useherald.xyz'),
   SES_REGION: z.string().default('us-east-1'),
-  SES_CONFIGURATION_SET: z.string().default('herald-main'),
+  SES_CONFIGURATION_SET: z.string().optional(),
 
   // ── SendGrid fallback ─────────────────────────────────────────────
   SENDGRID_API_KEY: z.string().optional(),

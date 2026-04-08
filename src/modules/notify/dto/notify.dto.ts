@@ -5,7 +5,11 @@ import {
   IsBoolean,
   IsOptional,
   IsUUID,
+  IsArray,
+  ArrayMaxSize,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -38,11 +42,11 @@ export class NotifyDto {
 
   @ApiPropertyOptional({
     description: 'Notification category',
-    enum: ['defi', 'governance', 'system', 'marketing'],
+    enum: ['defi', 'governance', 'system', 'marketing', 'security'],
     default: 'defi',
   })
   @IsOptional()
-  @IsIn(['defi', 'governance', 'system', 'marketing'])
+  @IsIn(['defi', 'governance', 'system', 'marketing', 'security'])
   category?: string = 'defi';
 
   @ApiPropertyOptional({
@@ -70,6 +74,10 @@ export class NotifyBatchDto {
     description: 'Array of notification payloads (max 100)',
     type: [NotifyDto],
   })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => NotifyDto)
   notifications: NotifyDto[];
 }
 
