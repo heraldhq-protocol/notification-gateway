@@ -17,8 +17,27 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Install PM2 if missing
+            if ! command -v pm2 &> /dev/null; then
+              npm install -g pm2
+            fi
+
             cd ~/notification-gateway
             git pull origin main
+
+            # Clean install (fixes corrupted node_modules)
+            rm -rf node_modules
+
             pnpm install
             pnpm build
-            pm2 restart herald-notification-gateway
+            
+            # Start or Restart
+            if pm2 describe herald-notification-gateway > /dev/null 2>&1; then
+              echo "Restarting existing process..."
+              pm2 restart herald-notification-gateway
+            else
+              echo "Starting new process..."
+              pm2 start dist/main.js --name "herald-notification-gateway"
+            fi
+            
+            pm2 save
