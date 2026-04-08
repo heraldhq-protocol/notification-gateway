@@ -3,10 +3,19 @@ name: Deploy to EC2
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      clean_install:
+        description: 'Force a clean reinstall (wipes node_modules)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CLEAN_BUILD: ${{ github.event.inputs.clean_install == 'true' || contains(github.event.head_commit.message, '[clean]') }}
     steps:
       - uses: actions/checkout@v3
       
@@ -17,11 +26,14 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Set Clean Build flag
+            CLEAN_BUILD="${{ env.CLEAN_BUILD }}"
+            
             # Ensure GitHub is in known_hosts
             mkdir -p ~/.ssh
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
             
-            # Setup Git credentials (use HTTPS with token to avoid auth issues)
+            # Setup Git credentials
             cd ~/notification-gateway
             git remote set-url origin https://${{ secrets.GH_PAT }}@github.com/heraldhq-protocol/notification-gateway.git
 
@@ -33,19 +45,19 @@ jobs:
             cd ~/notification-gateway
             git pull origin main
 
-            # Clean install (fixes corrupted node_modules)
-            rm -rf node_modules
+            # Conditional Clean Install
+            if [ "$CLEAN_BUILD" = "true" ]; then
+              echo "⚠️ Performing clean install..."
+              rm -rf node_modules pnpm-lock.yaml
+            fi
 
+            # Efficient dependency install
             pnpm install
+
+            # Build the application
             pnpm build
             
-            # Start or Restart
-            if pm2 describe herald-notification-gateway > /dev/null 2>&1; then
-              echo "Restarting existing process..."
-              pm2 restart herald-notification-gateway
-            else
-              echo "Starting new process..."
-              pm2 start dist/main.js --name "herald-notification-gateway"
-            fi
+            # Start or Reload using Ecosystem file
+            pm2 startOrReload ecosystem.config.js --update-env
             
             pm2 save
