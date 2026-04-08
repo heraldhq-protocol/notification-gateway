@@ -55,7 +55,7 @@ export const EnvironmentSchema = z.object({
   SENDGRID_API_KEY: z.string().optional(),
 
   // ── DKIM ──────────────────────────────────────────────────────────
-  DKIM_DOMAIN: z.string().default('herald.xyz'),
+  DKIM_DOMAIN: z.string().default('useherald.xyz'),
   DKIM_KEY_SELECTOR: z.string().default('herald2026'),
 
   // ── Arweave / Irys ────────────────────────────────────────────────
