@@ -1,4 +1,9 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import {
   KMSClient,
@@ -174,18 +179,28 @@ export class DkimService {
     const key = await this.prisma.dkimKey.findFirst({
       where: { id, protocolId },
     });
-    if (!key) throw new Error('DKIM key not found');
+    if (!key) throw new NotFoundException('DKIM key not found');
 
     try {
-      // Register the domain with SES using Easy DKIM (SES-managed signing keys).
-      await this.ses.send(
-        new CreateEmailIdentityCommand({
-          EmailIdentity: key.domain,
-          // No DkimSigningAttributes = Easy DKIM mode (SES generates and manages keys)
-        }),
-      );
+      // 1. Attempt to create the identity (idempotent)
+      try {
+        await this.ses.send(
+          new CreateEmailIdentityCommand({
+            EmailIdentity: key.domain,
+            // No DkimSigningAttributes = Easy DKIM mode (SES generates and manages keys)
+          }),
+        );
+      } catch (err: any) {
+        if (err.name === 'AlreadyExistsException') {
+          this.logger.log(
+            `SES identity for ${key.domain} already exists, proceeding to fetch status.`,
+          );
+        } else {
+          throw err;
+        }
+      }
 
-      // Fetch current verification status and the CNAME records to publish
+      // 2. Fetch current verification status and the CNAME records to publish
       const status = await this.ses.send(
         new GetEmailIdentityCommand({ EmailIdentity: key.domain }),
       );
@@ -205,8 +220,12 @@ export class DkimService {
         })),
         instructions: `For each item in cnameRecords, add a CNAME record to your DNS provider. Name/Host: [the 'name' string] (Tip: If your DNS provider auto-appends your root domain, omit it from the Name/Host field). Target/Value: [the 'value' string]. Verification may take up to 72h.`,
       };
-    } catch (error) {
-      this.logger.error(`SES registration failed for ${key.domain}:`, error);
+    } catch (error: any) {
+      this.logger.error(`SES registration failed for ${key.domain}:`, {
+        name: error.name,
+        message: error.message,
+        requestId: error.$metadata?.requestId,
+      });
       throw new Error('Failed to register domain with SES');
     }
   }
