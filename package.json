@@ -25,6 +25,7 @@
     "@aws-sdk/client-ses": "^3.1012.0",
     "@aws-sdk/client-sesv2": "^3.1024.0",
     "@herald-protocol/sdk": "file:..\\herald-sdk-ts",
+    "@lightprotocol/stateless.js": "^0.23.3",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",

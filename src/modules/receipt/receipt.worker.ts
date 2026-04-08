@@ -5,7 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import {
   PublicKey,
   Keypair,
-  Connection,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
@@ -43,17 +42,42 @@ export class ReceiptWorker extends WorkerHost {
         commitment: 'confirmed',
       });
 
-      // Initialize the Authority Keypair (assuming it's in the environment as base58 secret)
+      // Decode the authority keypair from the base58 secret in env
       const secret = this.config.get<string>('HERALD_AUTHORITY_SECRET');
-      if (secret) {
-        // Here we'd ideally use KMS to sign, but for now we create a Keypair.
-        // The instructions ask for writeReceipt which requires an authority signer.
-        // Actually AuthorityClient outputs unsigned instructions.
-        this.authorityKeypair = Keypair.generate(); // Placeholder until KMS signing is wired
+      if (
+        secret &&
+        secret !== 'base58-encoded-secret-key' &&
+        secret !== 'your-local-keypair-secret'
+      ) {
+        const secretBytes = bs58.decode(secret);
+        this.authorityKeypair = Keypair.fromSecretKey(secretBytes);
+      } else {
+        this.logger.warn(
+          'HERALD_AUTHORITY_SECRET not configured — receipt signing will fail',
+        );
       }
-    } catch (e) {
+    } catch {
       this.logger.warn('Failed to initialize AuthorityClient for receipts');
     }
+  }
+
+  private async getOrCreateOutputTree(): Promise<PublicKey> {
+    const configTree = this.config.get<string>('LIGHT_OUTPUT_TREE');
+
+    if (configTree && configTree !== PublicKey.default.toBase58()) {
+      return new PublicKey(configTree);
+    }
+
+    // For local dev: Create tree if not exists (only for testing)
+    const env = await this.lightClient.getClusterType();
+    if (env === 'local') {
+      this.logger.warn(
+        'No output tree configured, using default for local testing',
+      );
+      return PublicKey.default; // Local validator often has a default tree
+    }
+
+    throw new Error('LIGHT_OUTPUT_TREE must be configured for devnet/mainnet');
   }
 
   async process(job: Job<any, any, string>): Promise<void> {
@@ -70,10 +94,7 @@ export class ReceiptWorker extends WorkerHost {
         throw new Error('AuthorityClient missing');
       }
 
-      // Hardcoded output tree for simplicity, typically this comes from protocol config or globally
-      const outputTreeStr =
-        this.config.get<string>('LIGHT_OUTPUT_TREE') ||
-        PublicKey.default.toBase58();
+      const outputTree = await this.getOrCreateOutputTree();
 
       for (const notification of notifications) {
         try {
@@ -86,7 +107,7 @@ export class ReceiptWorker extends WorkerHost {
 
           // 1. Fetch ValidityProof from Light Protocol
           const validityProof =
-            await this.lightClient.getValidityProof(outputTreeStr);
+            await this.lightClient.getValidityProof(outputTree);
 
           // 2. Parse hash to bytes
           const recipientHashBytes = Buffer.from(
@@ -100,7 +121,7 @@ export class ReceiptWorker extends WorkerHost {
             'hex',
           );
 
-          // 3. Build instruction
+          // 3. Build instruction using the Photon proof fields
           const ix = await this.authorityClient.writeReceipt({
             authority: this.authorityKeypair?.publicKey || PublicKey.default,
             protocolOwner: new PublicKey(protocolOwner),
@@ -109,11 +130,11 @@ export class ReceiptWorker extends WorkerHost {
             recipientHash: new Uint8Array(recipientHashBytes),
             notificationId: new Uint8Array(notificationIdBytes),
             category: 1, // mapping from string -> int category
-            lightRemainingAccounts: validityProof.remainingAccounts.map(
-              (acc: any) => ({
-                pubkey: new PublicKey(acc.pubkey),
-                isSigner: acc.isSigner,
-                isWritable: acc.isWritable,
+            lightRemainingAccounts: (validityProof.merkleTrees ?? []).map(
+              (treePubkey: string) => ({
+                pubkey: new PublicKey(treePubkey),
+                isSigner: false,
+                isWritable: true,
               }),
             ),
           });
