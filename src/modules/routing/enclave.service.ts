@@ -64,21 +64,46 @@ export class EnclaveService {
         );
       });
 
-      socket.once('data', (data) => {
+      let buffer = '';
+      socket.on('data', (data) => {
+        buffer += data.toString();
+        // Simple heuristic: if it ends with newline or '}', try to parse
+        if (buffer.endsWith('\\n') || buffer.endsWith('}')) {
+          try {
+            const response = JSON.parse(buffer);
+            clearTimeout(timeout);
+            socket.destroy();
+            if (response.error) {
+              reject(new RoutingUnavailableException());
+              return;
+            }
+            if (!this.isValidEmail(response.email)) {
+              reject(new Error('Enclave returned invalid email'));
+              return;
+            }
+            resolve(response.email);
+          } catch {
+            // Not a complete JSON yet, ignore and wait for more data
+          }
+        }
+      });
+
+      socket.on('end', () => {
         clearTimeout(timeout);
-        socket.destroy();
         try {
-          const response = JSON.parse(data.toString());
+          const response = JSON.parse(buffer);
           if (response.error) {
             reject(new RoutingUnavailableException());
             return;
           }
-          if (!this.isValidEmail(response.email)) {
-            reject(new Error('Enclave returned invalid email'));
+          if (this.isValidEmail(response.email)) {
+            resolve(response.email);
             return;
           }
-          resolve(response.email);
-        } catch {
+        } catch (err) {
+          // ignore parsing error since socket is ending
+        }
+        if (!socket.destroyed) {
           reject(new RoutingUnavailableException());
         }
       });

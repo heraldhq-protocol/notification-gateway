@@ -39,7 +39,17 @@ export class RoutingService {
     try {
       const cached = await this.redis.get(cacheKey);
       if (cached === 'NOT_REGISTERED') return null;
-      if (cached) return JSON.parse(cached) as IdentityAccount;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return {
+          ...parsed,
+          encryptedEmail: new Uint8Array(
+            Buffer.from(parsed.encryptedEmail, 'base64'),
+          ),
+          emailHash: new Uint8Array(Buffer.from(parsed.emailHash, 'base64')),
+          nonce: new Uint8Array(Buffer.from(parsed.nonce, 'base64')),
+        } as IdentityAccount;
+      }
     } catch {
       // Cache read failure — fall through to Solana
     }
