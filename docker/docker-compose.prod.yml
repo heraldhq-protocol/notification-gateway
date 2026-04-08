@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # ── Herald Gateway (Producing Stage) ──────────────────────────────────
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: herald-gateway
+    restart: always
+    environment:
+      - NODE_ENV=production
+      # Sourced from .env file on host
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - NITRO_ENCLAVE_SOCKET=/run/enclave.sock
+    volumes:
+      # Share the Unix socket with the mock enclave
+      - shared-run:/run
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mock-enclave
+
+  # ── Mock Enclave ($0 Budget TEE Simulation) ──────────────────────────
+  # This container mimics the Nitro Enclave socket protocol.
+  mock-enclave:
+    image: node:20-alpine
+    container_name: mock-enclave
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./mock-enclave.js:/app/mock-enclave.js
+      - shared-run:/run
+    command: node /app/mock-enclave.js
+
+volumes:
+  # Use a shared volume for the Unix socket
+  shared-run:
