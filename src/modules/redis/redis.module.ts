@@ -10,16 +10,17 @@ import Redis from 'ioredis';
       provide: 'REDIS_CLIENT',
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        return new Redis(
-          config.get<string>('REDIS_URL', 'redis://localhost:6379'),
-          {
-            maxRetriesPerRequest: 3,
-            enableReadyCheck: true,
-            retryStrategy(times) {
-              return Math.min(times * 200, 5000);
-            },
+        const url = config.get<string>('REDIS_URL', 'redis://localhost:6379');
+        const isSecure = url.startsWith('rediss://');
+
+        return new Redis(url, {
+          maxRetriesPerRequest: 3,
+          enableReadyCheck: true,
+          tls: isSecure ? {} : undefined,
+          retryStrategy(times) {
+            return Math.min(times * 200, 5000);
           },
-        );
+        });
       },
     },
   ],

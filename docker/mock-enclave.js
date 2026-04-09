@@ -9,14 +9,19 @@ const path = require('path');
  * It follows the JSON-based protocol used by the Herald Notification Gateway.
  * 
  * Architectural Pattern:
- * Gateway (Client) -> UNIX Socket (/run/enclave.sock) -> This Script (Server)
+ * Gateway (Client) -> UNIX Socket (./socket.sock) -> This Script (Server)
  */
 
-const SOCKET_PATH = process.env.NITRO_ENCLAVE_SOCKET || '/run/enclave.sock';
+const SOCKET_PATH = process.env.NITRO_ENCLAVE_SOCKET || path.join(__dirname, '../socket.sock');
 
 // Cleanup existing socket if it exists
-if (fs.existsSync(SOCKET_PATH)) {
-  fs.unlinkSync(SOCKET_PATH);
+try {
+  if (fs.existsSync(SOCKET_PATH)) {
+    console.log(`Cleaning up existing socket at ${SOCKET_PATH}`);
+    fs.unlinkSync(SOCKET_PATH);
+  }
+} catch (err) {
+  console.warn(`Warning: Could not cleanup socket: ${err.message}`);
 }
 
 const server = net.createServer((socket) => {
@@ -63,7 +68,11 @@ const server = net.createServer((socket) => {
 server.listen(SOCKET_PATH, () => {
   console.log(`Mock Enclave listening on ${SOCKET_PATH}`);
   // Ensure the socket is world-writable so the Gateway container can access it
-  fs.chmodSync(SOCKET_PATH, '666');
+  try {
+    fs.chmodSync(SOCKET_PATH, '666');
+  } catch (err) {
+    console.warn(`Warning: Could not set permissions on socket: ${err.message}`);
+  }
 });
 
 // Handle termination

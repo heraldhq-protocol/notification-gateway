@@ -43,6 +43,7 @@ jobs:
             fi
 
             cd ~/notification-gateway
+            export NODE_OPTIONS="--max-old-space-size=450"
             
             # Force sync with repository while preserving .env
             git fetch origin main
@@ -58,10 +59,19 @@ jobs:
             # Efficient dependency install
             pnpm install
 
+            # Explicitly generate Prisma Client for the target architecture
+            pnpm db:generate
+
             # Build the application
             pnpm build
             
-            # Start or Reload using Ecosystem file
-            pm2 startOrReload ecosystem.config.js --update-env
+            # Reset processes to ensure fresh socket binding
+            # Use 'pm2 delete' for the mock-enclave specifically as it binds to a file
+            pm2 stop all || true
+            pm2 delete mock-enclave || true
+            
+            # Start/Reload everything using Ecosystem file
+            pm2 start ecosystem.config.js --update-env
             
             pm2 save
+            pm2 status

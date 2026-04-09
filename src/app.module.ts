@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
-import { Redis } from 'ioredis';
 
 import { loadConfiguration } from './config/configuration';
 import { PrismaModule } from './database/prisma.module';
@@ -49,18 +48,27 @@ import { RedisModule } from './modules/redis/redis.module';
 
     // ── BullMQ (Redis-backed queues) ──────────────────────────
     BullModule.forRootAsync({
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: new URL(
-            config.get<string>('REDIS_URL', 'redis://localhost:6379'),
-          ).hostname,
-          port: parseInt(
-            new URL(config.get<string>('REDIS_URL', 'redis://localhost:6379'))
-              .port || '6379',
-            10,
-          ),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>(
+          'REDIS_URL',
+          'redis://localhost:6379',
+        );
+        const url = new URL(redisUrl);
+
+        return {
+          connection: {
+            host: url.hostname,
+            port: parseInt(url.port || '6379', 10),
+            password: url.password
+              ? decodeURIComponent(url.password)
+              : undefined,
+            username: url.username
+              ? decodeURIComponent(url.username)
+              : undefined,
+            tls: redisUrl.startsWith('rediss://') ? {} : undefined,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
 
