@@ -30,6 +30,8 @@ model Protocol {
   subscription          Subscription?
   team_members          team_members[]
   webhooks              Webhook[]
+  bimi_records          BimiRecord[]
+  bimi_verification_logs bimi_verification_log[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -274,6 +276,8 @@ model protocol_settings {
   admin_email_encrypted   Bytes?
   website_url             String?
   logo_url                String?
+  logo_verified_at        DateTime? @map("logo_verified_at") @db.Timestamptz(6)
+  bimi_enabled            Boolean   @default(false) @map("bimi_enabled")
   notification_categories String[] @default(["defi", "governance", "system"])
   custom_from_name        String?  @db.VarChar(100)
   helio_subscription_id   String?  @db.VarChar(100)
@@ -319,4 +323,35 @@ model unsubscribe_tokens {
   portal_users portal_users @relation(fields: [wallet_hash], references: [wallet_hash], onDelete: Cascade)
 
   @@index([expires_at])
+}
+
+model BimiRecord {
+  id                String    @id @default(uuid()) @db.Uuid
+  protocolId        String    @map("protocol_id") @db.Uuid
+  domain            String    @db.VarChar(255)
+  selector          String    @default("default") @db.VarChar(63)
+  logoUrl           String    @map("logo_url")
+  vmcUrl            String?   @map("vmc_url")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  dmarcVerified     Boolean   @default(false) @map("dmarc_verified")
+  dnsRecordPublished Boolean  @default(false) @map("dns_record_published")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  protocol          Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@unique([protocolId, domain])
+  @@map("bimi_records")
+}
+
+model bimi_verification_log {
+  id          String   @id @default(uuid()) @db.Uuid
+  protocolId  String   @map("protocol_id") @db.Uuid
+  domain      String   @db.VarChar(255)
+  checkType   String   @db.VarChar(20) // 'dmarc', 'dns', 'logo'
+  status      String   @db.VarChar(20) // 'pass', 'fail'
+  details     Json?
+  checkedAt   DateTime @default(now()) @db.Timestamptz(6)
+  protocol    Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@map("bimi_verification_logs")
 }

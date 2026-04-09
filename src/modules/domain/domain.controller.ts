@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,11 +17,13 @@ import {
   ApiBearerAuth,
   ApiProperty,
 } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsString, IsUrl, IsOptional } from 'class-validator';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import { DkimService } from './dkim.service';
+import { BimiService } from './bimi.service';
+import { PrismaService } from '../../database/prisma.service';
 
 export class CreateDomainDto {
   @ApiProperty({ example: 'alerts.myprotocol.com' })
@@ -30,6 +33,29 @@ export class CreateDomainDto {
   @ApiProperty({ example: 'herald', required: false })
   @IsString()
   selector?: string = 'herald';
+}
+
+export class UpsertBimiDto {
+  @ApiProperty({
+    example:
+      'https://ucshdejvxzanuxlxrano.supabase.co/storage/v1/object/public/herald-public-asset/herald-logo.svg',
+  })
+  @IsUrl()
+  logo_url: string;
+
+  @ApiProperty({
+    example: 'https://useherald.xyz/vmc.pem',
+    required: false,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUrl()
+  vmc_url?: string;
+
+  @ApiProperty({ example: 'default', required: false })
+  @IsOptional()
+  @IsString()
+  selector?: string = 'default';
 }
 
 export class DkimKeyResponseDto {
@@ -46,7 +72,11 @@ export class DkimKeyResponseDto {
 @UseGuards(AuthGuard)
 @Controller('v1/domains')
 export class DomainController {
-  constructor(private readonly dkimService: DkimService) {}
+  constructor(
+    private readonly dkimService: DkimService,
+    private readonly bimiService: BimiService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -114,5 +144,127 @@ export class DomainController {
     @ApiKey() protocol: AuthenticatedProtocol,
   ) {
     await this.dkimService.deleteDomainKey(id, protocol.protocolId);
+  }
+
+  // ── BIMI Endpoints ──────────────────────────────────────────
+
+  @Get(':id/bimi/check')
+  @ApiOperation({ summary: 'Check domain eligibility for BIMI (DMARC check)' })
+  async checkBimi(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    const domainKey = await this.prisma.dkimKey.findFirst({
+      where: { id, protocolId: protocol.protocolId },
+    });
+    if (!domainKey) throw new NotFoundException('Domain not found');
+
+    return this.bimiService.checkEligibility(domainKey.domain);
+  }
+
+  @Post(':id/bimi')
+  @ApiOperation({ summary: 'Configure BIMI for a domain' })
+  async upsertBimi(
+    @Param('id') id: string,
+    @Body() dto: UpsertBimiDto,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    const domainKey = await this.prisma.dkimKey.findFirst({
+      where: { id, protocolId: protocol.protocolId },
+    });
+    if (!domainKey) throw new NotFoundException('Domain not found');
+
+    // 1. Validate logo format
+    const validation = await this.bimiService.validateLogo(dto.logo_url);
+    if (!validation.valid) {
+      return {
+        success: false,
+        message: 'Logo validation failed',
+        errors: validation.errors,
+      };
+    }
+
+    // 2. Save or update BIMI record
+    const bimi = await this.prisma.bimiRecord.upsert({
+      where: {
+        protocolId_domain: {
+          protocolId: protocol.protocolId,
+          domain: domainKey.domain,
+        },
+      },
+      update: {
+        logoUrl: dto.logo_url,
+        vmcUrl: dto.vmc_url,
+        selector: dto.selector,
+      },
+      create: {
+        protocolId: protocol.protocolId,
+        domain: domainKey.domain,
+        logoUrl: dto.logo_url,
+        vmcUrl: dto.vmc_url,
+        selector: dto.selector,
+      },
+    });
+
+    return {
+      success: true,
+      bimi_id: bimi.id,
+      dns_record_name: `${bimi.selector}._bimi.${bimi.domain}`,
+      dns_record_value: this.bimiService.generateDnsRecord(
+        bimi.logoUrl,
+        bimi.vmcUrl ?? undefined,
+      ),
+      validation_details: validation.details,
+      instructions: `Add a TXT record to your DNS: ${bimi.selector}._bimi.${bimi.domain} with the generated value.`,
+    };
+  }
+
+  @Get(':id/bimi')
+  @ApiOperation({ summary: 'Get BIMI configuration and status' })
+  async getBimi(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    const domainKey = await this.prisma.dkimKey.findFirst({
+      where: { id, protocolId: protocol.protocolId },
+    });
+    if (!domainKey) throw new NotFoundException('Domain not found');
+
+    const bimi = await this.prisma.bimiRecord.findUnique({
+      where: {
+        protocolId_domain: {
+          protocolId: protocol.protocolId,
+          domain: domainKey.domain,
+        },
+      },
+    });
+
+    if (!bimi) return { bimi_enabled: false };
+
+    return {
+      ...bimi,
+      dns_record_name: `${bimi.selector}._bimi.${bimi.domain}`,
+      dns_record_value: this.bimiService.generateDnsRecord(
+        bimi.logoUrl,
+        bimi.vmcUrl ?? undefined,
+      ),
+    };
+  }
+
+  @Post(':id/bimi/sync')
+  @ApiOperation({ summary: 'Sync BIMI status from DNS' })
+  async syncBimi(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    const domainKey = await this.prisma.dkimKey.findFirst({
+      where: { id, protocolId: protocol.protocolId },
+    });
+    if (!domainKey) throw new NotFoundException('Domain not found');
+
+    return this.bimiService.syncBimiStatus(
+      protocol.protocolId,
+      domainKey.domain,
+    );
   }
 }

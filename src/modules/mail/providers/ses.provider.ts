@@ -6,6 +6,7 @@ import {
   GetSendQuotaCommand,
 } from '@aws-sdk/client-ses';
 import * as nodemailer from 'nodemailer';
+import { PrismaService } from '../../../database/prisma.service';
 import type {
   IMailProvider,
   SendEmailMessage,
@@ -22,10 +23,50 @@ export class SesProvider implements IMailProvider {
   private readonly client: SESClient;
   private readonly logger = new Logger(SesProvider.name);
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     this.client = new SESClient({
       region: config.get('AWS_REGION', 'us-east-1'),
     });
+  }
+
+  private async getBimiConfig(from: string) {
+    try {
+      // Extract domain from "Name <email@domain.com>" or "email@domain.com"
+      const emailMatch = from.match(/<([^>]+)>|([^\s]+@[^\s]+)/);
+      const email = emailMatch ? emailMatch[1] || emailMatch[2] : from;
+      const domain = email.split('@')[1];
+
+      if (!domain) return null;
+
+      // 1. Try to find custom BIMI record in DB
+      const bimi = await this.prisma.bimiRecord.findFirst({
+        where: {
+          domain,
+          isVerified: true,
+        },
+        select: { selector: true },
+      });
+
+      if (bimi) return bimi;
+
+      // 2. Fallback for Herald sandbox/test domains
+      const heraldDomains = [
+        'useherald.xyz',
+        'herald.xyz',
+        'sandbox.herald.xyz',
+      ];
+      if (heraldDomains.includes(domain)) {
+        return { selector: 'herald' }; // We'll consistently use 'herald' selector for our own domains
+      }
+
+      return null;
+    } catch (err) {
+      this.logger.warn(`Failed to lookup BIMI config for ${from}:`, err);
+      return null;
+    }
   }
 
   async send(message: SendEmailMessage): Promise<SendEmailResult> {
@@ -33,10 +74,18 @@ export class SesProvider implements IMailProvider {
       // Build raw MIME email using nodemailer
       const transporter = nodemailer.createTransport({ streamTransport: true });
       const configSet = this.config.get<string>('SES_CONFIGURATION_SET');
+
+      // BIMI Integration: Inject BIMI-Selector header if verified config exists
+      const bimiConfig = await this.getBimiConfig(message.from);
+
       const headers: any = { ...message.headers };
 
       if (configSet) {
         headers['X-SES-CONFIGURATION-SET'] = configSet;
+      }
+
+      if (bimiConfig?.selector && bimiConfig.selector !== 'default') {
+        headers['BIMI-Selector'] = `v=BIMI1; s=${bimiConfig.selector};`;
       }
 
       const info = await transporter.sendMail({
