@@ -43,7 +43,11 @@ jobs:
             fi
 
             cd ~/notification-gateway
-            git pull origin main
+            
+            # Force sync with repository while preserving .env
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd --exclude=.env
 
             # Conditional Clean Install
             if [ "$CLEAN_BUILD" = "true" ]; then
