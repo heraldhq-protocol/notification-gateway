@@ -3,6 +3,7 @@ export type NotificationStatus =
   | 'queued'
   | 'processing'
   | 'delivered'
+  | 'partial'
   | 'failed'
   | 'opted_out'
   | 'duplicate';
@@ -26,9 +27,21 @@ export interface IdentityAccount {
   optInGovernance: boolean;
   optInMarketing: boolean;
   digestMode: boolean;
+  // Channel flags
+  channelEmail: boolean;
+  channelTelegram: boolean;
+  channelSms: boolean;
+  // Telegram channel
+  encryptedTelegramId: Uint8Array;
+  telegramIdHash: Uint8Array;
+  nonceTelegram: Uint8Array;
+  // SMS channel
+  encryptedPhone: Uint8Array;
+  phoneHash: Uint8Array;
+  nonceSms: Uint8Array;
 }
 
-/** BullMQ job payload for notification delivery. SEC-001: no email in job data. */
+/** BullMQ job payload for notification delivery. SEC-001: no PII in job data. */
 export interface NotificationJobData {
   notificationId: string;
   protocolId: string;
@@ -42,11 +55,40 @@ export interface NotificationJobData {
   digestMode: boolean;
 }
 
+/**
+ * Decrypted channel identifiers — exist ONLY in-memory.
+ * Returned by the enclave service after a single decrypt-all call.
+ * SEC-001: These values MUST NEVER be logged, stored, or returned via API.
+ */
+export interface DecryptedChannels {
+  email?: string;
+  telegramChatId?: string;
+  phone?: string;
+}
+
+/** Result of delivering to a single channel. */
+export interface ChannelDeliveryOutcome {
+  channel: 'email' | 'telegram' | 'sms' | 'unknown';
+  success: boolean;
+  messageId?: string;
+  provider?: string;
+  error?: string;
+}
+
+/** Result of dispatching to all active channels. */
+export interface ChannelDispatchResult {
+  outcomes: ChannelDeliveryOutcome[];
+  totalChannels: number;
+  successCount: number;
+  allDelivered: boolean;
+}
+
 /** Webhook event types dispatched by the system. */
 export type WebhookEventType =
   | 'notification.delivered'
   | 'notification.failed'
-  | 'notification.bounced';
+  | 'notification.bounced'
+  | 'notification.partial';
 
 /** Webhook dispatch job payload. */
 export interface WebhookJobData {

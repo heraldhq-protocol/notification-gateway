@@ -74,6 +74,7 @@ model Notification {
   errorCode         String?           @map("error_code") @db.VarChar(80)
   retryCount        Int               @default(0) @map("retry_count") @db.SmallInt
   arweaveId         String?           @map("arweave_id") @db.VarChar(100)
+  channelDeliveries ChannelDelivery[]
   emailBounces      EmailBounce[]
   protocol          Protocol          @relation(fields: [protocolId], references: [id])
   webhookDeliveries WebhookDelivery[]
@@ -83,6 +84,23 @@ model Notification {
   @@index([status], map: "idx_notifications_status")
   @@index([idempotencyKey], map: "idx_notifications_idem")
   @@map("notifications")
+}
+
+model ChannelDelivery {
+  id             String        @id @default(uuid()) @db.Uuid
+  notificationId String        @map("notification_id") @db.Uuid
+  channel        String        @db.VarChar(20) // 'email', 'telegram', 'sms'
+  success        Boolean       @default(false)
+  messageId      String?       @map("message_id") @db.VarChar(200)
+  provider       String?       @db.VarChar(30)
+  error          String?
+  deliveredAt    DateTime?     @map("delivered_at") @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  notification   Notification  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId], map: "idx_channel_del_notification")
+  @@index([channel, success], map: "idx_channel_del_channel")
+  @@map("channel_deliveries")
 }
 
 model Webhook {

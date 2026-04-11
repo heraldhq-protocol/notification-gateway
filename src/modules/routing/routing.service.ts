@@ -2,7 +2,7 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { SolanaService } from '../../solana/solana.service';
 import { EnclaveService } from './enclave.service';
-import type { IdentityAccount } from '../../common/types/notification.types';
+import type { IdentityAccount, DecryptedChannels } from '../../common/types/notification.types';
 
 /**
  * RoutingService — resolves wallet pubkeys to identity accounts.
@@ -11,10 +11,10 @@ import type { IdentityAccount } from '../../common/types/notification.types';
  *   1. Check Redis cache (5 min TTL)
  *   2. If miss → Solana PDA lookup via SolanaService (Herald SDK)
  *   3. Cache result in Redis
- *   4. For email decryption → delegate to EnclaveService (TEE)
+ *   4. For decryption → delegate to EnclaveService (TEE)
  *
  * NOTE: This returns the on-chain IdentityAccount which includes
- * the ENCRYPTED email. Plaintext is only obtained via TEE.
+ * ENCRYPTED channel data. Plaintext is only obtained via TEE.
  */
 @Injectable()
 export class RoutingService {
@@ -41,14 +41,7 @@ export class RoutingService {
       if (cached === 'NOT_REGISTERED') return null;
       if (cached) {
         const parsed = JSON.parse(cached);
-        return {
-          ...parsed,
-          encryptedEmail: new Uint8Array(
-            Buffer.from(parsed.encryptedEmail, 'base64'),
-          ),
-          emailHash: new Uint8Array(Buffer.from(parsed.emailHash, 'base64')),
-          nonce: new Uint8Array(Buffer.from(parsed.nonce, 'base64')),
-        } as IdentityAccount;
+        return this.deserializeCached(parsed);
       }
     } catch {
       // Cache read failure — fall through to Solana
@@ -64,12 +57,7 @@ export class RoutingService {
     }
 
     // Cache the identity (serialize Uint8Arrays as base64)
-    const serializable = {
-      ...identity,
-      encryptedEmail: Buffer.from(identity.encryptedEmail).toString('base64'),
-      emailHash: Buffer.from(identity.emailHash).toString('base64'),
-      nonce: Buffer.from(identity.nonce).toString('base64'),
-    };
+    const serializable = this.serializeForCache(identity);
     await this.redis
       .setex(
         cacheKey,
@@ -82,7 +70,7 @@ export class RoutingService {
   }
 
   /**
-   * Decrypt the encrypted email via TEE enclave.
+   * Decrypt the encrypted email via TEE enclave (legacy single-channel).
    * Returns plaintext email IN MEMORY ONLY.
    *
    * SEC-001: The caller MUST NOT persist or log the return value.
@@ -94,4 +82,52 @@ export class RoutingService {
       ownerPubkey: identity.owner,
     });
   }
+
+  /**
+   * Decrypt all active channels in a single TEE round-trip.
+   * Returns DecryptedChannels with only the active channel identifiers.
+   *
+   * SEC-001: The caller MUST NOT persist or log ANY return values.
+   */
+  async decryptAllChannelsInEnclave(
+    identity: IdentityAccount,
+  ): Promise<DecryptedChannels> {
+    return this.enclaveService.decryptAllChannels(identity);
+  }
+
+  // ── Cache serialization helpers ─────────────────────────────
+
+  private serializeForCache(identity: IdentityAccount): Record<string, any> {
+    return {
+      ...identity,
+      encryptedEmail: Buffer.from(identity.encryptedEmail).toString('base64'),
+      emailHash: Buffer.from(identity.emailHash).toString('base64'),
+      nonce: Buffer.from(identity.nonce).toString('base64'),
+      encryptedTelegramId: Buffer.from(identity.encryptedTelegramId).toString('base64'),
+      telegramIdHash: Buffer.from(identity.telegramIdHash).toString('base64'),
+      nonceTelegram: Buffer.from(identity.nonceTelegram).toString('base64'),
+      encryptedPhone: Buffer.from(identity.encryptedPhone).toString('base64'),
+      phoneHash: Buffer.from(identity.phoneHash).toString('base64'),
+      nonceSms: Buffer.from(identity.nonceSms).toString('base64'),
+    };
+  }
+
+  private deserializeCached(parsed: any): IdentityAccount {
+    return {
+      ...parsed,
+      encryptedEmail: new Uint8Array(Buffer.from(parsed.encryptedEmail, 'base64')),
+      emailHash: new Uint8Array(Buffer.from(parsed.emailHash, 'base64')),
+      nonce: new Uint8Array(Buffer.from(parsed.nonce, 'base64')),
+      encryptedTelegramId: new Uint8Array(Buffer.from(parsed.encryptedTelegramId ?? '', 'base64')),
+      telegramIdHash: new Uint8Array(Buffer.from(parsed.telegramIdHash ?? '', 'base64')),
+      nonceTelegram: new Uint8Array(Buffer.from(parsed.nonceTelegram ?? '', 'base64')),
+      encryptedPhone: new Uint8Array(Buffer.from(parsed.encryptedPhone ?? '', 'base64')),
+      phoneHash: new Uint8Array(Buffer.from(parsed.phoneHash ?? '', 'base64')),
+      nonceSms: new Uint8Array(Buffer.from(parsed.nonceSms ?? '', 'base64')),
+      channelEmail: parsed.channelEmail ?? false,
+      channelTelegram: parsed.channelTelegram ?? false,
+      channelSms: parsed.channelSms ?? false,
+    } as IdentityAccount;
+  }
 }
+

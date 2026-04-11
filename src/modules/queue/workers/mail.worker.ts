@@ -3,23 +3,21 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { QueueNames } from '../queue.constants';
 import { RoutingService } from '../../routing/routing.service';
-import { MailService } from '../../mail/mail.service';
-import { TemplateService } from '../../template/template.service';
+import { ChannelDispatchService } from '../../channel/channel-dispatch.service';
 import { PrismaService } from '../../../database/prisma.service';
 import type { NotificationJobData } from '../../../common/types/notification.types';
 
 /**
- * MailWorker — processes notification delivery jobs.
+ * MailWorker — processes notification delivery jobs via multi-channel dispatch.
  *
  * Flow:
  *   1. Resolve identity (cached PDA lookup)
- *   2. Decrypt email via TEE (in-memory only)
- *   3. Render email template (MJML → HTML)
- *   4. Send email through configured provider
- *   5. Update notification record
- *   6. Dispatch webhook events
+ *   2. Decrypt ALL active channels via TEE (single round-trip)
+ *   3. Dispatch to all channels in parallel (email, telegram, sms)
+ *   4. Update notification record with per-channel results
+ *   5. Dispatch webhook events
  *
- * SEC-001: Email plaintext exists ONLY in local variables within process().
+ * SEC-001: Plaintext identifiers exist ONLY in local variables within process().
  */
 @Processor(QueueNames.NOTIFICATION)
 @Injectable()
@@ -28,16 +26,14 @@ export class MailWorker extends WorkerHost {
 
   constructor(
     private readonly routingService: RoutingService,
-    private readonly mailService: MailService,
-    private readonly templateService: TemplateService,
+    private readonly channelDispatch: ChannelDispatchService,
     private readonly prisma: PrismaService,
   ) {
     super();
   }
 
   async process(job: Job<NotificationJobData>): Promise<void> {
-    const { notificationId, wallet, subject, body, category, protocolName } =
-      job.data;
+    const { notificationId, wallet } = job.data;
 
     await this.prisma.notification.update({
       where: { id: notificationId },
@@ -58,80 +54,77 @@ export class MailWorker extends WorkerHost {
         return;
       }
 
-      // ── Step 2: Decrypt email via TEE ─────────────────────────
-      const email = await this.routingService.decryptEmailInEnclave(identity);
+      // ── Step 2: Decrypt ALL channels via TEE ──────────────────
+      const channels =
+        await this.routingService.decryptAllChannelsInEnclave(identity);
 
-      // ── Step 3: Fetch custom sender domain ────────────────────
-      const customDomainRecord = await this.prisma.dkimKey.findFirst({
-        where: {
-          protocolId: job.data.protocolId,
-          isActive: true,
-          dnsVerified: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      });
-      const senderDomain = customDomainRecord
-        ? customDomainRecord.domain
-        : 'useherald.xyz';
+      const hasAnyChannel =
+        channels.email || channels.telegramChatId || channels.phone;
 
-      // ── Step 4: Render email template ─────────────────────────
-      const templateName = this.getTemplateName(category);
+      if (!hasAnyChannel) {
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: {
+            status: 'opted_out',
+            errorCode: 'NO_ACTIVE_CHANNELS',
+          },
+        });
+        return;
+      }
 
-      // Anti-Spam subject formatting to improve deliverability (mimicking ByBit structure)
-      const catFriendly =
-        category === 'defi'
-          ? 'DeFi'
-          : category.charAt(0).toUpperCase() + category.slice(1);
-      const formattedSubject = `[${protocolName} | ${catFriendly} Alert] ${subject}`;
+      // ── Step 3: Dispatch to all channels ──────────────────────
+      const result = await this.channelDispatch.dispatch(channels, job.data);
 
-      const { html, text } = await this.templateService.render({
-        template: templateName,
-        variables: {
-          protocolName,
-          subject: formattedSubject,
-          body,
-          category,
-          recipientAddress: wallet,
-          unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/${notificationId}`,
-          heraldLogoUrl: 'https://cdn.useherald.xyz/logo-email.png',
-        },
-      });
+      // ── Step 4: Update notification record ─────────────────────
+      if (result.allDelivered) {
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: {
+            status: 'delivered',
+            deliveredAt: new Date(),
+          },
+        });
+      } else if (result.successCount > 0) {
+        // Partial delivery — at least one channel succeeded
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: {
+            status: 'partial',
+            deliveredAt: new Date(),
+            errorCode: `PARTIAL_${result.successCount}/${result.totalChannels}`,
+          },
+        });
+      } else {
+        // All channels failed
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: {
+            status: 'failed',
+            errorCode: 'ALL_CHANNELS_FAILED',
+            retryCount: { increment: 1 },
+          },
+        });
+        // Throw so BullMQ retries
+        const errors = result.outcomes
+          .filter((o) => !o.success)
+          .map((o) => `${o.channel}: ${o.error}`)
+          .join('; ');
+        throw new Error(`All channels failed: ${errors}`);
+      }
 
-      // ── Step 5: Send email ────────────────────────────────────
-      const sendResult = await this.mailService.send({
-        to: email, // In-memory only — never logged
-        from: `${protocolName} via Herald <noreply@${senderDomain}>`,
-        replyTo: 'support@useherald.xyz',
-        subject: formattedSubject,
-        html,
-        text,
-        headers: {
-          'X-Herald-Protocol': protocolName,
-          'X-Herald-Notification-Id': notificationId,
-          'X-Herald-Timestamp': new Date().toISOString(),
-          'List-Unsubscribe': `<https://notify.useherald.xyz/unsubscribe/${notificationId}>`,
-          Precedence: 'bulk',
-        },
-      });
-
-      // ── Step 6: Update notification record ────────────────────
-      await this.prisma.notification.update({
-        where: { id: notificationId },
-        data: {
-          status: 'delivered',
-          sesMessageId: sendResult.messageId,
-          emailProvider: sendResult.provider,
-          deliveredAt: new Date(),
-        },
-      });
-
-      this.logger.log('Notification delivered', {
+      this.logger.log('Notification dispatched', {
         notificationId,
-        provider: sendResult.provider,
+        channels: result.totalChannels,
+        delivered: result.successCount,
       });
 
-      // EMAIL VARIABLE IS NOW OUT OF SCOPE — GC will collect
+      // CHANNEL VARIABLES ARE NOW OUT OF SCOPE — GC will collect
     } catch (err: any) {
+      // Check if we already updated status
+      if (err.message?.startsWith('All channels failed')) {
+        throw err; // Re-throw for BullMQ retry
+      }
+
       this.logger.error('Notification delivery failed', {
         notificationId,
         error: (err as Error).message,
@@ -146,15 +139,5 @@ export class MailWorker extends WorkerHost {
       });
       throw err; // BullMQ retries
     }
-  }
-
-  private getTemplateName(category: string): string {
-    const map: Record<string, string> = {
-      defi: 'defi-alert',
-      governance: 'governance',
-      system: 'system',
-      marketing: 'marketing',
-    };
-    return map[category] ?? 'defi-alert';
   }
 }
