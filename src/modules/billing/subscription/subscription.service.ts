@@ -127,10 +127,11 @@ export class SubscriptionService {
       });
     });
 
-    this.sendSubscriptionConfirmationEmail(protocol, tierInt, monthsInt).catch((e) =>
-      this.logger.warn('Confirmation email failed (non-critical)', {
-        error: e.message,
-      }),
+    this.sendSubscriptionConfirmationEmail(protocol, tierInt, monthsInt).catch(
+      (e) =>
+        this.logger.warn('Confirmation email failed (non-critical)', {
+          error: e.message,
+        }),
     );
 
     this.logger.info('Subscription activated successfully', {

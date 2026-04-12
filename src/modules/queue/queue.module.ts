@@ -9,12 +9,13 @@ import { TemplateModule } from '../template/template.module';
 
 @Module({
   imports: [
+    // Only register queues with active processors.
+    // RECEIPT_BATCH and DIGEST have no workers yet — registering idle queues
+    // wastes ~170K Redis commands/day from heartbeat polling.
     BullModule.registerQueue(
       { name: QueueNames.NOTIFICATION },
-      { name: QueueNames.RECEIPT_BATCH },
       { name: QueueNames.WEBHOOK },
       { name: QueueNames.BOUNCE },
-      { name: QueueNames.DIGEST },
     ),
     RoutingModule,
     MailModule,

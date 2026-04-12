@@ -17,7 +17,8 @@ export class HelioService {
     this.helioBilling = new HelioBilling({
       apiKey: config.getOrThrow<string>('HELIO_API_KEY'),
       secretKey: config.getOrThrow<string>('HELIO_SECRET_KEY'),
-      network: config.get<string>('NODE_ENV') === 'production' ? 'mainnet' : 'devnet',
+      network:
+        config.get<string>('NODE_ENV') === 'production' ? 'mainnet' : 'devnet',
     });
   }
 
@@ -69,7 +70,9 @@ export class HelioService {
   }
 
   async cancelHelioSubscription(helioSubscriptionId: string): Promise<void> {
-    this.logger.info('Helio subscription cancellation requested', { helioSubscriptionId });
+    this.logger.info('Helio subscription cancellation requested', {
+      helioSubscriptionId,
+    });
     // Cancellation is delegated to Helio interface
   }
 
@@ -80,4 +83,3 @@ export class HelioService {
     return digest === signature;
   }
 }
-

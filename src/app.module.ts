@@ -67,6 +67,12 @@ import { RedisModule } from './modules/redis/redis.module';
               ? decodeURIComponent(url.username)
               : undefined,
             tls: redisUrl.startsWith('rediss://') ? {} : undefined,
+            maxRetriesPerRequest: null, // Required for BullMQ
+          },
+          // Reduce Redis command volume from BullMQ polling
+          defaultJobOptions: {
+            removeOnComplete: { age: 3600 }, // Remove completed after 1hr (not by count)
+            removeOnFail: { age: 86400 }, // Keep failures 24hr for debugging
           },
         };
       },

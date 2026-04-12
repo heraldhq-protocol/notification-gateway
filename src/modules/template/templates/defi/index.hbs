@@ -47,9 +47,9 @@
     .category-badge {
       display: inline-block;
       padding: 4px 10px;
-      background-color: rgba(16, 185, 129, 0.1);
-      color: #10B981;
-      border: 1px solid rgba(16, 185, 129, 0.2);
+      background-color: rgba(239, 68, 68, 0.1);
+      color: #EF4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
       border-radius: 999px;
       font-size: 12px;
       font-weight: 600;
@@ -77,7 +77,7 @@
     .action-button {
       display: inline-block;
       padding: 12px 24px;
-      background-color: #10B981;
+      background-color: #3B82F6;
       color: #FFFFFF;
       text-decoration: none;
       font-weight: 600;
@@ -97,14 +97,14 @@
       <tr>
         <td>
           <div class="content-card">
-            <span class="category-badge">Marketing</span>
+            <span class="category-badge">DeFi Alert</span>
             <h1 class="subject">{{subject}}</h1>
             <div class="body-text">
               {{{markdown body}}}
             </div>
             {{#if actionUrl}}
             <div class="button-container">
-              <a href="{{actionUrl}}" class="action-button">Explore Further</a>
+              <a href="{{actionUrl}}" class="action-button">View Details</a>
             </div>
             {{/if}}
           </div>

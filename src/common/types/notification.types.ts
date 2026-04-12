@@ -53,6 +53,17 @@ export interface NotificationJobData {
   category: string;
   writeReceipt: boolean;
   digestMode: boolean;
+  // Sandbox fields — only present when isSandbox = true
+  isSandbox?: boolean;
+  testContact?: {
+    email?: string;
+    telegramChatId?: string;
+    phone?: string;
+  };
+  tier?: number; // Protocol tier — used for template selection
+  templateId?: string;
+  telegramTemplateId?: string;
+  templateVariables?: Record<string, string>;
 }
 
 /**

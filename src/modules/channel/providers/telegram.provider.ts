@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../../database/prisma.service';
 
 /**
  * TelegramService — sends notifications via the Telegram Bot API.
@@ -16,7 +17,10 @@ export class TelegramService implements OnModuleInit {
   private bot: any; // TelegramBot instance (lazy-loaded)
   private enabled = false;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
@@ -57,22 +61,52 @@ export class TelegramService implements OnModuleInit {
   async sendNotification(params: {
     chatId: string;
     protocolName: string;
+    protocolId?: string;
     subject: string;
     body: string;
     category: string;
     notificationId: string;
+    tier?: number;
+    templateId?: string;
+    templateVariables?: Record<string, string>;
   }): Promise<{ messageId: string }> {
     if (!this.enabled || !this.bot) {
       throw new Error('Telegram bot not initialized');
     }
 
     const emoji = this.getCategoryEmoji(params.category);
-    const html = this.formatMessage(params, emoji);
+
+    let html = this.formatSystemMessage(params, emoji);
+    let customButtons: any[] = [];
+
+    // Protocol Scale+ tier custom template support
+    const tier = params.tier ?? 0;
+    if (tier >= 2 && params.protocolId) {
+      const templateRecord = await this.loadCustomTemplate(
+        params.protocolId,
+        params.category,
+        params.templateId,
+      );
+
+      if (templateRecord) {
+        html = this.formatCustomMessage(templateRecord.textTemplate, params);
+
+        if (templateRecord.buttons && Array.isArray(templateRecord.buttons)) {
+          customButtons = templateRecord.buttons.map((btn) => [
+            {
+              text: this.injectVariables(btn.label, params),
+              url: this.injectVariables(btn.urlTemplate, params),
+            },
+          ]);
+        }
+      }
+    }
 
     const result = await this.bot.sendMessage(params.chatId, html, {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
+          ...customButtons,
           [
             {
               text: '🔇 Mute this protocol',
@@ -81,6 +115,7 @@ export class TelegramService implements OnModuleInit {
           ],
         ],
       },
+      disable_web_page_preview: true,
     });
 
     return { messageId: String(result.message_id) };
@@ -90,12 +125,13 @@ export class TelegramService implements OnModuleInit {
    * Format Telegram HTML message.
    * Keeps it concise — Telegram messages have a 4096 char limit.
    */
-  formatMessage(
+  formatSystemMessage(
     params: {
       protocolName: string;
       subject: string;
       body: string;
       category: string;
+      tier?: number;
     },
     emoji: string,
   ): string {
@@ -113,8 +149,76 @@ export class TelegramService implements OnModuleInit {
       '',
       this.escapeHtml(body),
       '',
-      `<i>via Herald • ${params.category}</i>`,
-    ].join('\n');
+      (params.tier ?? 0) >= 3 ? '' : `<i>via Herald • ${params.category}</i>`,
+    ]
+      .filter((line) => line !== '')
+      .join('\n');
+  }
+
+  private formatCustomMessage(
+    templateStr: string,
+    params: {
+      protocolName: string;
+      subject: string;
+      body: string;
+      category: string;
+      tier?: number;
+      templateVariables?: Record<string, string>;
+    },
+  ): string {
+    let result = this.injectVariables(templateStr, params);
+
+    // Add Herald footer if not Enterprise
+    if ((params.tier ?? 0) < 3) {
+      result += `\n\n<i>via Herald • ${params.category}</i>`;
+    }
+
+    return result;
+  }
+
+  private injectVariables(
+    templateStr: string,
+    params: {
+      protocolName: string;
+      subject: string;
+      body: string;
+      category: string;
+      templateVariables?: Record<string, string>;
+    },
+  ): string {
+    const vars = {
+      protocolName: params.protocolName,
+      subject: params.subject,
+      body: params.body,
+      category: params.category,
+      ...(params.templateVariables ?? {}),
+    };
+
+    let result = templateStr;
+    for (const [key, value] of Object.entries(vars)) {
+      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    }
+
+    // Trim and truncate overall length
+    if (result.length > 4000) {
+      return result.slice(0, 4000) + '…';
+    }
+    return result;
+  }
+
+  private async loadCustomTemplate(
+    protocolId: string,
+    category: string,
+    templateId?: string,
+  ) {
+    if (templateId) {
+      return this.prisma.telegramTemplate.findFirst({
+        where: { id: templateId, protocolId, isActive: true },
+      });
+    }
+    return this.prisma.telegramTemplate.findFirst({
+      where: { protocolId, category, isActive: true },
+    });
   }
 
   private getCategoryEmoji(category: string): string {

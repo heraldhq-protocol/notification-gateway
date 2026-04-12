@@ -64,6 +64,27 @@ export class NotifyDto {
   @IsOptional()
   @IsUUID(4)
   idempotencyKey?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom email template ID (Growth+ tier)',
+  })
+  @IsOptional()
+  @IsString()
+  templateId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom Telegram template ID (Scale+ tier)',
+  })
+  @IsOptional()
+  @IsString()
+  telegramTemplateId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom variables injected into templates',
+    example: { health_factor: '1.05', position: '$45,000' },
+  })
+  @IsOptional()
+  templateVariables?: Record<string, string>;
 }
 
 /**
@@ -102,6 +123,23 @@ export class NotifyResponseDto {
 
   @ApiPropertyOptional({ description: 'Solana receipt transaction signature' })
   receipt_tx: string | null;
+
+  @ApiPropertyOptional({ description: 'Environment: sandbox or production' })
+  environment?: 'sandbox' | 'production';
+
+  @ApiPropertyOptional({
+    description: 'Sandbox test contact (masked) — only present in sandbox mode',
+  })
+  test_contact?: {
+    email?: string | null;
+    telegram?: string | null;
+    sms?: string | null;
+  };
+
+  @ApiPropertyOptional({
+    description: 'Sandbox notes — only present in sandbox mode',
+  })
+  sandbox_notes?: string[];
 }
 
 /**

@@ -7,7 +7,7 @@ export interface AuthenticatedProtocol {
   protocolPubkey: string;
   tier: number;
   scopes: string[];
-  environment: string;
+  environment: string; // 'production' | 'sandbox'
   isActive: boolean;
   sendsThisPeriod?: bigint;
   name?: string;
@@ -20,7 +20,7 @@ export interface GeneratedApiKey {
   prefix: string;
 }
 
-/** Tier limits per protocol tier. */
+/** Tier limits per protocol tier (legacy — use TierLimits from rate-limit.constants). */
 export interface TierLimit {
   perSecond: number;
   burst: number;
@@ -34,4 +34,11 @@ export interface RateLimitResult {
   remaining: number;
   resetAt: number;
   retryAfter?: number;
+}
+
+/** Sandbox test contact addresses stored in protocol_settings. */
+export interface SandboxTestContact {
+  email?: string;
+  telegramChatId?: string;
+  phone?: string;
 }

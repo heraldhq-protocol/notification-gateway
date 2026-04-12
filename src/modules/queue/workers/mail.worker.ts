@@ -10,12 +10,16 @@ import type { NotificationJobData } from '../../../common/types/notification.typ
 /**
  * MailWorker — processes notification delivery jobs via multi-channel dispatch.
  *
- * Flow:
- *   1. Resolve identity (cached PDA lookup)
+ * Flow (production):
+ *   1. Resolve identity (cached PDA lookup, 10min TTL)
  *   2. Decrypt ALL active channels via TEE (single round-trip)
  *   3. Dispatch to all channels in parallel (email, telegram, sms)
  *   4. Update notification record with per-channel results
- *   5. Dispatch webhook events
+ *
+ * Flow (sandbox):
+ *   - Skips PDA lookup and TEE decryption entirely
+ *   - Uses pre-resolved test contacts from job data
+ *   - Delivers directly to protocol's configured test email/chat
  *
  * SEC-001: Plaintext identifiers exist ONLY in local variables within process().
  */
@@ -33,12 +37,92 @@ export class MailWorker extends WorkerHost {
   }
 
   async process(job: Job<NotificationJobData>): Promise<void> {
-    const { notificationId, wallet } = job.data;
+    const { notificationId, isSandbox } = job.data;
 
     await this.prisma.notification.update({
       where: { id: notificationId },
       data: { status: 'processing', processingAt: new Date() },
     });
+
+    if (isSandbox) {
+      return this.processSandbox(job);
+    }
+    return this.processProduction(job);
+  }
+
+  // ── Sandbox path ─────────────────────────────────────────────────────────
+
+  private async processSandbox(job: Job<NotificationJobData>): Promise<void> {
+    const {
+      notificationId,
+      testContact,
+      protocolName,
+      subject,
+      body,
+      category,
+      tier,
+    } = job.data;
+
+    if (
+      !testContact ||
+      (!testContact.email && !testContact.telegramChatId && !testContact.phone)
+    ) {
+      await this.prisma.notification.update({
+        where: { id: notificationId },
+        data: { status: 'opted_out', errorCode: 'SANDBOX_NO_TEST_CONTACT' },
+      });
+      return;
+    }
+
+    try {
+      // Dispatch directly to test contacts — no PDA/TEE needed
+      const result = await this.channelDispatch.dispatch(
+        {
+          email: testContact.email,
+          telegramChatId: testContact.telegramChatId,
+          phone: testContact.phone,
+        },
+        {
+          ...job.data,
+          // tier already injected by notify service
+        },
+      );
+
+      if (result.successCount > 0) {
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: { status: 'delivered', deliveredAt: new Date() },
+        });
+      } else {
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: { status: 'failed', errorCode: 'SANDBOX_ALL_CHANNELS_FAILED' },
+        });
+      }
+
+      this.logger.log('Sandbox notification dispatched', {
+        notificationId,
+        channels: result.totalChannels,
+        delivered: result.successCount,
+      });
+    } catch (err: any) {
+      this.logger.error('Sandbox notification delivery failed', {
+        notificationId,
+        error: err.message,
+      });
+      await this.prisma.notification.update({
+        where: { id: notificationId },
+        data: { status: 'failed', errorCode: 'SANDBOX_DELIVERY_ERROR' },
+      });
+    }
+  }
+
+  // ── Production path ───────────────────────────────────────────────────────
+
+  private async processProduction(
+    job: Job<NotificationJobData>,
+  ): Promise<void> {
+    const { notificationId, wallet } = job.data;
 
     try {
       // ── Step 1: Resolve identity ──────────────────────────────
@@ -79,13 +163,9 @@ export class MailWorker extends WorkerHost {
       if (result.allDelivered) {
         await this.prisma.notification.update({
           where: { id: notificationId },
-          data: {
-            status: 'delivered',
-            deliveredAt: new Date(),
-          },
+          data: { status: 'delivered', deliveredAt: new Date() },
         });
       } else if (result.successCount > 0) {
-        // Partial delivery — at least one channel succeeded
         await this.prisma.notification.update({
           where: { id: notificationId },
           data: {
@@ -95,7 +175,6 @@ export class MailWorker extends WorkerHost {
           },
         });
       } else {
-        // All channels failed
         await this.prisma.notification.update({
           where: { id: notificationId },
           data: {
@@ -104,7 +183,6 @@ export class MailWorker extends WorkerHost {
             retryCount: { increment: 1 },
           },
         });
-        // Throw so BullMQ retries
         const errors = result.outcomes
           .filter((o) => !o.success)
           .map((o) => `${o.channel}: ${o.error}`)
@@ -117,10 +195,7 @@ export class MailWorker extends WorkerHost {
         channels: result.totalChannels,
         delivered: result.successCount,
       });
-
-      // CHANNEL VARIABLES ARE NOW OUT OF SCOPE — GC will collect
     } catch (err: any) {
-      // Check if we already updated status
       if (err.message?.startsWith('All channels failed')) {
         throw err; // Re-throw for BullMQ retry
       }
@@ -137,7 +212,7 @@ export class MailWorker extends WorkerHost {
           retryCount: { increment: 1 },
         },
       });
-      throw err; // BullMQ retries
+      throw err;
     }
   }
 }

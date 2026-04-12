@@ -8,30 +8,32 @@ datasource db {
 }
 
 model Protocol {
-  id                    String              @id @default(uuid()) @db.Uuid
-  protocolPubkey        String              @unique @map("protocol_pubkey") @db.VarChar(44)
-  nameEncrypted         Bytes               @map("name_encrypted")
-  tier                  Int                 @default(0) @db.SmallInt
-  isActive              Boolean             @default(true) @map("is_active")
-  isSuspended           Boolean             @default(false) @map("is_suspended")
-  sendsThisPeriod       BigInt              @default(0) @map("sends_this_period")
-  periodResetAt         DateTime            @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
-  subscriptionExpiresAt DateTime?           @map("subscription_expires_at") @db.Timestamptz(6)
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  apiKeys               ApiKey[]
-  audit_log             audit_log[]
-  digestQueue           DigestQueue[]
-  dkimKeys              DkimKey[]
-  helioEvents           HelioWebhookEvent[]
-  notifications         Notification[]
-  payments              Payment[]
-  protocol_settings     protocol_settings?
-  subscription          Subscription?
-  team_members          team_members[]
-  webhooks              Webhook[]
-  bimi_records          BimiRecord[]
+  id                     String                  @id @default(uuid()) @db.Uuid
+  protocolPubkey         String                  @unique @map("protocol_pubkey") @db.VarChar(44)
+  nameEncrypted          Bytes                   @map("name_encrypted")
+  tier                   Int                     @default(0) @db.SmallInt
+  isActive               Boolean                 @default(true) @map("is_active")
+  isSuspended            Boolean                 @default(false) @map("is_suspended")
+  sendsThisPeriod        BigInt                  @default(0) @map("sends_this_period")
+  periodResetAt          DateTime                @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
+  subscriptionExpiresAt  DateTime?               @map("subscription_expires_at") @db.Timestamptz(6)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  apiKeys                ApiKey[]
+  audit_log              audit_log[]
+  digestQueue            DigestQueue[]
+  dkimKeys               DkimKey[]
+  helioEvents            HelioWebhookEvent[]
+  notifications          Notification[]
+  payments               Payment[]
+  protocol_settings      protocol_settings?
+  subscription           Subscription?
+  team_members           team_members[]
+  webhooks               Webhook[]
+  bimi_records           BimiRecord[]
   bimi_verification_logs bimi_verification_log[]
+  notificationTemplates  NotificationTemplate[]
+  telegramTemplates      TelegramTemplate[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -87,16 +89,16 @@ model Notification {
 }
 
 model ChannelDelivery {
-  id             String        @id @default(uuid()) @db.Uuid
-  notificationId String        @map("notification_id") @db.Uuid
-  channel        String        @db.VarChar(20) // 'email', 'telegram', 'sms'
-  success        Boolean       @default(false)
-  messageId      String?       @map("message_id") @db.VarChar(200)
-  provider       String?       @db.VarChar(30)
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @map("notification_id") @db.Uuid
+  channel        String       @db.VarChar(20) // 'email', 'telegram', 'sms'
+  success        Boolean      @default(false)
+  messageId      String?      @map("message_id") @db.VarChar(200)
+  provider       String?      @db.VarChar(30)
   error          String?
-  deliveredAt    DateTime?     @map("delivered_at") @db.Timestamptz(6)
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  notification   Notification  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  deliveredAt    DateTime?    @map("delivered_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@index([notificationId], map: "idx_channel_del_notification")
   @@index([channel, success], map: "idx_channel_del_channel")
@@ -289,19 +291,19 @@ model portal_users {
 }
 
 model protocol_settings {
-  protocol_id             String   @id @db.Uuid
-  admin_email_hash        String?  @db.VarChar(64)
+  protocol_id             String    @id @db.Uuid
+  admin_email_hash        String?   @db.VarChar(64)
   admin_email_encrypted   Bytes?
   website_url             String?
   logo_url                String?
   logo_verified_at        DateTime? @map("logo_verified_at") @db.Timestamptz(6)
   bimi_enabled            Boolean   @default(false) @map("bimi_enabled")
-  notification_categories String[] @default(["defi", "governance", "system"])
-  custom_from_name        String?  @db.VarChar(100)
-  helio_subscription_id   String?  @db.VarChar(100)
-  helio_customer_id       String?  @db.VarChar(100)
-  updated_at              DateTime @db.Timestamptz(6)
-  protocols               Protocol @relation(fields: [protocol_id], references: [id], onDelete: Cascade)
+  notification_categories String[]  @default(["defi", "governance", "system"])
+  custom_from_name        String?   @db.VarChar(100)
+  helio_subscription_id   String?   @db.VarChar(100)
+  helio_customer_id       String?   @db.VarChar(100)
+  updated_at              DateTime  @db.Timestamptz(6)
+  protocols               Protocol  @relation(fields: [protocol_id], references: [id], onDelete: Cascade)
 }
 
 model team_members {
@@ -344,32 +346,67 @@ model unsubscribe_tokens {
 }
 
 model BimiRecord {
-  id                String    @id @default(uuid()) @db.Uuid
-  protocolId        String    @map("protocol_id") @db.Uuid
-  domain            String    @db.VarChar(255)
-  selector          String    @default("default") @db.VarChar(63)
-  logoUrl           String    @map("logo_url")
-  vmcUrl            String?   @map("vmc_url")
-  isVerified        Boolean   @default(false) @map("is_verified")
-  dmarcVerified     Boolean   @default(false) @map("dmarc_verified")
+  id                 String   @id @default(uuid()) @db.Uuid
+  protocolId         String   @map("protocol_id") @db.Uuid
+  domain             String   @db.VarChar(255)
+  selector           String   @default("default") @db.VarChar(63)
+  logoUrl            String   @map("logo_url")
+  vmcUrl             String?  @map("vmc_url")
+  isVerified         Boolean  @default(false) @map("is_verified")
+  dmarcVerified      Boolean  @default(false) @map("dmarc_verified")
   dnsRecordPublished Boolean  @default(false) @map("dns_record_published")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  protocol          Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  protocol           Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@unique([protocolId, domain])
   @@map("bimi_records")
 }
 
 model bimi_verification_log {
-  id          String   @id @default(uuid()) @db.Uuid
-  protocolId  String   @map("protocol_id") @db.Uuid
-  domain      String   @db.VarChar(255)
-  checkType   String   @db.VarChar(20) // 'dmarc', 'dns', 'logo'
-  status      String   @db.VarChar(20) // 'pass', 'fail'
-  details     Json?
-  checkedAt   DateTime @default(now()) @db.Timestamptz(6)
-  protocol    Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid()) @db.Uuid
+  protocolId String   @map("protocol_id") @db.Uuid
+  domain     String   @db.VarChar(255)
+  checkType  String   @db.VarChar(20) // 'dmarc', 'dns', 'logo'
+  status     String   @db.VarChar(20) // 'pass', 'fail'
+  details    Json?
+  checkedAt  DateTime @default(now()) @db.Timestamptz(6)
+  protocol   Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@map("bimi_verification_logs")
+}
+
+/// Custom email templates stored per protocol (Growth+ tier).
+model NotificationTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  protocolId      String   @map("protocol_id") @db.Uuid
+  name            String   @db.VarChar(100)
+  category        String   @db.VarChar(20)
+  subjectTemplate String?  @map("subject_template")
+  htmlSource      String?  @map("html_source")
+  textSource      String?  @map("text_source")
+  heraldFooter    String   @default("full") @map("herald_footer") @db.VarChar(20) // full|small|minimal|none
+  isActive        Boolean  @default(true) @map("is_active")
+  isDefault       Boolean  @default(false) @map("is_default")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  protocol        Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, category], map: "idx_notif_templates_protocol")
+  @@map("notification_templates")
+}
+
+model TelegramTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  protocolId   String   @map("protocol_id") @db.Uuid
+  name         String   @db.VarChar(100)
+  category     String   @db.VarChar(20)
+  textTemplate String   @map("text_template")
+  buttons      Json? // [{label, urlTemplate}]
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  protocol     Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, category], map: "idx_telegram_templates_protocol")
+  @@map("telegram_templates")
 }

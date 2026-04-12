@@ -4,11 +4,16 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 import juice from 'juice';
 import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
+import { PrismaService } from '../../database/prisma.service';
+import { getTierLimits } from '../auth/rate-limit.constants';
 
 export interface RenderParams {
   template: string;
   variables: Record<string, unknown>;
   protocolId?: string;
+  templateId?: string;
+  tier?: number;
 }
 
 export interface RenderedEmail {
@@ -17,131 +22,376 @@ export interface RenderedEmail {
   subject: string;
 }
 
+export interface TemplateValidationResult {
+  valid: boolean;
+  compiledHtml?: string;
+  error?: string;
+  errors?: string[];
+}
+
 /**
- * TemplateService — compiles Handlebars templates into cross-client HTML emails.
+ * TemplateService — renders notification emails with tiered branding.
  *
- * Pipeline: Handlebars (variable injection) → juice (CSS inlining)
+ * Template selection waterfall:
+ *   1. Specific templateId in notify request → use it (Growth+ tier)
+ *   2. Protocol has a default template for category → use it (Growth+ tier)
+ *   3. Herald system default for category → always available
  *
- * Templates are loaded from the filesystem (templates/ directory).
- * Custom protocol templates are supported for Scale/Enterprise tiers.
+ * Herald footer visibility by tier:
+ *   Developer  (0): Full Herald branding — prominent logo + description
+ *   Growth     (1): Small "via Herald" line
+ *   Scale      (2): Minimal — unsubscribe link only + tiny Herald mention
+ *   Enterprise (3): Unsubscribe link only — Herald removed
  */
 @Injectable()
 export class TemplateService {
   private readonly logger = new Logger(TemplateService.name);
   private readonly templateDir: string;
+  /** In-memory compiled template cache to avoid repeated disk reads. */
+  private readonly templateCache = new Map<
+    string,
+    HandlebarsTemplateDelegate
+  >();
 
-  constructor() {
-    // Resolve template directory robustly for both local development and production
-    // Local: src/modules/template/templates
-    // Prod: dist/modules/template/templates
+  constructor(private readonly prisma: PrismaService) {
     const isProd = process.env.NODE_ENV === 'production';
     this.templateDir = isProd
       ? path.join(process.cwd(), 'dist', 'modules', 'template', 'templates')
       : path.join(process.cwd(), 'src', 'modules', 'template', 'templates');
 
-    this.logger.log(`Template directory initialized at: ${this.templateDir}`);
+    this.logger.log(`Template directory: ${this.templateDir}`);
     this.registerHelpers();
   }
 
   /**
    * Render a complete email with HTML + plain text parts.
+   * Applies tiered Herald footer before returning.
    */
   async render(params: RenderParams): Promise<RenderedEmail> {
-    const { template, variables } = params;
+    const { template, variables, protocolId, templateId, tier = 0 } = params;
 
-    let hbsSource: string;
-    try {
-      hbsSource = await this.loadSystemTemplate(template);
-    } catch {
-      // Fallback to defi-alert if template not found
-      this.logger.warn(`Template "${template}" not found, using defi-alert`);
-      try {
-        hbsSource = await this.loadSystemTemplate('defi-alert');
-      } catch {
-        // Absolute fallback to base.hbs if even defi-alert is missing
-        this.logger.error('Failed to load fallback template defi-alert');
-        const basePath = path.join(this.templateDir, 'base.hbs');
-        hbsSource = await fs.promises.readFile(basePath, 'utf-8');
-      }
+    // Template waterfall: custom templateId → custom default → system default
+    let hbsSource: string | null = null;
+
+    if (templateId && protocolId) {
+      hbsSource = await this.loadCustomTemplate(templateId, protocolId);
     }
 
-    // 1. Handlebars: inject variables into HTML source
-    const compiled = Handlebars.compile(hbsSource);
+    if (!hbsSource && protocolId) {
+      hbsSource = await this.loadProtocolDefaultTemplate(
+        protocolId,
+        template, // template name = category
+      );
+    }
+
+    if (!hbsSource) {
+      hbsSource = await this.loadSystemTemplate(template);
+    }
+
+    // Handlebars: variable injection
+    const compiled = this.getCompiledTemplate(hbsSource);
     const htmlWithVars = compiled(variables);
 
-    // 2. Juice: inline CSS for email client compatibility
+    // Juice: inline CSS for email client compatibility
     const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
 
-    // 3. Plain text fallback
-    const plainText = await this.renderPlainText(template, variables);
+    // Inject tiered Herald footer
+    const htmlWithFooter = this.injectHeraldFooter(
+      inlinedHtml,
+      variables,
+      tier,
+    );
+
+    // Plain text fallback
+    const plainText = this.renderPlainTextFallback(variables);
 
     return {
-      html: inlinedHtml,
+      html: htmlWithFooter,
       text: plainText,
       subject: (variables.subject as string) || 'Notification from Herald',
     };
   }
 
-  private async loadSystemTemplate(name: string): Promise<string> {
-    const templatePath = path.join(this.templateDir, name, 'index.hbs');
-    this.logger.debug(`Loading template: ${templatePath}`);
-    return fs.promises.readFile(templatePath, 'utf-8');
+  /**
+   * Validate a custom HTML template (Growth+ tier).
+   * Returns validated/sanitized HTML or validation errors.
+   */
+  validateCustomTemplate(
+    source: string,
+    tier: number,
+  ): TemplateValidationResult {
+    const limits = getTierLimits(tier);
+    if (limits.customTemplates === 0) {
+      return {
+        valid: false,
+        error: 'Custom templates require the Growth plan or higher.',
+      };
+    }
+
+    // Basic validation: ensure Handlebars can compile it
+    try {
+      Handlebars.compile(source);
+    } catch (err: any) {
+      return { valid: false, error: `Template syntax error: ${err.message}` };
+    }
+
+    // Strip dangerous tags/attrs (no XSS via custom templates)
+    const sanitized = this.sanitizeHtml(source);
+    return { valid: true, compiledHtml: sanitized };
   }
 
-  private async renderPlainText(
-    template: string,
-    vars: Record<string, unknown>,
-  ): Promise<string> {
-    try {
-      const hbsPath = path.join(this.templateDir, template, 'plain.hbs');
-      const source = await fs.promises.readFile(hbsPath, 'utf-8');
-      const compiled = Handlebars.compile(source);
-      return compiled(vars);
-    } catch {
-      // Generate a refined plain text version for deliverability
-      const protocol = (vars.protocolName as string) || 'Herald';
-      const subject = (vars.subject as string) || 'Notification';
-      const recipient =
-        (vars.recipientAddress as string) || 'Encrypted Identity';
+  // ── Footer injection ─────────────────────────────────────────────────────
 
-      return [
-        'HERALD NOTIFICATION INFRASTRUCTURE',
-        '================================',
-        '',
-        `Source Protocol: ${protocol}`,
-        `Subject: ${subject}`,
-        '',
-        '--------------------------------',
-        '',
-        vars.body,
-        '',
-        '--------------------------------',
-        '',
-        'Zero-PII delivery protocol • ' +
-          protocol +
-          ' cannot access recipient identity • Relayed by Herald Network',
-        '',
-        '--------------------------------',
-        '',
-        'Delivered via Herald API | https://useherald.xyz',
-        `Unsubscribe: ${vars.unsubscribeUrl}`,
-        `Recipient: ${recipient}`,
-      ].join('\n');
+  private injectHeraldFooter(
+    html: string,
+    variables: Record<string, unknown>,
+    tier: number,
+  ): string {
+    const unsubscribeUrl = (variables.unsubscribeUrl as string) || '#';
+
+    const footers: Record<string, string> = {
+      // Developer: full Herald branding
+      full: `
+        <div style="background:#040C18;padding:24px 32px;border-top:1px solid #0E2A3D;font-family:Arial,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td>
+              <span style="font-size:18px;font-weight:800;color:#00C896;">◈ Herald</span><br>
+              <span style="font-size:11px;color:#2D4A5E;">
+                Privacy-preserving DeFi notifications. <a href="https://useherald.xyz" style="color:#007A5C;">useherald.xyz</a>
+              </span>
+            </td>
+            <td align="right" valign="top">
+              <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
+            </td>
+          </tr></table>
+        </div>`,
+
+      // Growth: small "via Herald" line
+      small: `
+        <div style="background:#040C18;padding:16px 32px;border-top:1px solid #071520;font-family:Arial,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td>
+              <span style="font-size:11px;color:#2D4A5E;">
+                Delivered securely via <a href="https://useherald.xyz" style="color:#007A5C;">Herald</a>
+              </span>
+            </td>
+            <td align="right">
+              <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
+            </td>
+          </tr></table>
+        </div>`,
+
+      // Scale: minimal — unsubscribe + tiny Herald mark
+      minimal: `
+        <div style="background:#040C18;padding:12px 32px;border-top:1px solid #071520;text-align:center;font-family:Arial,sans-serif;">
+          <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
+          &nbsp;·&nbsp;
+          <span style="font-size:11px;color:#1A2D3D;">◈ Herald</span>
+        </div>`,
+
+      // Enterprise: unsubscribe only
+      none: `
+        <div style="padding:12px 32px;text-align:center;font-family:Arial,sans-serif;">
+          <a href="${unsubscribeUrl}" style="font-size:11px;color:#666;">Unsubscribe</a>
+        </div>`,
+    };
+
+    const footerKey =
+      tier === 0
+        ? 'full'
+        : tier === 1
+          ? 'small'
+          : tier === 2
+            ? 'minimal'
+            : 'none';
+
+    const footer = footers[footerKey];
+    // Inject before </body>, or append if no body tag
+    return html.includes('</body>')
+      ? html.replace('</body>', `${footer}</body>`)
+      : html + footer;
+  }
+
+  // ── Template loading ─────────────────────────────────────────────────────
+
+  private async loadCustomTemplate(
+    templateId: string,
+    protocolId: string,
+  ): Promise<string | null> {
+    try {
+      const tmpl = await this.prisma.notificationTemplate.findFirst({
+        where: { id: templateId, protocolId, isActive: true },
+      });
+      return tmpl?.htmlSource ?? null;
+    } catch {
+      return null;
     }
   }
+
+  private async loadProtocolDefaultTemplate(
+    protocolId: string,
+    category: string,
+  ): Promise<string | null> {
+    try {
+      const tmpl = await this.prisma.notificationTemplate.findFirst({
+        where: { protocolId, category, isDefault: true, isActive: true },
+      });
+      return tmpl?.htmlSource ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async loadSystemTemplate(name: string): Promise<string> {
+    const templatePath = path.join(this.templateDir, name, 'index.hbs');
+    try {
+      return await fs.promises.readFile(templatePath, 'utf-8');
+    } catch {
+      // Fallback to defi-alert
+      this.logger.warn(
+        `Template "${name}" not found, using defi-alert fallback`,
+      );
+      const fallbackPath = path.join(
+        this.templateDir,
+        'defi-alert',
+        'index.hbs',
+      );
+      try {
+        return await fs.promises.readFile(fallbackPath, 'utf-8');
+      } catch {
+        // Last resort: return a minimal inline template
+        return this.getMinimalFallbackTemplate();
+      }
+    }
+  }
+
+  /** Cache compiled Handlebars templates in memory to avoid repeated compilation. */
+  private getCompiledTemplate(source: string): HandlebarsTemplateDelegate {
+    const key = this.sha(source);
+    if (!this.templateCache.has(key)) {
+      this.templateCache.set(key, Handlebars.compile(source));
+    }
+    return this.templateCache.get(key)!;
+  }
+
+  // ── Plain text ────────────────────────────────────────────────────────────
+
+  private renderPlainTextFallback(vars: Record<string, unknown>): string {
+    const protocol = (vars.protocolName as string) || 'Herald';
+    const subject = (vars.subject as string) || 'Notification';
+    const body = (vars.body as string) || '';
+
+    return [
+      `${protocol} — ${subject}`,
+      '',
+      '─'.repeat(40),
+      '',
+      body,
+      '',
+      '─'.repeat(40),
+      '',
+      `Unsubscribe: ${vars.unsubscribeUrl}`,
+      'Delivered by Herald | https://useherald.xyz',
+    ].join('\n');
+  }
+
+  // ── Security ──────────────────────────────────────────────────────────────
+
+  /** Strip script tags and event handlers from custom HTML using sanitize-html, but allow CSS and structural tags. */
+  private sanitizeHtml(sourceHtml: string): string {
+    return sanitizeHtml(sourceHtml, {
+      allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+        'html',
+        'head',
+        'body',
+        'style',
+        'meta',
+        'title',
+        'link',
+        'img',
+        'table',
+        'tr',
+        'td',
+        'tbody',
+        'thead',
+        'tfoot',
+        'th',
+        'center',
+        'font',
+      ]),
+      allowedAttributes: {
+        '*': [
+          'style',
+          'class',
+          'id',
+          'width',
+          'height',
+          'align',
+          'valign',
+          'bgcolor',
+          'border',
+          'cellpadding',
+          'cellspacing',
+          'color',
+          'dir',
+          'lang',
+        ],
+        a: ['href', 'name', 'target', 'title'],
+        img: ['src', 'alt', 'title', 'width', 'height', 'usemap'],
+        meta: ['content', 'name', 'charset', 'http-equiv', 'property'],
+        link: ['rel', 'href', 'type'],
+        style: ['type', 'media'],
+        td: ['colspan', 'rowspan', 'headers'],
+        th: ['colspan', 'rowspan', 'headers', 'scope'],
+      },
+      allowVulnerableTags: true, // Necessary to allow <style> tags and their contents
+      allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+      allowProtocolRelative: false,
+      transformTags: {
+        // Enforce safe links
+        a: sanitizeHtml.simpleTransform('a', {
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        }),
+      },
+    });
+  }
+
+  private sha(str: string): string {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    }
+    return h.toString(36);
+  }
+
+  private getMinimalFallbackTemplate(): string {
+    return `
+      <html><body style="font-family:Arial,sans-serif;background:#040C18;color:#F0F6FF;padding:32px;">
+        <h2 style="color:#00C896;">{{protocolName}}</h2>
+        <h3>{{subject}}</h3>
+        <p>{{body}}</p>
+      </body></html>`;
+  }
+
+  // ── Handlebars helpers ─────────────────────────────────────────────────────
 
   private registerHelpers(): void {
     Handlebars.registerHelper('truncate', (str: string, len: number) =>
       str?.length > len ? str.slice(0, len) + '...' : str,
     );
     Handlebars.registerHelper('formatDate', (ts: number) =>
-      new Date(ts * 1000).toISOString(),
+      new Date(ts * 1000).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
     );
     Handlebars.registerHelper(
       'categoryColor',
       (category: string) =>
         ({
-          defi: '#00C896',
+          defi: '#EF4444',
           governance: '#8B5CF6',
           system: '#F59E0B',
           marketing: '#10B981',
@@ -149,27 +399,36 @@ export class TemplateService {
         })[category] ?? '#00C896',
     );
     Handlebars.registerHelper(
-      'categoryClass',
+      'categoryLabel',
       (category: string) =>
         ({
-          defi: 'defi',
-          governance: 'governance',
-          system: 'system',
-          marketing: 'marketing',
-          security: 'security',
-          liquidation: 'liquidation',
-          yield: 'yield',
-        })[category] ?? 'defi',
+          defi: 'DeFi Alert',
+          governance: 'Governance',
+          system: 'System',
+          marketing: 'Update',
+          security: 'Security',
+        })[category] ?? 'Notification',
+    );
+    Handlebars.registerHelper(
+      'categoryEmoji',
+      (category: string) =>
+        ({
+          defi: '🔴',
+          governance: '🏛',
+          system: '⚙️',
+          marketing: '📢',
+          security: '🔒',
+        })[category] ?? '🔔',
     );
     Handlebars.registerHelper('markdown', (content: string) => {
       if (!content) return '';
-      // Convert markdown to HTML and return as safe string
       return new Handlebars.SafeString(
         marked.parse(content, { gfm: true }) as string,
       );
     });
-    Handlebars.registerHelper('repeat', (str: string, count: number) =>
-      str.repeat(count),
+    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
+    Handlebars.registerHelper('truncate', (str: string, len: number) =>
+      str?.length > len ? str.slice(0, len) + '...' : str,
     );
   }
 }

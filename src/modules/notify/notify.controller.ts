@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +28,7 @@ import {
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
 import { SubscriptionGuard } from '../billing/subscription/subscription.guard';
+import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.interceptor';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
@@ -39,6 +41,7 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 @ApiTags('Notifications')
 @ApiBearerAuth()
 @UseGuards(AuthGuard, ScopeGuard)
+@UseInterceptors(RateLimitInterceptor)
 @Controller('v1')
 export class NotifyController {
   constructor(private readonly notifyService: NotifyService) {}

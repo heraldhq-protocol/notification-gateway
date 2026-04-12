@@ -24,7 +24,7 @@ import bs58 from 'bs58';
  */
 @Injectable()
 export class AuthService {
-  private static readonly CACHE_TTL_SECONDS = 60;
+  private static readonly CACHE_TTL_SECONDS = 300; // 5 min — reduced Redis churn vs 60s
   private static readonly CACHE_PREFIX = 'auth:key:';
 
   private readonly logger = new Logger(AuthService.name);
@@ -99,9 +99,9 @@ export class AuthService {
       // Cache write failure is non-fatal
     }
 
-    // 4. Update last_used_at asynchronously (don't block response)
-    this.prisma.apiKey
-      .update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } })
+    // 4. Track last_used_at in Redis hash (batched, not per-request PG write)
+    this.redis
+      .hset('auth:last_used', apiKey.id, Date.now().toString())
       .catch(() => {});
 
     return result;

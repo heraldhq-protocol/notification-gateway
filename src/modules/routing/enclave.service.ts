@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RoutingUnavailableException } from '../../common/exceptions/herald.exception';
-import type { DecryptedChannels, IdentityAccount } from '../../common/types/notification.types';
+import type {
+  DecryptedChannels,
+  IdentityAccount,
+} from '../../common/types/notification.types';
 
 export interface DecryptParams {
   encryptedEmail: Uint8Array;
@@ -59,7 +62,9 @@ export class EnclaveService {
    * @param identity - The on-chain identity account with encrypted channel data
    * @returns DecryptedChannels with only the active channel identifiers populated
    */
-  async decryptAllChannels(identity: IdentityAccount): Promise<DecryptedChannels> {
+  async decryptAllChannels(
+    identity: IdentityAccount,
+  ): Promise<DecryptedChannels> {
     const params: DecryptAllParams = {
       ownerPubkey: identity.owner,
       encryptedEmail: identity.encryptedEmail,
@@ -84,7 +89,9 @@ export class EnclaveService {
   /**
    * Production: Nitro Enclave socket — decrypt all channels in one call.
    */
-  private async enclaveDecryptAll(params: DecryptAllParams): Promise<DecryptedChannels> {
+  private async enclaveDecryptAll(
+    params: DecryptAllParams,
+  ): Promise<DecryptedChannels> {
     const { createConnection } = await import('net');
     const socketPath =
       this.config.get<string>('NITRO_ENCLAVE_SOCKET') ?? '/run/enclave.sock';
@@ -102,15 +109,23 @@ export class EnclaveService {
       };
 
       if (params.channelEmail && params.encryptedEmail.length > 0) {
-        payload.encrypted_email = Buffer.from(params.encryptedEmail).toString('hex');
+        payload.encrypted_email = Buffer.from(params.encryptedEmail).toString(
+          'hex',
+        );
         payload.nonce_email = Buffer.from(params.nonce).toString('hex');
       }
       if (params.channelTelegram && params.encryptedTelegramId.length > 0) {
-        payload.encrypted_telegram_id = Buffer.from(params.encryptedTelegramId).toString('hex');
-        payload.nonce_telegram = Buffer.from(params.nonceTelegram).toString('hex');
+        payload.encrypted_telegram_id = Buffer.from(
+          params.encryptedTelegramId,
+        ).toString('hex');
+        payload.nonce_telegram = Buffer.from(params.nonceTelegram).toString(
+          'hex',
+        );
       }
       if (params.channelSms && params.encryptedPhone.length > 0) {
-        payload.encrypted_phone = Buffer.from(params.encryptedPhone).toString('hex');
+        payload.encrypted_phone = Buffer.from(params.encryptedPhone).toString(
+          'hex',
+        );
         payload.nonce_sms = Buffer.from(params.nonceSms).toString('hex');
       }
 
@@ -255,19 +270,26 @@ export class EnclaveService {
   /**
    * Development mock: decrypt all channels with deterministic test values.
    */
-  private async mockDecryptAll(params: DecryptAllParams): Promise<DecryptedChannels> {
+  private async mockDecryptAll(
+    params: DecryptAllParams,
+  ): Promise<DecryptedChannels> {
     await Promise.resolve();
     const result: DecryptedChannels = {};
 
     const mappingStr = this.config.get<string>('DEV_DEBUG_EMAILS');
     let mapping: Record<string, any> = {};
     if (mappingStr) {
-      try { mapping = JSON.parse(mappingStr); } catch { /* ignore */ }
+      try {
+        mapping = JSON.parse(mappingStr);
+      } catch {
+        /* ignore */
+      }
     }
 
     if (params.channelEmail && params.encryptedEmail.length > 0) {
-      result.email = mapping[params.ownerPubkey]
-        ?? `test-${params.ownerPubkey.slice(0, 8)}@useherald-dev.xyz`;
+      result.email =
+        mapping[params.ownerPubkey] ??
+        `test-${params.ownerPubkey.slice(0, 8)}@useherald-dev.xyz`;
     }
     if (params.channelTelegram && params.encryptedTelegramId.length > 0) {
       result.telegramChatId = `mock-chat-${params.ownerPubkey.slice(0, 8)}`;
@@ -313,4 +335,3 @@ export class EnclaveService {
     );
   }
 }
-

@@ -2,7 +2,10 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { SolanaService } from '../../solana/solana.service';
 import { EnclaveService } from './enclave.service';
-import type { IdentityAccount, DecryptedChannels } from '../../common/types/notification.types';
+import type {
+  IdentityAccount,
+  DecryptedChannels,
+} from '../../common/types/notification.types';
 
 /**
  * RoutingService — resolves wallet pubkeys to identity accounts.
@@ -18,7 +21,7 @@ import type { IdentityAccount, DecryptedChannels } from '../../common/types/noti
  */
 @Injectable()
 export class RoutingService {
-  private static readonly PDA_CACHE_TTL_SECONDS = 300; // 5 minutes
+  private static readonly PDA_CACHE_TTL_SECONDS = 600; // 10 min — identity accounts change rarely
 
   private readonly logger = new Logger(RoutingService.name);
 
@@ -52,7 +55,7 @@ export class RoutingService {
       await this.solanaService.fetchIdentityAccount(walletPubkey);
 
     if (!identity) {
-      await this.redis.setex(cacheKey, 60, 'NOT_REGISTERED').catch(() => {});
+      await this.redis.setex(cacheKey, 120, 'NOT_REGISTERED').catch(() => {});
       return null;
     }
 
@@ -103,7 +106,9 @@ export class RoutingService {
       encryptedEmail: Buffer.from(identity.encryptedEmail).toString('base64'),
       emailHash: Buffer.from(identity.emailHash).toString('base64'),
       nonce: Buffer.from(identity.nonce).toString('base64'),
-      encryptedTelegramId: Buffer.from(identity.encryptedTelegramId).toString('base64'),
+      encryptedTelegramId: Buffer.from(identity.encryptedTelegramId).toString(
+        'base64',
+      ),
       telegramIdHash: Buffer.from(identity.telegramIdHash).toString('base64'),
       nonceTelegram: Buffer.from(identity.nonceTelegram).toString('base64'),
       encryptedPhone: Buffer.from(identity.encryptedPhone).toString('base64'),
@@ -115,13 +120,23 @@ export class RoutingService {
   private deserializeCached(parsed: any): IdentityAccount {
     return {
       ...parsed,
-      encryptedEmail: new Uint8Array(Buffer.from(parsed.encryptedEmail, 'base64')),
+      encryptedEmail: new Uint8Array(
+        Buffer.from(parsed.encryptedEmail, 'base64'),
+      ),
       emailHash: new Uint8Array(Buffer.from(parsed.emailHash, 'base64')),
       nonce: new Uint8Array(Buffer.from(parsed.nonce, 'base64')),
-      encryptedTelegramId: new Uint8Array(Buffer.from(parsed.encryptedTelegramId ?? '', 'base64')),
-      telegramIdHash: new Uint8Array(Buffer.from(parsed.telegramIdHash ?? '', 'base64')),
-      nonceTelegram: new Uint8Array(Buffer.from(parsed.nonceTelegram ?? '', 'base64')),
-      encryptedPhone: new Uint8Array(Buffer.from(parsed.encryptedPhone ?? '', 'base64')),
+      encryptedTelegramId: new Uint8Array(
+        Buffer.from(parsed.encryptedTelegramId ?? '', 'base64'),
+      ),
+      telegramIdHash: new Uint8Array(
+        Buffer.from(parsed.telegramIdHash ?? '', 'base64'),
+      ),
+      nonceTelegram: new Uint8Array(
+        Buffer.from(parsed.nonceTelegram ?? '', 'base64'),
+      ),
+      encryptedPhone: new Uint8Array(
+        Buffer.from(parsed.encryptedPhone ?? '', 'base64'),
+      ),
       phoneHash: new Uint8Array(Buffer.from(parsed.phoneHash ?? '', 'base64')),
       nonceSms: new Uint8Array(Buffer.from(parsed.nonceSms ?? '', 'base64')),
       channelEmail: parsed.channelEmail ?? false,
@@ -130,4 +145,3 @@ export class RoutingService {
     } as IdentityAccount;
   }
 }
-
