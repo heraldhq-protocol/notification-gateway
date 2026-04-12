@@ -8,7 +8,7 @@ import { PaymentRepository } from '../repositories/payment.repository';
 import { HelioEventRepository } from '../repositories/helio-event.repository';
 import { MailService } from '../../mail/mail.service';
 import { TemplateService } from '../../template/template.service';
-import { HelioWebhookPayload } from '@herald-protocol/sdk/billing';
+import type { HelioWebhookPayload } from '../helio/helio.types';
 import { PublicKey } from '@solana/web3.js';
 import { Protocol } from '../../../../prisma/generated/prisma/index';
 
@@ -36,6 +36,10 @@ export class SubscriptionService {
       transactionId,
     } = payload;
 
+    const tierInt = Number(tier);
+    const monthsInt = Number(months || 1);
+    const amountUsdcBigInt = BigInt(Math.floor(Number(amountUsdc || 0)));
+
     const protocol = await this.prisma.protocol.findUnique({
       where: { protocolPubkey },
     });
@@ -45,8 +49,8 @@ export class SubscriptionService {
 
     this.logger.info('Activating subscription from Helio payment', {
       protocolId,
-      tier,
-      months,
+      tier: tierInt,
+      months: monthsInt,
     });
 
     try {
@@ -64,7 +68,7 @@ export class SubscriptionService {
 
     const now = new Date();
     const periodEnd = new Date(
-      now.getTime() + 30 * 24 * 60 * 60 * 1000 * months,
+      now.getTime() + 30 * 24 * 60 * 60 * 1000 * monthsInt,
     );
 
     await this.prisma.$transaction(async (tx) => {
@@ -72,7 +76,7 @@ export class SubscriptionService {
         where: { protocolId },
         create: {
           protocolId,
-          tier,
+          tier: tierInt,
           status: 'active',
           helioSubscriptionId: transactionId, // Using transactionId as substitute if subId isn't separated
           currentPeriodStart: now,
@@ -82,7 +86,7 @@ export class SubscriptionService {
           cancelAtPeriodEnd: false,
         },
         update: {
-          tier,
+          tier: tierInt,
           status: 'active',
           helioSubscriptionId: transactionId,
           currentPeriodStart: now,
@@ -96,12 +100,12 @@ export class SubscriptionService {
       await tx.payment.create({
         data: {
           protocolId,
-          amountUsdc: BigInt(amountUsdc),
+          amountUsdc: amountUsdcBigInt,
           tokenSymbol: 'USDC',
           paymentSource: 'helio',
           helioTransactionId: transactionId,
           solanaTxSignature,
-          periodsPaid: months,
+          periodsPaid: monthsInt,
           periodStart: now,
           periodEnd,
           status: 'completed',
@@ -111,7 +115,7 @@ export class SubscriptionService {
       await tx.protocol.update({
         where: { id: protocolId },
         data: {
-          tier,
+          tier: tierInt,
           isActive: true,
           updatedAt: now,
         },
@@ -123,7 +127,7 @@ export class SubscriptionService {
       });
     });
 
-    this.sendSubscriptionConfirmationEmail(protocol, tier, months).catch((e) =>
+    this.sendSubscriptionConfirmationEmail(protocol, tierInt, monthsInt).catch((e) =>
       this.logger.warn('Confirmation email failed (non-critical)', {
         error: e.message,
       }),
@@ -131,8 +135,8 @@ export class SubscriptionService {
 
     this.logger.info('Subscription activated successfully', {
       protocolId,
-      tier,
-      months,
+      tier: tierInt,
+      months: monthsInt,
     });
   }
 

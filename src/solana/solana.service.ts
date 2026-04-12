@@ -65,6 +65,18 @@ export class SolanaService {
         optInGovernance: identity.optInGovernance,
         optInMarketing: identity.optInMarketing,
         digestMode: identity.digestMode ?? false,
+        // Channel flags
+        channelEmail: identity.channelEmail ?? true,
+        channelTelegram: identity.channelTelegram ?? false,
+        channelSms: identity.channelSms ?? false,
+        // Telegram channel
+        encryptedTelegramId: new Uint8Array(identity.encryptedTelegramId ?? []),
+        telegramIdHash: new Uint8Array(identity.telegramIdHash ?? []),
+        nonceTelegram: new Uint8Array(identity.nonceTelegram ?? []),
+        // SMS channel
+        encryptedPhone: new Uint8Array(identity.encryptedPhone ?? []),
+        phoneHash: new Uint8Array(identity.phoneHash ?? []),
+        nonceSms: new Uint8Array(identity.nonceSms ?? []),
       };
     } catch (err) {
       this.rpcManager.recordFailure();

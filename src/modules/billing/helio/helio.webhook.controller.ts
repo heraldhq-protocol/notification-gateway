@@ -16,7 +16,7 @@ import { HelioWebhookGuard } from './helio.webhook.guard';
 import type { RequestWithRawBody } from './helio.webhook.guard';
 import { HelioEventRepository } from '../repositories/helio-event.repository';
 import { ProtocolService } from '../../protocol/protocol.service';
-import type { HelioWebhookPayload } from '@herald-protocol/sdk/billing';
+import type { HelioWebhookPayload } from './helio.types';
 
 @Controller('v1/billing/helio')
 export class HelioWebhookController {
