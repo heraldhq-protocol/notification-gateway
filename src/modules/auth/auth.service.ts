@@ -84,6 +84,7 @@ export class AuthService {
       environment: apiKey.environment,
       isActive: protocol.isActive,
       sendsThisPeriod: protocol.sendsThisPeriod,
+      overageEnabled: protocol.overageEnabled,
     };
 
     // 3. Cache for 60s

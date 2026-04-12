@@ -23,7 +23,10 @@ import type { NotificationJobData } from '../../../common/types/notification.typ
  *
  * SEC-001: Plaintext identifiers exist ONLY in local variables within process().
  */
-@Processor(QueueNames.NOTIFICATION)
+@Processor(QueueNames.NOTIFICATION, {
+  stalledInterval: 30000, // Check for stalled jobs every 30s instead of 1s
+  maxStalledCount: 1, // Only allow one stall before moving to failed
+})
 @Injectable()
 export class MailWorker extends WorkerHost {
   private readonly logger = new Logger(MailWorker.name);

@@ -186,11 +186,9 @@ export class NotifyService {
       where: { protocol_id: protocol.protocolId },
     });
 
-    const testEmail = (settings as any)?.test_email as string | undefined;
-    const testTelegramId = (settings as any)?.test_telegram_id as
-      | string
-      | undefined;
-    const testPhone = (settings as any)?.test_phone as string | undefined;
+    const testEmail = settings?.test_email;
+    const testTelegramId = settings?.test_telegram_id;
+    const testPhone = settings?.test_phone;
 
     if (!testEmail && !testTelegramId && !testPhone) {
       await this.prisma.notification.create({

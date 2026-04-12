@@ -211,11 +211,29 @@ export class RateLimitService {
     }
 
     if (used + count > limit) {
-      // Quota exceeded — no overage support yet
+      if (protocol.overageEnabled) {
+        const overageCount = Number(used + BigInt(count) - BigInt(limit));
+        const pricePerNotif = OVERAGE_PRICE_PER_NOTIFICATION[protocol.tier] ?? 500n;
+        const totalOveragePrice = BigInt(count) * pricePerNotif;
+
+        return {
+          allowed: true,
+          isOverage: true,
+          overageCount,
+          overagePrice: totalOveragePrice,
+          headers: {
+            ...quotaHeaders,
+            'X-Herald-Overage': 'true',
+            'X-Herald-Overage-Price': totalOveragePrice.toString(),
+          },
+        };
+      }
+
+      // Quota exceeded and no overage — hard block
       return {
         allowed: false,
         error: 'QUOTA_EXCEEDED',
-        message: `Monthly quota reached (${limit.toLocaleString()} sends/${limits.name} tier). Upgrade at app.useherald.xyz/billing/upgrade.`,
+        message: `Monthly quota reached (${limit.toLocaleString()} sends/${limits.name} tier). Upgrade at app.useherald.xyz/billing/upgrade or enable overages.`,
         httpStatus: 429,
         headers: {
           ...quotaHeaders,

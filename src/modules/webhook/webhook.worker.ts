@@ -14,7 +14,10 @@ interface WebhookJobData {
   payload: WebhookPayload;
 }
 
-@Processor(QueueNames.WEBHOOK)
+@Processor(QueueNames.WEBHOOK, {
+  stalledInterval: 30000,
+  maxStalledCount: 1,
+})
 export class WebhookWorker extends WorkerHost {
   private readonly logger = new Logger(WebhookWorker.name);
 

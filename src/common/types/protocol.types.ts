@@ -11,6 +11,7 @@ export interface AuthenticatedProtocol {
   isActive: boolean;
   sendsThisPeriod?: bigint;
   name?: string;
+  overageEnabled?: boolean;
 }
 
 /** Generated API key returned once at creation time. */
