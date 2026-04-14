@@ -212,8 +212,9 @@ export class RateLimitService {
 
     if (used + count > limit) {
       if (protocol.overageEnabled) {
-        const overageCount = Number(used + BigInt(count) - BigInt(limit));
-        const pricePerNotif = OVERAGE_PRICE_PER_NOTIFICATION[protocol.tier] ?? 500n;
+        const overageCount = used + count - limit;
+        const pricePerNotif =
+          OVERAGE_PRICE_PER_NOTIFICATION[protocol.tier] ?? 500n;
         const totalOveragePrice = BigInt(count) * pricePerNotif;
 
         return {

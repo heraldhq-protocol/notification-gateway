@@ -17,7 +17,7 @@ export class UsageController {
   @ApiOperation({ summary: 'Get current month API usage and quota limits' })
   async getUsage(@ApiKey() protocol: AuthenticatedProtocol) {
     const tier = protocol.tier;
-    const limit = TierLimits[tier]?.monthlyEmailLimit ?? 0;
+    const limit = this.rateLimitService.getTierLimits(tier)?.sendsPerMonth ?? 0;
 
     // We get current usage by passing count=0 to the rate limiter script or querying Redis directly.
     // The RateLimitService.checkRateLimit method increments, so we need a checkOnly option or a separate usage call.

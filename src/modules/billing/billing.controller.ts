@@ -52,7 +52,10 @@ export class BillingController {
       dto.tier,
       dto.months ?? 1,
     );
-    return { checkoutUrl: result.checkoutUrl, paylinkId: result.paylinkId };
+    return {
+      checkoutUrl: result.checkoutUrl,
+      transactionId: result.transactionId,
+    };
   }
 
   @Post('cancel')

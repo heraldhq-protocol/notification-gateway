@@ -59,7 +59,6 @@ export class HelioService {
     return this.helioBilling.createSubscriptionCheckout({
       tier: heraldTier,
       walletAddress: protocol.protocolPubkey,
-      templateId,
       successUrl: `${this.config.get<string>('HELIO_CHECKOUT_SUCCESS_URL')}?tier=${tier}&months=${months}`,
       cancelUrl: this.config.get<string>('HELIO_CHECKOUT_CANCEL_URL')!,
       metadata: {

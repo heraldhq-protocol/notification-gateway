@@ -247,9 +247,9 @@ export class NotifyService {
       digestMode: false,
       isSandbox: true,
       testContact: {
-        email: testEmail,
-        telegramChatId: testTelegramId,
-        phone: testPhone,
+        email: testEmail ?? undefined,
+        telegramChatId: testTelegramId ?? undefined,
+        phone: testPhone ?? undefined,
       },
       tier: protocol.tier,
       templateId: dto.templateId,

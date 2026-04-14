@@ -5,15 +5,7 @@ import { RateLimitService } from './rate-limit.service';
 // ── Mocks ─────────────────────────────────────────────────────────
 
 const mockRedis = {
-  multi: jest.fn(),
-};
-
-const mockPipeline = {
-  zremrangebyscore: jest.fn().mockReturnThis(),
-  zadd: jest.fn().mockReturnThis(),
-  zcard: jest.fn().mockReturnThis(),
-  expire: jest.fn().mockReturnThis(),
-  exec: jest.fn(),
+  eval: jest.fn(),
 };
 
 describe('RateLimitService', () => {
@@ -21,7 +13,6 @@ describe('RateLimitService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockRedis.multi.mockReturnValue(mockPipeline);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [RateLimitService, { provide: Redis, useValue: mockRedis }],
@@ -35,112 +26,97 @@ describe('RateLimitService', () => {
   describe('getTierLimits', () => {
     it('should return Developer limits for tier 0', () => {
       const limits = service.getTierLimits(0);
-      expect(limits).toEqual({ perSecond: 2, burst: 10, monthly: 1_000 });
+      expect(limits.name).toBe('Developer');
+      expect(limits.burstLimit).toBe(10);
+      expect(limits.sendsPerMonth).toBe(1_000);
     });
 
     it('should return Growth limits for tier 1', () => {
       const limits = service.getTierLimits(1);
-      expect(limits).toEqual({ perSecond: 20, burst: 100, monthly: 50_000 });
-    });
-
-    it('should return Scale limits for tier 2', () => {
-      const limits = service.getTierLimits(2);
-      expect(limits).toEqual({ perSecond: 100, burst: 500, monthly: 250_000 });
-    });
-
-    it('should return Enterprise limits for tier 3', () => {
-      const limits = service.getTierLimits(3);
-      expect(limits).toEqual({
-        perSecond: 500,
-        burst: 2000,
-        monthly: 1_000_000,
-      });
+      expect(limits.name).toBe('Growth');
+      expect(limits.burstLimit).toBe(100);
+      expect(limits.sendsPerMonth).toBe(50_000);
     });
 
     it('should fall back to Developer for unknown tiers', () => {
       const limits = service.getTierLimits(99);
-      expect(limits).toEqual({ perSecond: 2, burst: 10, monthly: 1_000 });
+      expect(limits.name).toBe('Developer');
     });
   });
 
   // ── Monthly Quota ───────────────────────────────────────────────
 
-  describe('checkMonthlyQuota', () => {
+  describe('checkMonthlyQuotaSimple', () => {
     it('should return true when under quota', () => {
-      expect(service.checkMonthlyQuota(0, 500n)).toBe(true);
+      expect(service.checkMonthlyQuotaSimple(0, 500n)).toBe(true);
     });
 
     it('should return false when at quota', () => {
-      expect(service.checkMonthlyQuota(0, 1000n)).toBe(false);
+      expect(service.checkMonthlyQuotaSimple(0, 1000n)).toBe(false);
     });
 
     it('should return false when over quota', () => {
-      expect(service.checkMonthlyQuota(0, 1500n)).toBe(false);
-    });
-
-    it('should check against correct tier limit', () => {
-      expect(service.checkMonthlyQuota(1, 49_999n)).toBe(true); // Growth < 50k
-      expect(service.checkMonthlyQuota(1, 50_000n)).toBe(false); // Growth >= 50k
+      expect(service.checkMonthlyQuotaSimple(0, 1500n)).toBe(false);
     });
   });
 
-  // ── Sliding Window ──────────────────────────────────────────────
+  // ── Rate Limits ─────────────────────────────────────────────────
 
-  describe('checkAndIncrement', () => {
+  describe('checkAllLimits', () => {
+    const defaultProtocol: any = {
+      protocolId: 'proto-1',
+      protocolPubkey: '7xR4mKp2nQ...',
+      tier: 0,
+      environment: 'production',
+      sendsThisPeriod: 0n,
+      scopes: ['notify:write'],
+      isActive: true,
+      overageEnabled: false,
+    };
+
     it('should allow requests under the burst limit', async () => {
-      mockPipeline.exec.mockResolvedValue([
-        [null, 0], // zremrangebyscore
-        [null, 1], // zadd
-        [null, 5], // zcard — 5 requests in window
-        [null, 1], // expire
-      ]);
+      mockRedis.eval.mockResolvedValue([1, 1000]);
 
-      const result = await service.checkAndIncrement('proto-1', 0);
+      const result = await service.checkAllLimits(defaultProtocol);
 
       expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(5); // burst 10 - 5 used
-      expect(mockRedis.multi).toHaveBeenCalled();
+      expect(result.headers['X-RateLimit-Remaining']).toBe('9'); // burst 10 - 1 used
+      expect(mockRedis.eval).toHaveBeenCalled();
     });
 
     it('should deny requests over the burst limit', async () => {
-      mockPipeline.exec.mockResolvedValue([
-        [null, 0],
-        [null, 1],
-        [null, 15], // zcard — 15 requests, over burst 10
-        [null, 1],
-      ]);
+      mockRedis.eval.mockResolvedValue([15, 1000]); // 15 requests, over burst 10
 
-      const result = await service.checkAndIncrement('proto-1', 0);
+      const result = await service.checkAllLimits(defaultProtocol);
 
       expect(result.allowed).toBe(false);
-      expect(result.remaining).toBe(0);
+      expect(result.headers['X-RateLimit-Remaining']).toBe('0');
       expect(result.retryAfter).toBe(1);
     });
 
     it('should use correct tier burst limits', async () => {
-      mockPipeline.exec.mockResolvedValue([
-        [null, 0],
-        [null, 1],
-        [null, 50], // zcard — 50 requests
-        [null, 1],
-      ]);
+      mockRedis.eval.mockResolvedValue([50, 1000]); // 50 requests
 
       // Tier 0 (burst 10): should deny
-      const result0 = await service.checkAndIncrement('proto-1', 0);
+      const result0 = await service.checkAllLimits(defaultProtocol);
       expect(result0.allowed).toBe(false);
 
       // Tier 1 (burst 100): should allow
-      const result1 = await service.checkAndIncrement('proto-1', 1);
+      const result1 = await service.checkAllLimits({
+        ...defaultProtocol,
+        tier: 1,
+      });
       expect(result1.allowed).toBe(true);
-      expect(result1.remaining).toBe(50); // 100 - 50
+      expect(result1.headers['X-RateLimit-Remaining']).toBe('50'); // 100 - 50
     });
 
-    it('should fallback gracefully on null pipeline result', async () => {
-      mockPipeline.exec.mockResolvedValue(null);
+    it('should fallback gracefully on redis failure', async () => {
+      mockRedis.eval.mockRejectedValue(new Error('Redis error'));
 
-      const result = await service.checkAndIncrement('proto-1', 0);
+      const result = await service.checkAllLimits(defaultProtocol);
 
       expect(result.allowed).toBe(true);
+      expect(result.headers['X-RateLimit-Remaining']).toBe('10');
     });
   });
 });

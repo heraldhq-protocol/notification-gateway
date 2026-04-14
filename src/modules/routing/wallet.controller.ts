@@ -30,10 +30,7 @@ export class WalletController {
     @Param('wallet') wallet: string,
     @ApiKey() protocol: AuthenticatedProtocol,
   ) {
-    const pda = await this.routingService.findPDAForWallet(
-      protocol.protocolPubkey,
-      wallet,
-    );
+    const pda = await this.routingService.resolveIdentity(wallet);
 
     if (!pda) {
       throw new NotFoundException({

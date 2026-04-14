@@ -50,6 +50,15 @@ const mockIdentity: IdentityAccount = {
   optInGovernance: true,
   optInMarketing: false,
   digestMode: false,
+  channelEmail: true,
+  channelTelegram: false,
+  channelSms: false,
+  encryptedTelegramId: new Uint8Array([]),
+  telegramIdHash: new Uint8Array([]),
+  nonceTelegram: new Uint8Array([]),
+  encryptedPhone: new Uint8Array([]),
+  phoneHash: new Uint8Array([]),
+  nonceSms: new Uint8Array([]),
 };
 
 describe('NotifyService', () => {

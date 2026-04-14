@@ -8,6 +8,3 @@ onlyBuiltDependencies:
   - prisma
   - unrs-resolver
   - utf-8-validate
-
-overrides:
-  '@herald-protocol/sdk': link:../herald-sdk-ts

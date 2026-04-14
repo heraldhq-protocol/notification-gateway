@@ -92,12 +92,15 @@ export class TelegramService implements OnModuleInit {
         html = this.formatCustomMessage(templateRecord.textTemplate, params);
 
         if (templateRecord.buttons && Array.isArray(templateRecord.buttons)) {
-          customButtons = templateRecord.buttons.map((btn) => [
-            {
-              text: this.injectVariables(btn.label, params),
-              url: this.injectVariables(btn.urlTemplate, params),
-            },
-          ]);
+          customButtons = (templateRecord.buttons as any[]).map((btn) => {
+            if (!btn || typeof btn !== 'object') return [];
+            return [
+              {
+                text: this.injectVariables(btn.label || '', params),
+                url: this.injectVariables(btn.urlTemplate || '', params),
+              },
+            ];
+          });
         }
       }
     }

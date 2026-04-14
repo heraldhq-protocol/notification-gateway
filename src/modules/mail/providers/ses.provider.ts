@@ -56,7 +56,7 @@ export class SesProvider implements IMailProvider {
       const heraldDomains = [
         'useherald.xyz',
         'herald.xyz',
-        'sandbox.herald.xyz',
+        'sandbox.useherald.xyz',
       ];
       if (heraldDomains.includes(domain)) {
         return { selector: 'herald' }; // We'll consistently use 'herald' selector for our own domains
