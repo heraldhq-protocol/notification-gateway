@@ -52,7 +52,7 @@ jobs:
             CLEAN_BUILD="${{ env.CLEAN_BUILD }}"
             APP_DIR="$HOME/notification-gateway"
             PM2_APP_NAME="herald-gateway"
-            HEALTH_URL="http://localhost:3002/health"
+            HEALTH_URL="http://localhost:3000/health"
 
             rollback() {
               echo "Deployment failed - rolling back..."
