@@ -110,8 +110,10 @@ jobs:
             sleep 10
 
             # Check PM2 logs for errors
-            echo "=== PM2 Logs (last 20 lines) ==="
-            pm2 logs "$PM2_APP_NAME" --nostream --lines 20 || true
+            echo "=== PM2 Error Logs (last 50 lines) ==="
+            pm2 logs "$PM2_APP_NAME" --nostream --lines 50 --err || true
+            echo "=== PM2 Out Logs (last 50 lines) ==="
+            pm2 logs "$PM2_APP_NAME" --nostream --lines 50 --out || true
 
             for i in $(seq 1 10); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
