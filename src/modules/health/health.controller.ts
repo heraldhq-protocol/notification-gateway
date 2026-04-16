@@ -1,4 +1,4 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
 import { Redis } from 'ioredis';
@@ -18,6 +18,13 @@ export class HealthController {
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly config: ConfigService,
   ) {}
+
+  @Get('live')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Liveness probe' })
+  live() {
+    return { status: 'up', timestamp: new Date().toISOString() };
+  }
 
   @Get()
   @ApiOperation({ summary: 'Health check — DB, Redis, Solana, SMTP status' })
