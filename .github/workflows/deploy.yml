@@ -16,62 +16,102 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CLEAN_BUILD: ${{ github.event.inputs.clean_install == 'true' || contains(github.event.head_commit.message, '[clean]') }}
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ec2-user
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
+          chmod 600 ~/.ssh/ec2_key.pem
+
+          cat > ~/.ssh/config <<EOF
+          Host ec2-deploy
+            HostName ${{ env.EC2_HOST }}
+            User ${{ env.EC2_USER }}
+            IdentityFile ~/.ssh/ec2_key.pem
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            ConnectTimeout 60
+            ConnectionAttempts 3
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
+          EOF
+          chmod 600 ~/.ssh/config
+
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1
         with:
-          host: ec2-16-171-128-29.eu-north-1.compute.amazonaws.com
-          username: ec2-user
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 10m
+          retries: 3
+          wait_interval: 15
           script: |
-            # Set Clean Build flag
+            set -euo pipefail
+
             CLEAN_BUILD="${{ env.CLEAN_BUILD }}"
-            
-            # Ensure GitHub is in known_hosts
+            APP_DIR="$HOME/notification-gateway"
+            PM2_APP_NAME="notification-gateway"
+            HEALTH_URL="http://localhost:3000/health"
+
+            rollback() {
+              echo "Deployment failed - rolling back..."
+              cd "$APP_DIR"
+              if [ -d ".git" ]; then
+                git reset --hard HEAD~1 2>/dev/null || true
+              fi
+              pm2 restart "$PM2_APP_NAME" --update-env || pm2 start ecosystem.config.js --update-env
+              pm2 save
+              exit 1
+            }
+
+            trap rollback ERR
+
             mkdir -p ~/.ssh
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-            
-            # Setup Git credentials
-            cd ~/notification-gateway
+
+            cd "$APP_DIR"
             git remote set-url origin https://${{ secrets.GH_PAT }}@github.com/heraldhq-protocol/notification-gateway.git
 
-            # Install PM2 if missing
             if ! command -v pm2 &> /dev/null; then
               npm install -g pm2
             fi
 
-            cd ~/notification-gateway
             export NODE_OPTIONS="--max-old-space-size=450"
-            
-            # Force sync with repository while preserving .env
+
             git fetch origin main
             git reset --hard origin/main
             git clean -fd --exclude=.env
 
-            # Conditional Clean Install
             if [ "$CLEAN_BUILD" = "true" ]; then
-              echo "⚠️ Performing clean install..."
-              rm -rf node_modules pnpm-lock.yaml
+              echo "Performing clean install..."
+              rm -rf node_modules
             fi
 
-            # Efficient dependency install
-            pnpm install
-
-            # Explicitly generate Prisma Client for the target architecture
+            pnpm install --frozen-lockfile --ignore-scripts
             pnpm db:generate
-
-            # Build the application
             pnpm build
-            
-            # Reset processes to ensure fresh socket binding
-            # Use 'pm2 delete' for the mock-enclave specifically as it binds to a file
+
             pm2 stop all || true
             pm2 delete mock-enclave || true
-            
-            # Start/Reload everything using Ecosystem file
             pm2 start ecosystem.config.js --update-env
-            
             pm2 save
             pm2 status
+
+            for i in $(seq 1 6); do
+              sleep 5
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+              echo "Health check $i: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then
+                echo "Deployment successful!"
+                trap - ERR
+                exit 0
+              fi
+            done
+
+            echo "Health check failed"
+            rollback
