@@ -45,7 +45,7 @@ jobs:
           host: ec2-16-171-128-29.eu-north-1.compute.amazonaws.com
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 10m
+          command_timeout: 20m
           script: |
             set -euo pipefail
 
@@ -89,7 +89,6 @@ jobs:
 
             pnpm install --frozen-lockfile --ignore-scripts
             pnpm db:generate
-            rm -rf dist
             pnpm build
 
             # Get PORT from .env
