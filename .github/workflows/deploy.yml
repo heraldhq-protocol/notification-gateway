@@ -52,7 +52,6 @@ jobs:
             CLEAN_BUILD="${{ env.CLEAN_BUILD }}"
             APP_DIR="$HOME/notification-gateway"
             PM2_APP_NAME="herald-gateway"
-            HEALTH_URL="http://localhost:3000/health/live"
 
             rollback() {
               echo "Deployment failed - rolling back..."
@@ -92,14 +91,28 @@ jobs:
             pnpm db:generate
             pnpm build
 
+            # Get PORT from .env
+            if [ -f .env ]; then
+              source <(grep -E '^PORT=' .env | xargs)
+            fi
+            PORT="${PORT:-3000}"
+            HEALTH_URL="http://localhost:${PORT}/health/live"
+            echo "Using PORT=$PORT"
+
             pm2 stop all || true
             pm2 delete mock-enclave || true
             pm2 start ecosystem.config.js --update-env
             pm2 save
             pm2 status
 
-            for i in $(seq 1 6); do
-              sleep 5
+            echo "Waiting 10s for app to start..."
+            sleep 10
+
+            # Check PM2 logs for errors
+            echo "=== PM2 Logs (last 20 lines) ==="
+            pm2 logs "$PM2_APP_NAME" --nostream --lines 20 || true
+
+            for i in $(seq 1 10); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
               echo "Health check $i: HTTP $STATUS"
               if [ "$STATUS" = "200" ]; then
@@ -107,6 +120,7 @@ jobs:
                 trap - ERR
                 exit 0
               fi
+              sleep 3
             done
 
             echo "Health check failed"
