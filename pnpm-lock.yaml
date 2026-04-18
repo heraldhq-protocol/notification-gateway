@@ -21,8 +21,8 @@ importers:
         specifier: ^3.1029.0
         version: 3.1030.0
       '@herald-protocol/sdk':
-        specifier: ^1.2.1
-        version: 1.2.1(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)
+        specifier: ^1.2.2
+        version: 1.2.2(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@lightprotocol/stateless.js':
         specifier: ^0.23.3
         version: 0.23.3(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
@@ -803,8 +803,8 @@ packages:
   '@heliofi/sdk@3.0.3':
     resolution: {integrity: sha512-2Lcw29qaquF822tn89UOdsQkiWlLXg+cjSK6vkB1BfBKTymfH18Yqs5L0v6uf+AeymBqGx+WgcI9zcxY2/Z7pg==}
 
-  '@herald-protocol/sdk@1.2.1':
-    resolution: {integrity: sha512-p2rmQC7HLn5hyDow80aLFYHbz4TqbFYoKEcyyT2hb6OtrR+vyihx+2Yw3ygdmtXO2wioU/T0QkYmzTy7Cfgffg==}
+  '@herald-protocol/sdk@1.2.2':
+    resolution: {integrity: sha512-FcJXJLeAfPZs6/hougVf3w0/XlcJhAzt4EE+YagPxdfuimB/JlWpzc++b3x5O/sAf8epUS5upen5fmcj2ExDaw==}
     engines: {node: '>=18.0.0'}
 
   '@hono/node-server@1.19.11':
@@ -6997,7 +6997,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@herald-protocol/sdk@1.2.1(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)':
+  '@herald-protocol/sdk@1.2.2(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)':
     dependencies:
       '@coral-xyz/anchor': 0.30.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@heliofi/sdk': 3.0.3(@babel/core@7.29.0)(bufferutil@4.1.0)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)
