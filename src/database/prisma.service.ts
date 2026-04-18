@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
+import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from 'prisma/generated/prisma';
 
