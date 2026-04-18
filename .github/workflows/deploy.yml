@@ -117,8 +117,8 @@ jobs:
             cat /tmp/prisma_deploy.log
             
             if [ $EXIT_CODE -ne 0 ]; then
-              if grep -q "P3005" /tmp/prisma_deploy.log; then
-                echo "⚠️ P3005 detected: Database schema is populated but unbaselined taking over."
+              if grep -q "P3018" /tmp/prisma_deploy.log && grep -q "already exists" /tmp/prisma_deploy.log; then
+                echo "⚠️ Existing database tables detected without migration history. Baselining taking over..."
                 for dir in prisma/migrations/*/; do
                   MIGRATION_NAME=$(basename "$dir")
                   if [ "$MIGRATION_NAME" != "*" ]; then
