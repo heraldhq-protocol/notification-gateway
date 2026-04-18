@@ -178,11 +178,19 @@ jobs:
             echo "=== PM2 Out Logs (last 50 lines) ==="
             pm2 logs "$PM2_APP_NAME" --nostream --lines 50 --out || true
 
+            # Health check debugging
             for i in $(seq 1 10); do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+              HTTP_RESP=$(curl -is "http://localhost:${PORT}/health" || true)
+              STATUS=$(echo "$HTTP_RESP" | grep HTTP | awk '{print $2}' || echo "000")
+              BODY=$(echo "$HTTP_RESP" | grep "^{" || echo "No JSON response")
+              
               echo "Health check $i: HTTP $STATUS"
+              if [ "$STATUS" != "200" ]; then
+                echo "Detailed Body: $BODY"
+              fi
+              
               if [ "$STATUS" = "200" ]; then
-                echo "Deployment successful!"
+                echo "✅ Deployment successful!"
                 trap - ERR
                 exit 0
               fi
