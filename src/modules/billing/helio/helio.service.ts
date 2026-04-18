@@ -30,9 +30,9 @@ export class HelioService {
   }
 
   private getTemplateId(tier: number): string | undefined {
-    if (tier === 1) return this.config.get<string>('HELIO_PAYLINK_GROWTH');
-    if (tier === 2) return this.config.get<string>('HELIO_PAYLINK_SCALE');
-    if (tier === 3) return this.config.get<string>('HELIO_PAYLINK_ENTERPRISE');
+    if (tier === 1) return this.config.get<string>('HELIO_TEMPLATE_GROWTH');
+    if (tier === 2) return this.config.get<string>('HELIO_TEMPLATE_SCALE');
+    if (tier === 3) return this.config.get<string>('HELIO_TEMPLATE_ENTERPRISE');
     return undefined;
   }
 
@@ -59,6 +59,7 @@ export class HelioService {
     return this.helioBilling.createSubscriptionCheckout({
       tier: heraldTier,
       walletAddress: protocol.protocolPubkey,
+      templateId: this.getTemplateId(tier),
       successUrl: `${this.config.get<string>('HELIO_CHECKOUT_SUCCESS_URL')}?tier=${tier}&months=${months}`,
       cancelUrl: this.config.get<string>('HELIO_CHECKOUT_CANCEL_URL')!,
       metadata: {
