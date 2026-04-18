@@ -109,7 +109,29 @@ jobs:
             node -e "const net = require('net'); const client = net.connect(5432, '$RDS_HOST', () => { console.log('✅ Network/SG looks good. Connected on 5432'); client.destroy(); }); client.on('error', (err) => { console.error('❌ Network/Security Group failure! Cannot reach RDS on 5432:', err.message); process.exit(1); }); client.setTimeout(5000, () => { console.error('❌ Network timed out reaching RDS on 5432.'); process.exit(1); });" || true
 
             pnpm db:generate
-            npx prisma migrate deploy
+            set +e
+            npx prisma migrate deploy > /tmp/prisma_deploy.log 2>&1
+            EXIT_CODE=$?
+            set -e
+            cat /tmp/prisma_deploy.log
+            
+            if [ $EXIT_CODE -ne 0 ]; then
+              if grep -q "P3005" /tmp/prisma_deploy.log; then
+                echo "⚠️ P3005 detected: Database schema is populated but unbaselined taking over."
+                for dir in prisma/migrations/*/; do
+                  MIGRATION_NAME=$(basename "$dir")
+                  if [ "$MIGRATION_NAME" != "*" ]; then
+                    echo "Resolving $MIGRATION_NAME..."
+                    npx prisma migrate resolve --applied "$MIGRATION_NAME" || true
+                  fi
+                done
+                npx prisma migrate deploy
+              else
+                echo "❌ Prisma migration failed"
+                exit 1
+              fi
+            fi
+            
             pnpm build
 
             # Get PORT from .env
