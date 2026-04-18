@@ -72,7 +72,25 @@ export class HelioService {
     this.logger.info('Helio subscription cancellation requested', {
       helioSubscriptionId,
     });
-    // Cancellation is delegated to Helio interface
+
+    try {
+      const success =
+        await this.helioBilling.cancelSubscription(helioSubscriptionId);
+      if (!success) {
+        this.logger.warn(
+          `Failed to cancel Helio subscription ${helioSubscriptionId}`,
+        );
+      } else {
+        this.logger.info(
+          `Successfully cancelled Helio subscription ${helioSubscriptionId}`,
+        );
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Error attempting to cancel Helio subscription: ${error.message}`,
+        error,
+      );
+    }
   }
 
   parseAndVerifyWebhook(rawBody: string, signature: string): boolean {
