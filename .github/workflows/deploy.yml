@@ -91,12 +91,23 @@ jobs:
             
             # Get variables directly since gateway uses .env instead of github secrets in deployment shell
             if [ -f .env ]; then
-              source <(grep -E '^(DATABASE_URL|DIRECT_URL)=' .env | xargs)
+              # Sanitize and export variables (handles spaces and quotes)
+              export DATABASE_URL=$(grep "^DATABASE_URL" .env | cut -d '=' -f 2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//' || echo "")
+              export DIRECT_URL=$(grep "^DIRECT_URL" .env | cut -d '=' -f 2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//' || echo "")
             fi
             
-            # Export clean URLs (stripping quotes if any were typed in GitHub Secrets)
-            CLEAN_DB=$(echo "$DATABASE_URL" | sed 's/"//g')
-            CLEAN_DIRECT=$(echo "$DIRECT_URL" | sed 's/"//g')
+            # Use safe expansion to prevent unbound variable errors
+            DB_VAL="${DATABASE_URL:-}"
+            DIRECT_VAL="${DIRECT_URL:-}"
+            
+            if [ -z "$DB_VAL" ]; then
+              echo "❌ Error: DATABASE_URL is not defined in .env"
+              exit 1
+            fi
+            
+            # Export clean URLs (stripping quotes)
+            CLEAN_DB=$(echo "$DB_VAL" | sed 's/"//g')
+            CLEAN_DIRECT=$(echo "$DIRECT_VAL" | sed 's/"//g')
             
             # Enforce SSL & Timeout for runtime
             if [[ "$CLEAN_DB" != *"sslmode"* ]]; then
