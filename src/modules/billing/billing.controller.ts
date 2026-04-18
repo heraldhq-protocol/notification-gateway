@@ -54,7 +54,7 @@ export class BillingController {
     );
     return {
       checkoutUrl: result.checkoutUrl,
-      transactionId: result.transactionId,
+      transactionId: result.paylinkId,
     };
   }
 
