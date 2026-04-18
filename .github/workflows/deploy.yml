@@ -89,6 +89,7 @@ jobs:
 
             pnpm install --frozen-lockfile --ignore-scripts
             pnpm db:generate
+            npx prisma migrate deploy
             pnpm build
 
             # Get PORT from .env
