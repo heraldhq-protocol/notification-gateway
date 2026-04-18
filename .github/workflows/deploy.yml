@@ -97,12 +97,16 @@ jobs:
             CLEAN_DIRECT=$(echo "$DIRECT_URL" | sed 's/"//g')
             if [[ "$CLEAN_DIRECT" != *"sslmode"* ]]; then
               if [[ "$CLEAN_DIRECT" == *"?"* ]]; then
-                CLEAN_DIRECT="${CLEAN_DIRECT}&sslmode=require"
+                CLEAN_DIRECT="${CLEAN_DIRECT}&sslmode=require&connect_timeout=30"
               else
-                CLEAN_DIRECT="${CLEAN_DIRECT}?sslmode=require"
+                CLEAN_DIRECT="${CLEAN_DIRECT}?sslmode=require&connect_timeout=30"
               fi
             fi
             export DIRECT_URL="$CLEAN_DIRECT"
+            
+            echo "--- Debugging connection to RDS before Prisma ---"
+            RDS_HOST=$(echo "$CLEAN_DIRECT" | awk -F'[@:]' '{print $4}')
+            node -e "const net = require('net'); const client = net.connect(5432, '$RDS_HOST', () => { console.log('✅ Network/SG looks good. Connected on 5432'); client.destroy(); }); client.on('error', (err) => { console.error('❌ Network/Security Group failure! Cannot reach RDS on 5432:', err.message); process.exit(1); }); client.setTimeout(5000, () => { console.error('❌ Network timed out reaching RDS on 5432.'); process.exit(1); });" || true
 
             pnpm db:generate
             npx prisma migrate deploy
