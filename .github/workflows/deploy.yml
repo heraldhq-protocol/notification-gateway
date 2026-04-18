@@ -109,10 +109,11 @@ jobs:
             node -e "const net = require('net'); const client = net.connect(5432, '$RDS_HOST', () => { console.log('✅ Network/SG looks good. Connected on 5432'); client.destroy(); }); client.on('error', (err) => { console.error('❌ Network/Security Group failure! Cannot reach RDS on 5432:', err.message); process.exit(1); }); client.setTimeout(5000, () => { console.error('❌ Network timed out reaching RDS on 5432.'); process.exit(1); });" || true
 
             pnpm db:generate
-            set +e
-            npx prisma migrate deploy > /tmp/prisma_deploy.log 2>&1
-            EXIT_CODE=$?
-            set -e
+            
+            # Safely capture exit code without triggering the global 'trap ERR'
+            EXIT_CODE=0
+            npx prisma migrate deploy > /tmp/prisma_deploy.log 2>&1 || EXIT_CODE=$?
+            
             cat /tmp/prisma_deploy.log
             
             if [ $EXIT_CODE -ne 0 ]; then
