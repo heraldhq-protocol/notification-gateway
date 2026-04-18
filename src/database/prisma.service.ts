@@ -27,11 +27,19 @@ export class PrismaService
   constructor() {
     const connectionString = `${process.env.DATABASE_URL}`;
 
+    // Disable SSL for local development to avoid TLS errors if the local DB
+    // doesn't support SSL. RDS/Production (hosted) will still use SSL.
+    const isLocal =
+      connectionString.includes('localhost') ||
+      connectionString.includes('127.0.0.1');
+
     const pool = new Pool({
       connectionString,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: isLocal
+        ? false
+        : {
+            rejectUnauthorized: false,
+          },
     });
 
     const adapter = new PrismaPg(pool);
