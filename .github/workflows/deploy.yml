@@ -101,18 +101,18 @@ jobs:
             # Enforce SSL & Timeout for runtime
             if [[ "$CLEAN_DB" != *"sslmode"* ]]; then
               if [[ "$CLEAN_DB" == *"?"* ]]; then
-                CLEAN_DB="${CLEAN_DB}&sslmode=require&connect_timeout=30"
+                CLEAN_DB="${CLEAN_DB}&sslmode=no-verify&connect_timeout=30"
               else
-                CLEAN_DB="${CLEAN_DB}?sslmode=require&connect_timeout=30"
+                CLEAN_DB="${CLEAN_DB}?sslmode=no-verify&connect_timeout=30"
               fi
             fi
 
             # Enforce SSL & Timeout for migrations
             if [[ "$CLEAN_DIRECT" != *"sslmode"* ]]; then
               if [[ "$CLEAN_DIRECT" == *"?"* ]]; then
-                CLEAN_DIRECT="${CLEAN_DIRECT}&sslmode=require&connect_timeout=30"
+                CLEAN_DIRECT="${CLEAN_DIRECT}&sslmode=no-verify&connect_timeout=30"
               else
-                CLEAN_DIRECT="${CLEAN_DIRECT}?sslmode=require&connect_timeout=30"
+                CLEAN_DIRECT="${CLEAN_DIRECT}?sslmode=no-verify&connect_timeout=30"
               fi
             fi
 
