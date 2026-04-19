@@ -15,6 +15,7 @@ interface WebhookJobData {
 }
 
 @Processor(QueueNames.WEBHOOK, {
+  lockDuration: 60000,
   stalledInterval: 30000,
   maxStalledCount: 1,
 })

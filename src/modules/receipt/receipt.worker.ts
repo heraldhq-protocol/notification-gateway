@@ -14,7 +14,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { AuthorityClient } from '@herald-protocol/sdk';
 import bs58 from 'bs58';
 
-@Processor(QueueNames.RECEIPT_BATCH)
+@Processor(QueueNames.RECEIPT_BATCH, {
+  lockDuration: 300000, // 5 minutes (blockchain transaction batches take time)
+  stalledInterval: 60000, // Check for stalled jobs every 60s
+})
 export class ReceiptWorker extends WorkerHost {
   private readonly logger = new Logger(ReceiptWorker.name);
   private authorityClient: AuthorityClient | null = null;
