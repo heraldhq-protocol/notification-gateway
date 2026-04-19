@@ -10,6 +10,8 @@ import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.inter
 @Module({
   imports: [AuthModule, RoutingModule, QueueModule, BillingModule],
   controllers: [NotifyController],
+  // SandboxService is provided globally via @Global() SandboxModule (imported in AppModule).
+  // SandboxRoutingService is exported from RoutingModule — available via the RoutingModule import.
   providers: [NotifyService, RateLimitInterceptor],
   exports: [NotifyService],
 })
