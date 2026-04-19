@@ -64,6 +64,7 @@ export interface NotificationJobData {
   templateId?: string;
   telegramTemplateId?: string;
   templateVariables?: Record<string, string>;
+  preferredChannel?: 'email' | 'telegram' | 'sms'; // Caller-requested channel hint
 }
 
 /**
