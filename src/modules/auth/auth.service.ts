@@ -76,15 +76,25 @@ export class AuthService {
       });
     }
 
+    if (apiKey.isTestKey && apiKey.expiresAt && new Date() > apiKey.expiresAt) {
+      throw new UnauthorizedException({
+        error: 'SANDBOX_KEY_EXPIRED',
+        message: 'Test key has expired',
+      });
+    }
+
     const result: AuthenticatedProtocol = {
       protocolId: protocol.id,
       protocolPubkey: protocol.protocolPubkey,
+      apiKeyId: apiKey.id,
       tier: protocol.tier,
       scopes: apiKey.scopes,
       environment: apiKey.environment,
       isActive: protocol.isActive,
       sendsThisPeriod: protocol.sendsThisPeriod,
       overageEnabled: protocol.overageEnabled,
+      isTestKey: apiKey.isTestKey || false,
+      testKeyType: apiKey.testKeyType || undefined,
     };
 
     // 3. Cache for 60s

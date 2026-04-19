@@ -5,6 +5,7 @@
 export interface AuthenticatedProtocol {
   protocolId: string;
   protocolPubkey: string;
+  apiKeyId: string; // DB ID of the ApiKey row — required for sandbox quota tracking
   tier: number;
   scopes: string[];
   environment: string; // 'production' | 'sandbox'
@@ -12,6 +13,8 @@ export interface AuthenticatedProtocol {
   sendsThisPeriod?: bigint;
   name?: string;
   overageEnabled?: boolean;
+  isTestKey?: boolean;
+  testKeyType?: string;
 }
 
 /** Generated API key returned once at creation time. */

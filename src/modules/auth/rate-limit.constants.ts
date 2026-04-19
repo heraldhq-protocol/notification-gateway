@@ -17,7 +17,8 @@ export interface TierLimits {
   customTemplates: number;
   customDkim: boolean;
   analyticsRetentionDays: number;
-  sandboxUnlimited: boolean;
+  /** Max sandbox sends/day per key — enforced in SandboxService (Redis counter). */
+  sandboxDailyLimit: number;
 }
 
 export const TIER_LIMITS: Record<number, TierLimits> = {
@@ -36,7 +37,7 @@ export const TIER_LIMITS: Record<number, TierLimits> = {
     customTemplates: 0,
     customDkim: false,
     analyticsRetentionDays: 7,
-    sandboxUnlimited: true,
+    sandboxDailyLimit: 100,
   },
 
   // Growth (tier 1) — $99/month USDC
@@ -54,7 +55,7 @@ export const TIER_LIMITS: Record<number, TierLimits> = {
     customTemplates: 3,
     customDkim: false,
     analyticsRetentionDays: 30,
-    sandboxUnlimited: true,
+    sandboxDailyLimit: 500,
   },
 
   // Scale (tier 2) — $299/month USDC
@@ -72,7 +73,7 @@ export const TIER_LIMITS: Record<number, TierLimits> = {
     customTemplates: 20,
     customDkim: true,
     analyticsRetentionDays: 90,
-    sandboxUnlimited: true,
+    sandboxDailyLimit: 1_000,
   },
 
   // Enterprise (tier 3) — $999/month USDC
@@ -90,7 +91,7 @@ export const TIER_LIMITS: Record<number, TierLimits> = {
     customTemplates: 999,
     customDkim: true,
     analyticsRetentionDays: 365,
-    sandboxUnlimited: true,
+    sandboxDailyLimit: 5_000,
   },
 };
 

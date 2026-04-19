@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Redis } from 'ioredis';
 import { RateLimitService } from './rate-limit.service';
 
 // ── Mocks ─────────────────────────────────────────────────────────
@@ -15,7 +14,10 @@ describe('RateLimitService', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [RateLimitService, { provide: Redis, useValue: mockRedis }],
+      providers: [
+        RateLimitService,
+        { provide: 'REDIS_CLIENT', useValue: mockRedis },
+      ],
     }).compile();
 
     service = module.get<RateLimitService>(RateLimitService);

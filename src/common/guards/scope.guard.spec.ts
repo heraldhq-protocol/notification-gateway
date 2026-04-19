@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { ScopeGuard, RequiredScopes, SCOPES_KEY } from './scope.guard';
 
 function createMockContext(protocol: any): ExecutionContext {
-  const request = { protocol };
+  const request = { authProtocol: protocol };
   return {
     switchToHttp: () => ({
       getRequest: () => request,

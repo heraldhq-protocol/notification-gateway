@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../database/prisma.service';
-import { Redis } from 'ioredis';
 
 // ── Mocks ─────────────────────────────────────────────────────────
 
@@ -10,6 +9,7 @@ const mockRedis = {
   get: jest.fn(),
   setex: jest.fn(),
   del: jest.fn(),
+  hset: jest.fn().mockResolvedValue(1),
 };
 
 const mockPrisma = {
@@ -29,7 +29,7 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: Redis, useValue: mockRedis },
+        { provide: 'REDIS_CLIENT', useValue: mockRedis },
       ],
     }).compile();
 
@@ -124,6 +124,7 @@ describe('AuthService', () => {
 
       expect(result).not.toBeNull();
       expect(result!.protocolId).toBe('proto-1');
+      expect(result!.apiKeyId).toBe('key-1'); // DB key ID must be propagated
       expect(result!.tier).toBe(0);
       expect(mockRedis.setex).toHaveBeenCalled(); // should cache result
     });
