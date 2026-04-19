@@ -41,19 +41,26 @@ model Protocol {
 }
 
 model ApiKey {
-  id          String    @id @default(uuid()) @db.Uuid
-  protocolId  String    @map("protocol_id") @db.Uuid
-  keyHash     String    @unique @map("key_hash") @db.VarChar(64)
-  keyPrefix   String    @map("key_prefix") @db.VarChar(20)
-  environment String    @db.VarChar(10)
-  scopes      String[]  @default(["notify:write"])
-  name        String?   @db.VarChar(100)
-  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamptz(6)
-  isRevoked   Boolean   @default(false) @map("is_revoked")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  protocol    Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(uuid()) @db.Uuid
+  protocolId          String    @map("protocol_id") @db.Uuid
+  keyHash             String    @unique @map("key_hash") @db.VarChar(64)
+  keyPrefix           String    @map("key_prefix") @db.VarChar(20)
+  environment         String    @db.VarChar(10)
+  scopes              String[]  @default(["notify:write"])
+  name                String?   @db.VarChar(100)
+  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz(6)
+  isRevoked           Boolean   @default(false) @map("is_revoked")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt           DateTime?  @map("expires_at") @db.Timestamptz(6)
+  isTestKey           Boolean   @default(false) @map("is_test_key")
+  testDailyLimit      Int       @default(100) @map("test_daily_limit") @db.SmallInt
+  testNotificationsSent Int     @default(0) @map("test_notifications_sent") @db.SmallInt
+  testKeyType         String?   @map("test_key_type") @db.VarChar(20)
+  testKeyIpHash       String?   @map("test_key_ip_hash") @db.VarChar(64)
+  protocol            Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@index([keyHash], map: "idx_api_keys_hash")
+  @@index([isTestKey, createdAt], map: "idx_api_keys_test_key")
   @@map("api_keys")
 }
 
@@ -413,4 +420,21 @@ model TelegramTemplate {
 
   @@index([protocolId, category], map: "idx_telegram_templates_protocol")
   @@map("telegram_templates")
+}
+
+model SandboxReceipt {
+  id              String    @id @default(uuid()) @db.Uuid
+  apiKeyId        String    @map("api_key_id") @db.Uuid
+  notificationId String?   @map("notification_id") @db.Uuid
+  walletHash     String    @map("wallet_hash") @db.VarChar(64)
+  subject         String?   @db.VarChar(200)
+  status          String    @default("delivered") @db.VarChar(20)
+  devnetTx        String?   @map("devnet_tx") @db.VarChar(88)
+  channel         String?   @db.VarChar(20)
+  deliveredAt     DateTime? @map("delivered_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([apiKeyId, createdAt(sort: Desc)], map: "idx_sandbox_receipts_api_key")
+  @@index([createdAt], map: "idx_sandbox_receipts_created")
+  @@map("sandbox_receipts")
 }
