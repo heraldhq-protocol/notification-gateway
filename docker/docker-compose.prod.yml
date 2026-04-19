@@ -1,7 +1,28 @@
 version: '3.8'
 
 services:
-  # ── Herald Gateway (Producing Stage) ──────────────────────────────────
+  # ── PgBouncer (Connection Pooling) ─────────────────────────────────
+  pgbouncer:
+    image: pgbouncer/pgbouncer:1.17
+    container_name: herald-pgbouncer
+    restart: always
+    environment:
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=100
+      - DEFAULT_POOL_SIZE=10
+      - MIN_POOL_SIZE=2
+      - RESERVE_POOL_SIZE=5
+    env_file:
+      - ../.env
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pgbouncer -h localhost -p 6432 -U postgres herald"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Herald Notification Gateway ───────────────────────────────────────────
   gateway:
     build:
       context: ..
@@ -10,20 +31,20 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
-      # Sourced from .env file on host
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@pgbouncer:5432/herald?pgbouncer=true
       - REDIS_URL=${REDIS_URL}
       - NITRO_ENCLAVE_SOCKET=/run/enclave.sock
+    env_file:
+      - ../.env
     volumes:
-      # Share the Unix socket with the mock enclave
       - shared-run:/run
     ports:
       - "3000:3000"
     depends_on:
-      - mock-enclave
+      pgbouncer:
+        condition: service_healthy
 
   # ── Mock Enclave ($0 Budget TEE Simulation) ──────────────────────────
-  # This container mimics the Nitro Enclave socket protocol.
   mock-enclave:
     image: node:20-alpine
     container_name: mock-enclave
@@ -35,5 +56,4 @@ services:
     command: node /app/mock-enclave.js
 
 volumes:
-  # Use a shared volume for the Unix socket
   shared-run:
