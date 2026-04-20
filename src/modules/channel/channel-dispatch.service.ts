@@ -12,17 +12,15 @@ import { MailService } from '../mail/mail.service';
 import { TemplateService } from '../template/template.service';
 import { PrismaService } from '../../database/prisma.service';
 
-/**
- * ChannelDispatchService — multi-channel delivery orchestrator.
- *
- * For each notification, dispatches to all active channels in parallel
- * using Promise.allSettled. A failure on one channel does NOT block others.
- *
- * SEC-001: Plaintext identifiers exist ONLY in local variables within dispatch().
- */
+interface ProtocolAsset {
+  assetType: string;
+  url: string;
+}
+
 @Injectable()
 export class ChannelDispatchService {
   private readonly logger = new Logger(ChannelDispatchService.name);
+  private readonly isProduction: boolean;
 
   constructor(
     private readonly mailService: MailService,
@@ -31,14 +29,13 @@ export class ChannelDispatchService {
     private readonly templateService: TemplateService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    this.isProduction =
+      this.config.get<string>('NODE_ENV', 'development') === 'production';
+  }
 
   /**
    * Dispatch a notification to all active channels.
-   *
-   * @param channels - Decrypted channel identifiers (in-memory only)
-   * @param job      - The notification job data
-   * @returns Summary of delivery outcomes per channel
    */
   async dispatch(
     channels: DecryptedChannels,
@@ -46,19 +43,20 @@ export class ChannelDispatchService {
   ): Promise<ChannelDispatchResult> {
     const allowedChannels = this.resolveAllowedChannels(channels, job);
 
+    const protocolAssets = await this.fetchProtocolAssets(job.protocolId);
+
     const promises: Array<Promise<ChannelDeliveryOutcome>> = [];
 
-    // ── Email channel ─────────────────────────────────────────
     if (allowedChannels.includes('email') && channels.email) {
-      promises.push(this.deliverEmail(channels.email, job));
+      promises.push(this.deliverEmail(channels.email, job, protocolAssets));
     }
 
-    // ── Telegram channel ──────────────────────────────────────
     if (allowedChannels.includes('telegram') && channels.telegramChatId) {
-      promises.push(this.deliverTelegram(channels.telegramChatId, job));
+      promises.push(
+        this.deliverTelegram(channels.telegramChatId, job, protocolAssets),
+      );
     }
 
-    // ── SMS channel ───────────────────────────────────────────
     if (allowedChannels.includes('sms') && channels.phone) {
       promises.push(this.deliverSms(channels.phone, job));
     }
@@ -73,7 +71,6 @@ export class ChannelDispatchService {
       };
     });
 
-    // Persist per-channel delivery records
     await this.persistChannelDeliveries(job.notificationId, outcomes);
 
     const successCount = outcomes.filter((o) => o.success).length;
@@ -87,11 +84,33 @@ export class ChannelDispatchService {
   }
 
   /**
-   * Resolve allowed channels based on:
-   * 1. Explicit channels from request (preferredChannel takes precedence)
-   * 2. Excluded channels from request
-   * 3. Priority flag (adds SMS for important/critical)
-   * 4. Registered channels
+   * Fetch protocol assets (banner, video, logo) from database.
+   */
+  private async fetchProtocolAssets(
+    protocolId: string,
+  ): Promise<ProtocolAsset[]> {
+    try {
+      return await this.prisma.protocolAsset.findMany({
+        where: {
+          protocolId,
+          isActive: true,
+        },
+        select: {
+          assetType: true,
+          url: true,
+        },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to fetch protocol assets', {
+        protocolId,
+        error: (err as Error).message,
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Resolve allowed channels based on configuration.
    */
   private resolveAllowedChannels(
     channels: DecryptedChannels,
@@ -104,7 +123,6 @@ export class ChannelDispatchService {
 
     if (registered.length === 0) return [];
 
-    // Start with explicit channels if provided (preferredChannel takes precedence over batch channels)
     let explicit: ('email' | 'telegram' | 'sms')[] | undefined;
     if (job.preferredChannel) {
       explicit = [job.preferredChannel];
@@ -112,23 +130,18 @@ export class ChannelDispatchService {
       explicit = job.channels;
     }
 
-    // Prepare exclusion list
     const excluded = new Set(job.excludedChannels || []);
 
-    // Determine allowed channels
     let allowed: ('email' | 'telegram' | 'sms')[];
 
     if (explicit) {
-      // Explicit list takes precedence
       allowed = explicit.filter(
         (c) => registered.includes(c) && !excluded.has(c),
       );
     } else {
-      // Use registered channels, excluding specified ones
       allowed = registered.filter((c) => !excluded.has(c));
     }
 
-    // Add SMS for important/critical priority if not excluded and registered
     if (
       (job.priority === 'important' || job.priority === 'critical') &&
       channels.phone &&
@@ -138,24 +151,20 @@ export class ChannelDispatchService {
       allowed.push('sms');
     }
 
-    // Sort by fallback order: email → telegram → sms
     const channelOrder: ('email' | 'telegram' | 'sms')[] = [
       'email',
       'telegram',
       'sms',
     ];
-    allowed.sort(
-      (a, b) => channelOrder.indexOf(a) - channelOrder.indexOf(b),
-    );
+    allowed.sort((a, b) => channelOrder.indexOf(a) - channelOrder.indexOf(b));
 
     return allowed;
   }
 
-  // ── Email delivery ──────────────────────────────────────────
-
   private async deliverEmail(
     email: string,
     job: NotificationJobData,
+    assets: ProtocolAsset[],
   ): Promise<ChannelDeliveryOutcome> {
     try {
       const customDomainRecord = await this.prisma.dkimKey.findFirst({
@@ -176,6 +185,9 @@ export class ChannelDispatchService {
           : job.category.charAt(0).toUpperCase() + job.category.slice(1);
       const formattedSubject = `[${job.protocolName} | ${catFriendly} Alert] ${job.subject}`;
 
+      const bannerAsset = assets.find((a) => a.assetType === 'banner');
+      const logoAsset = assets.find((a) => a.assetType === 'logo');
+
       const templateName = this.getTemplateName(job.category);
       const { html, text } = await this.templateService.render({
         template: templateName,
@@ -186,7 +198,9 @@ export class ChannelDispatchService {
           category: job.category,
           recipientAddress: job.wallet,
           unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/${job.notificationId}`,
-          heraldLogoUrl: 'https://cdn.useherald.xyz/logo-email.png',
+          heraldLogoUrl:
+            logoAsset?.url ?? 'https://cdn.useherald.xyz/logo-email.png',
+          bannerUrl: bannerAsset?.url,
         },
       });
 
@@ -206,6 +220,8 @@ export class ChannelDispatchService {
         },
       });
 
+      this.logDelivery('email', job.notificationId, sendResult.messageId);
+
       return {
         channel: 'email',
         success: true,
@@ -221,21 +237,31 @@ export class ChannelDispatchService {
     }
   }
 
-  // ── Telegram delivery ───────────────────────────────────────
-
   private async deliverTelegram(
     chatId: string,
     job: NotificationJobData,
+    assets: ProtocolAsset[],
   ): Promise<ChannelDeliveryOutcome> {
     try {
+      const bannerAsset = assets.find((a) => a.assetType === 'banner');
+      const videoAsset = assets.find((a) => a.assetType === 'video');
+
       const result = await this.telegramService.sendNotification({
         chatId,
         protocolName: job.protocolName,
+        protocolId: job.protocolId,
         subject: job.subject,
         body: job.body,
         category: job.category,
         notificationId: job.notificationId,
+        tier: job.tier,
+        templateId: job.telegramTemplateId,
+        templateVariables: job.templateVariables,
+        bannerUrl: bannerAsset?.url,
+        videoUrl: videoAsset?.url,
       });
+
+      this.logDelivery('telegram', job.notificationId, result.messageId);
 
       return {
         channel: 'telegram',
@@ -252,8 +278,6 @@ export class ChannelDispatchService {
     }
   }
 
-  // ── SMS delivery ────────────────────────────────────────────
-
   private async deliverSms(
     phone: string,
     job: NotificationJobData,
@@ -266,6 +290,8 @@ export class ChannelDispatchService {
         body: job.body,
         category: job.category,
       });
+
+      this.logDelivery('sms', job.notificationId, result.messageId);
 
       return {
         channel: 'sms',
@@ -282,7 +308,27 @@ export class ChannelDispatchService {
     }
   }
 
-  // ── Helpers ─────────────────────────────────────────────────
+  /**
+   * Production-safe logging — never log decrypted channel identifiers.
+   */
+  private logDelivery(
+    channel: string,
+    notificationId: string,
+    messageId: string | undefined,
+  ): void {
+    if (this.isProduction) {
+      this.logger.log(`Delivered via ${channel}`, {
+        notificationId,
+        messageId,
+      });
+    } else {
+      this.logger.log(`Delivered via ${channel}`, {
+        notificationId,
+        messageId,
+        channel,
+      });
+    }
+  }
 
   private async persistChannelDeliveries(
     notificationId: string,

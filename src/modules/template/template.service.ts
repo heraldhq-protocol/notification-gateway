@@ -7,6 +7,10 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import { PrismaService } from '../../database/prisma.service';
 import { getTierLimits } from '../auth/rate-limit.constants';
+import {
+  parseMarkdownLinks,
+  convertLinksToHtml,
+} from '../../common/utils/link-parser';
 
 export interface RenderParams {
   template: string;
@@ -90,7 +94,10 @@ export class TemplateService {
 
     // Handlebars: variable injection
     const compiled = this.getCompiledTemplate(hbsSource);
-    const htmlWithVars = compiled(variables);
+
+    // Auto-convert markdown links in body variables
+    const processedVars = this.processBodyLinks(variables);
+    const htmlWithVars = compiled(processedVars);
 
     // Juice: inline CSS for email client compatibility
     const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
@@ -376,6 +383,19 @@ export class TemplateService {
 
   // ── Handlebars helpers ─────────────────────────────────────────────────────
 
+  private processBodyLinks(
+    variables: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const processed = { ...variables };
+
+    if (processed.body && typeof processed.body === 'string') {
+      const { links } = parseMarkdownLinks(processed.body);
+      processed.body = convertLinksToHtml(processed.body, links);
+    }
+
+    return processed;
+  }
+
   private registerHelpers(): void {
     Handlebars.registerHelper('truncate', (str: string, len: number) =>
       str?.length > len ? str.slice(0, len) + '...' : str,
@@ -425,6 +445,12 @@ export class TemplateService {
       return new Handlebars.SafeString(
         marked.parse(content, { gfm: true }) as string,
       );
+    });
+    Handlebars.registerHelper('convertLinks', (body: string) => {
+      if (!body) return '';
+      const { links } = parseMarkdownLinks(body);
+      const converted = convertLinksToHtml(body, links);
+      return new Handlebars.SafeString(converted);
     });
     Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
     Handlebars.registerHelper('truncate', (str: string, len: number) =>

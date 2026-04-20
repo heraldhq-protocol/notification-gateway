@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nacl from 'tweetnacl';
-import { encodeUTF8, decodeUTF8, encodeBase64, decodeBase64 } from 'tweetnacl-util';
+import {
+  encodeUTF8,
+  decodeUTF8,
+  encodeBase64,
+  decodeBase64,
+} from 'tweetnacl-util';
 import { RoutingUnavailableException } from '../../common/exceptions/herald.exception';
 import type {
   DecryptedChannels,
@@ -275,7 +280,7 @@ export class EnclaveService {
     });
   }
 
-/**
+  /**
    * Sandbox mode: Real nacl secretbox decryption using ENCLAVE_TEST_KEY.
    * The test key must be base64-encoded 32 bytes (nacl.secretbox key).
    * Portal uses the same key to encrypt in sandbox mode.
@@ -283,7 +288,8 @@ export class EnclaveService {
   private async sandboxDecrypt(params: DecryptParams): Promise<string> {
     const mode = this.config.get<string>('ENCLAVE_MODE');
     const env = this.config.get<string>('NODE_ENV');
-    const isSandboxMode = mode === 'sandbox' || env === 'development' || env === 'test';
+    const isSandboxMode =
+      mode === 'sandbox' || env === 'development' || env === 'test';
 
     if (isSandboxMode) {
       return this.secretboxDecrypt(params.encryptedEmail, params.nonce);
@@ -300,19 +306,29 @@ export class EnclaveService {
   ): Promise<DecryptedChannels> {
     const mode = this.config.get<string>('ENCLAVE_MODE');
     const env = this.config.get<string>('NODE_ENV');
-    const isSandboxMode = mode === 'sandbox' || env === 'development' || env === 'test';
+    const isSandboxMode =
+      mode === 'sandbox' || env === 'development' || env === 'test';
 
     const result: DecryptedChannels = {};
 
     if (isSandboxMode) {
       if (params.channelEmail && params.encryptedEmail.length > 0) {
-        result.email = this.secretboxDecrypt(params.encryptedEmail, params.nonce);
+        result.email = this.secretboxDecrypt(
+          params.encryptedEmail,
+          params.nonce,
+        );
       }
       if (params.channelTelegram && params.encryptedTelegramId.length > 0) {
-        result.telegramChatId = this.secretboxDecrypt(params.encryptedTelegramId, params.nonceTelegram);
+        result.telegramChatId = this.secretboxDecrypt(
+          params.encryptedTelegramId,
+          params.nonceTelegram,
+        );
       }
       if (params.channelSms && params.encryptedPhone.length > 0) {
-        result.phone = this.secretboxDecrypt(params.encryptedPhone, params.nonceSms);
+        result.phone = this.secretboxDecrypt(
+          params.encryptedPhone,
+          params.nonceSms,
+        );
       }
       return result;
     }
@@ -321,7 +337,9 @@ export class EnclaveService {
   }
 
   private getTestKey(): Uint8Array | null {
-    const testKeyBase64 = this.config.get<string>(EnclaveService.TEST_KEY_CONFIG);
+    const testKeyBase64 = this.config.get<string>(
+      EnclaveService.TEST_KEY_CONFIG,
+    );
     if (!testKeyBase64) {
       return null;
     }
@@ -336,7 +354,7 @@ export class EnclaveService {
   /**
    * nacl.secretbox decryption using test key.
    * Format: nonce (24 bytes) + ciphertext
-   * NOTE: This requires portal to also use secretbox (not SDK's box). 
+   * NOTE: This requires portal to also use secretbox (not SDK's box).
    * If portal uses SDK encryptEmail, this will fall through to deterministic.
    */
   private secretboxDecrypt(ciphertext: Uint8Array, nonce: Uint8Array): string {
@@ -344,8 +362,12 @@ export class EnclaveService {
 
     const key = this.getTestKey();
     if (!key || key.length !== 32) {
-      this.logger.warn('ENCLAVE_TEST_KEY not configured, falling through to deterministic');
-      const deterministic = this.deriveDeterministicValue('test-key-not-configured');
+      this.logger.warn(
+        'ENCLAVE_TEST_KEY not configured, falling through to deterministic',
+      );
+      const deterministic = this.deriveDeterministicValue(
+        'test-key-not-configured',
+      );
       return `${deterministic}@test.local`;
     }
 
@@ -355,9 +377,12 @@ export class EnclaveService {
         return encodeUTF8(decrypted);
       }
     } catch (err) {
-      this.logger.warn('Secretbox decryption failed, using deterministic fallback', { 
-        error: (err as Error).message 
-      });
+      this.logger.warn(
+        'Secretbox decryption failed, using deterministic fallback',
+        {
+          error: (err as Error).message,
+        },
+      );
     }
 
     const deterministic = this.deriveDeterministicValue('decrypt-failed');

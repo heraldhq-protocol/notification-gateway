@@ -133,7 +133,9 @@ export class NotifyService {
     });
 
     // ── 5. Enqueue async delivery job ────────────────────────────
-    const channels = dto.batchChannels as ('email' | 'telegram' | 'sms')[] | undefined;
+    const channels = dto.batchChannels as
+      | ('email' | 'telegram' | 'sms')[]
+      | undefined;
     const excludedChannels = dto.batchExcludeChannels as
       | ('email' | 'telegram' | 'sms')[]
       | undefined;

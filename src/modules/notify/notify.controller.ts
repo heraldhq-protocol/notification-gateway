@@ -33,6 +33,7 @@ import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.inter
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { TemplateService } from '../template/template.service';
 
 /**
  * NotifyController — notification send and status endpoints.
@@ -45,7 +46,10 @@ import { PaginationDto } from 'src/common/dto/pagination.dto';
 @UseInterceptors(RateLimitInterceptor)
 @Controller('v1')
 export class NotifyController {
-  constructor(private readonly notifyService: NotifyService) {}
+  constructor(
+    private readonly notifyService: NotifyService,
+    private readonly templateService: TemplateService,
+  ) {}
 
   /**
    * POST /v1/notify — Send a single notification.
@@ -168,5 +172,67 @@ export class NotifyController {
       pagination.page,
       pagination.limit,
     );
+  }
+
+  /**
+   * POST /v1/preview — Render notification preview without sending.
+   */
+  @Post('preview')
+  @HttpCode(HttpStatus.OK)
+  @RequiredScopes('notify:write')
+  @ApiOperation({
+    summary: 'Preview notification rendering (email HTML, Telegram message)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Preview rendered successfully',
+  })
+  async preview(
+    @Body() dto: NotifyDto,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ): Promise<{ renderedHtml?: string; telegramText?: string; smsText?: string }> {
+    const category = dto.category ?? 'defi';
+    const subject = dto.subject ?? 'Notification';
+
+    const formattedSubject = `[${protocol.name ?? 'Protocol'} | ${category.charAt(0).toUpperCase() + category.slice(1)} Alert] ${subject}`;
+
+    const { html } = await this.templateService.render({
+      template: category,
+      variables: {
+        protocolName: protocol.name ?? 'Protocol',
+        subject: formattedSubject,
+        body: dto.body,
+        category,
+        recipientAddress: dto.wallet,
+        unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/preview`,
+        heraldLogoUrl: 'https://cdn.useherald.xyz/logo-email.png',
+      },
+    });
+
+    const telegramText = this.buildTelegramPreview(dto.subject, dto.body, category);
+    const smsText = this.buildSmsPreview(protocol.name ?? 'Protocol', subject, dto.body);
+
+    return {
+      renderedHtml: html,
+      telegramText,
+      smsText,
+    };
+  }
+
+  private buildTelegramPreview(subject: string, body: string, category: string): string {
+    const emoji: Record<string, string> = {
+      defi: '💰',
+      governance: '🗳️',
+      system: '⚙️',
+      marketing: '📢',
+      security: '🔒',
+    };
+    const icon = emoji[category] ?? '🔔';
+    return `${icon} <b>Preview</b>\n\n<b>${subject}</b>\n\n${body}\n\n<i>via Herald • ${category}</i>`;
+  }
+
+  private buildSmsPreview(protocolName: string, subject: string, body: string): string {
+    const truncatedBody = body.length > 120 ? body.slice(0, 119) + '…' : body;
+    return `[${protocolName}] ${subject}: ${truncatedBody} (via Herald)`;
   }
 }

@@ -5,10 +5,11 @@ import { AuthModule } from '../auth/auth.module';
 import { RoutingModule } from '../routing/routing.module';
 import { QueueModule } from '../queue/queue.module';
 import { BillingModule } from '../billing/billing.module';
+import { TemplateModule } from '../template/template.module';
 import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.interceptor';
 
 @Module({
-  imports: [AuthModule, RoutingModule, QueueModule, BillingModule],
+  imports: [AuthModule, RoutingModule, QueueModule, BillingModule, TemplateModule],
   controllers: [NotifyController],
   // SandboxService is provided globally via @Global() SandboxModule (imported in AppModule).
   // SandboxRoutingService is exported from RoutingModule — available via the RoutingModule import.
