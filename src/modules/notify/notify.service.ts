@@ -212,16 +212,20 @@ export class NotifyService {
       }
     }
 
-    // ── 3. Try devnet PDA resolution ─────────────────────────────────────────
-    // SandboxRoutingService.resolveDevnetWallet() looks up the wallet on devnet
-    // and decrypts channels using ENCLAVE_TEST_KEY (nacl.secretbox).
-    // This only succeeds if:
-    //   - SOLANA_DEVNET_RPC_URL and HERALD_DEVNET_PROGRAM_ID are set
-    //   - The wallet has a Herald identity on devnet
-    //   - Portal used nacl.secretbox + ENCLAVE_TEST_KEY when registering
-    const devnetResult = await this.sandboxRoutingService.resolveDevnetWallet(
-      dto.wallet,
-    );
+    // ── 3. Try devnet PDA resolution (Feature Flagged for Server Devnet Tests) ─
+    const useDevnetSandbox =
+      process.env.ENABLE_DEVNET_SANDBOX_RESOLUTION === 'true';
+    let devnetResult: { resolved: boolean; channels: any; identity: any } = {
+      resolved: false,
+      channels: {},
+      identity: null,
+    };
+
+    if (useDevnetSandbox) {
+      devnetResult = await this.sandboxRoutingService.resolveDevnetWallet(
+        dto.wallet,
+      );
+    }
 
     // ── 4. Determine delivery contact ────────────────────────────────────────
     let testContact: {
@@ -306,10 +310,9 @@ export class NotifyService {
           environment: 'sandbox',
           sandbox_mode: true,
           sandbox_notes: [
-            devnetResult.identity === null
+            useDevnetSandbox && devnetResult.identity === null
               ? 'Wallet not registered on devnet. Register at app.useherald.xyz to test with real channels.'
-              : 'Wallet found on devnet but channels could not be decrypted (ENCLAVE_TEST_KEY mismatch).',
-            'No test contact configured either. Set one at app.useherald.xyz/settings/sandbox.',
+              : 'No test contact configured. Set one in your protocol settings.',
             'This notification was NOT delivered.',
           ],
         };
@@ -321,7 +324,9 @@ export class NotifyService {
         phone: testPhone ?? undefined,
       };
       sandboxDeliveryNote =
-        'Delivering to static test contacts (wallet not registered on devnet).';
+        useDevnetSandbox && devnetResult.identity !== null
+          ? 'Delivering to static test contacts (channels could not be decrypted via ENCLAVE_TEST_KEY).'
+          : 'Delivering to static test contacts.';
     }
 
     // ── 5. Persist the sandbox notification record ────────────────────────────
@@ -368,7 +373,7 @@ export class NotifyService {
 
     // Build response
     const isDevnetResolved = devnetResult.resolved;
-    const settings = !isDevnetResolved
+    const settingsForResponse = !isDevnetResolved
       ? await this.prisma.protocol_settings.findUnique({
           where: { protocol_id: protocol.protocolId },
         })
@@ -395,12 +400,14 @@ export class NotifyService {
               : null,
           }
         : {
-            email: settings?.test_email
-              ? this.maskEmail(settings.test_email)
+            email: settingsForResponse?.test_email
+              ? this.maskEmail(settingsForResponse.test_email)
               : null,
-            telegram: settings?.test_telegram_id ? 'configured' : null,
-            sms: settings?.test_phone
-              ? this.maskPhone(settings.test_phone)
+            telegram: settingsForResponse?.test_telegram_id
+              ? 'configured'
+              : null,
+            sms: settingsForResponse?.test_phone
+              ? this.maskPhone(settingsForResponse.test_phone)
               : null,
           },
       sandbox_notes: [
