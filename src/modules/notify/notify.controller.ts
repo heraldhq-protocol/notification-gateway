@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -99,13 +100,30 @@ export class NotifyController {
     @Body() dto: NotifyBatchDto,
     @ApiKey() protocol: AuthenticatedProtocol,
   ): Promise<NotifyResponseDto[]> {
+    if (dto.channels && dto.exclude_channels) {
+      throw new BadRequestException({
+        error: 'INVALID_BATCH_CHANNELS',
+        message: 'Cannot specify both channels and exclude_channels',
+      });
+    }
+
+    const batchChannels = dto.channels;
+    const batchExcludeChannels = dto.exclude_channels;
+
     const results = await Promise.allSettled(
-      dto.notifications.map((n) =>
-        this.notifyService.queueNotification(n, protocol),
-      ),
+      dto.notifications.map((n) => {
+        const mergedDto = { ...n };
+        if (batchChannels !== undefined) {
+          mergedDto.batchChannels = batchChannels;
+        }
+        if (batchExcludeChannels !== undefined) {
+          mergedDto.batchExcludeChannels = batchExcludeChannels;
+        }
+        return this.notifyService.queueNotification(mergedDto, protocol);
+      }),
     );
 
-    return results.map((r, i) => {
+    return results.map((r) => {
       if (r.status === 'fulfilled') return r.value;
       return {
         notification_id: '',

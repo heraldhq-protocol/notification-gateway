@@ -8,13 +8,16 @@ import {
   IsArray,
   ArrayMaxSize,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-// Valid notification channels
 export const NOTIFY_CHANNELS = ['email', 'telegram', 'sms'] as const;
 export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number];
+
+export const NOTIFY_PRIORITIES = ['normal', 'important', 'critical'] as const;
+export type NotifyPriority = (typeof NOTIFY_PRIORITIES)[number];
 
 /**
  * DTO for POST /v1/notify — single notification send.
@@ -88,6 +91,19 @@ export class NotifyDto {
 
   @ApiPropertyOptional({
     description:
+      'Priority level. When "important" or "critical", SMS is added as a fallback channel ' +
+      '(alongside email and telegram) if the recipient has SMS registered. ' +
+      'Explicit channels list takes precedence over priority flag.',
+    enum: NOTIFY_PRIORITIES,
+    default: 'normal',
+    example: 'important',
+  })
+  @IsOptional()
+  @IsIn(NOTIFY_PRIORITIES)
+  priority?: NotifyPriority = 'normal';
+
+  @ApiPropertyOptional({
+    description:
       'Write a ZK delivery receipt to Solana mainnet after delivery. ' +
       'Counts against your on-chain receipt quota. Set false for high-volume sends.',
     default: true,
@@ -125,6 +141,16 @@ export class NotifyDto {
   @IsString()
   telegramTemplateId?: string;
 
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  batchChannels?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  batchExcludeChannels?: string[];
+
   @ApiPropertyOptional({
     description:
       'Key-value pairs injected into template placeholders ({{variable_name}}). ' +
@@ -154,6 +180,36 @@ export class NotifyBatchDto {
   @ValidateNested({ each: true })
   @Type(() => NotifyDto)
   notifications: NotifyDto[];
+
+  @ApiPropertyOptional({
+    description:
+      'Explicit channels to use for ALL notifications in this batch. ' +
+      'Cannot be used with exclude_channels. Individual notifications can override with preferred_channel.',
+    enum: NOTIFY_CHANNELS,
+    isArray: true,
+    example: ['email', 'telegram'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @IsIn(NOTIFY_CHANNELS, { each: true })
+  @ValidateIf((o) => o.exclude_channels !== undefined)
+  channels?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Channels to exclude for ALL notifications in this batch. ' +
+      'Cannot be used with channels.',
+    enum: NOTIFY_CHANNELS,
+    isArray: true,
+    example: ['sms'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @IsIn(NOTIFY_CHANNELS, { each: true })
+  @ValidateIf((o) => o.channels !== undefined)
+  exclude_channels?: string[];
 }
 
 /**

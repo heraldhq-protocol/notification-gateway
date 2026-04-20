@@ -44,20 +44,22 @@ export class ChannelDispatchService {
     channels: DecryptedChannels,
     job: NotificationJobData,
   ): Promise<ChannelDispatchResult> {
+    const allowedChannels = this.resolveAllowedChannels(channels, job);
+
     const promises: Array<Promise<ChannelDeliveryOutcome>> = [];
 
     // ── Email channel ─────────────────────────────────────────
-    if (channels.email) {
+    if (allowedChannels.includes('email') && channels.email) {
       promises.push(this.deliverEmail(channels.email, job));
     }
 
     // ── Telegram channel ──────────────────────────────────────
-    if (channels.telegramChatId) {
+    if (allowedChannels.includes('telegram') && channels.telegramChatId) {
       promises.push(this.deliverTelegram(channels.telegramChatId, job));
     }
 
     // ── SMS channel ───────────────────────────────────────────
-    if (channels.phone) {
+    if (allowedChannels.includes('sms') && channels.phone) {
       promises.push(this.deliverSms(channels.phone, job));
     }
 
@@ -82,6 +84,71 @@ export class ChannelDispatchService {
       successCount,
       allDelivered: successCount === outcomes.length,
     };
+  }
+
+  /**
+   * Resolve allowed channels based on:
+   * 1. Explicit channels from request (preferredChannel takes precedence)
+   * 2. Excluded channels from request
+   * 3. Priority flag (adds SMS for important/critical)
+   * 4. Registered channels
+   */
+  private resolveAllowedChannels(
+    channels: DecryptedChannels,
+    job: NotificationJobData,
+  ): ('email' | 'telegram' | 'sms')[] {
+    const registered: ('email' | 'telegram' | 'sms')[] = [];
+    if (channels.email) registered.push('email');
+    if (channels.telegramChatId) registered.push('telegram');
+    if (channels.phone) registered.push('sms');
+
+    if (registered.length === 0) return [];
+
+    // Start with explicit channels if provided (preferredChannel takes precedence over batch channels)
+    let explicit: ('email' | 'telegram' | 'sms')[] | undefined;
+    if (job.preferredChannel) {
+      explicit = [job.preferredChannel];
+    } else if (job.channels && job.channels.length > 0) {
+      explicit = job.channels;
+    }
+
+    // Prepare exclusion list
+    const excluded = new Set(job.excludedChannels || []);
+
+    // Determine allowed channels
+    let allowed: ('email' | 'telegram' | 'sms')[];
+
+    if (explicit) {
+      // Explicit list takes precedence
+      allowed = explicit.filter(
+        (c) => registered.includes(c) && !excluded.has(c),
+      );
+    } else {
+      // Use registered channels, excluding specified ones
+      allowed = registered.filter((c) => !excluded.has(c));
+    }
+
+    // Add SMS for important/critical priority if not excluded and registered
+    if (
+      (job.priority === 'important' || job.priority === 'critical') &&
+      channels.phone &&
+      !excluded.has('sms') &&
+      !allowed.includes('sms')
+    ) {
+      allowed.push('sms');
+    }
+
+    // Sort by fallback order: email → telegram → sms
+    const channelOrder: ('email' | 'telegram' | 'sms')[] = [
+      'email',
+      'telegram',
+      'sms',
+    ];
+    allowed.sort(
+      (a, b) => channelOrder.indexOf(a) - channelOrder.indexOf(b),
+    );
+
+    return allowed;
   }
 
   // ── Email delivery ──────────────────────────────────────────

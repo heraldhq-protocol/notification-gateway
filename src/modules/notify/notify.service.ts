@@ -133,6 +133,11 @@ export class NotifyService {
     });
 
     // ── 5. Enqueue async delivery job ────────────────────────────
+    const channels = dto.batchChannels as ('email' | 'telegram' | 'sms')[] | undefined;
+    const excludedChannels = dto.batchExcludeChannels as
+      | ('email' | 'telegram' | 'sms')[]
+      | undefined;
+
     await this.queueService.enqueueNotification({
       notificationId,
       protocolId: protocol.protocolId,
@@ -144,11 +149,14 @@ export class NotifyService {
       category: dto.category ?? 'defi',
       writeReceipt: dto.receipt ?? true,
       digestMode: identity.digestMode,
+      priority: dto.priority ?? 'normal',
+      preferredChannel: dto.preferred_channel,
+      channels,
+      excludedChannels,
       tier: protocol.tier,
       templateId: dto.templateId,
       telegramTemplateId: dto.telegramTemplateId,
       templateVariables: dto.templateVariables,
-      preferredChannel: dto.preferred_channel,
     });
 
     return {
@@ -348,6 +356,13 @@ export class NotifyService {
       dto.subject,
     );
 
+    const channels = dto.batchChannels as
+      | ('email' | 'telegram' | 'sms')[]
+      | undefined;
+    const excludedChannels = dto.batchExcludeChannels as
+      | ('email' | 'telegram' | 'sms')[]
+      | undefined;
+
     await this.queueService.enqueueNotification({
       notificationId,
       protocolId: protocol.protocolId,
@@ -359,13 +374,16 @@ export class NotifyService {
       category: dto.category ?? 'defi',
       writeReceipt: false,
       digestMode: false,
+      priority: dto.priority ?? 'normal',
+      preferredChannel: dto.preferred_channel,
+      channels,
+      excludedChannels,
       isSandbox: true,
       testContact,
       tier: protocol.tier,
       templateId: dto.templateId,
       telegramTemplateId: dto.telegramTemplateId,
       templateVariables: dto.templateVariables,
-      preferredChannel: dto.preferred_channel,
     });
 
     // ── 7. Increment daily usage counter (Redis, auto-resets at midnight UTC) ─

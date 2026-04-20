@@ -53,6 +53,14 @@ export interface NotificationJobData {
   category: string;
   writeReceipt: boolean;
   digestMode: boolean;
+  // Priority: adds SMS for important/critical
+  priority?: 'normal' | 'important' | 'critical';
+  // Explicit channels (from batch level or individual)
+  channels?: ('email' | 'telegram' | 'sms')[];
+  // Channels to exclude
+  excludedChannels?: ('email' | 'telegram' | 'sms')[];
+  // Individual preferred channel (takes precedence over batch channels)
+  preferredChannel?: 'email' | 'telegram' | 'sms';
   // Sandbox fields — only present when isSandbox = true
   isSandbox?: boolean;
   testContact?: {
@@ -64,7 +72,6 @@ export interface NotificationJobData {
   templateId?: string;
   telegramTemplateId?: string;
   templateVariables?: Record<string, string>;
-  preferredChannel?: 'email' | 'telegram' | 'sms'; // Caller-requested channel hint
 }
 
 /**
