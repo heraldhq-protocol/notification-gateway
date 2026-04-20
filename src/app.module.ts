@@ -20,6 +20,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { RoutingModule } from './modules/routing/routing.module';
 import { ChannelModule } from './modules/channel/channel.module';
+import { SandboxModule } from './modules/sandbox/sandbox.module';
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -80,6 +81,7 @@ import { RedisModule } from './modules/redis/redis.module';
     }),
 
     // ── Feature Modules ───────────────────────────────────────
+    SandboxModule,
     AuthModule,
     HealthModule,
     NotifyModule,
