@@ -193,11 +193,14 @@ export class NotifyController {
   ): Promise<{ renderedHtml?: string; telegramText?: string; smsText?: string }> {
     const category = dto.category ?? 'defi';
     const subject = dto.subject ?? 'Notification';
+    
+    // Map category to template name (defi folder contains defi-alert template)
+    const templateName = category === 'defi' ? 'defi-alert' : category;
 
     const formattedSubject = `[${protocol.name ?? 'Protocol'} | ${category.charAt(0).toUpperCase() + category.slice(1)} Alert] ${subject}`;
 
     const { html } = await this.templateService.render({
-      template: category,
+      template: templateName,
       variables: {
         protocolName: protocol.name ?? 'Protocol',
         subject: formattedSubject,

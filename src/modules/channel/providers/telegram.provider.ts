@@ -264,7 +264,8 @@ export class TelegramService implements OnModuleInit {
     ];
 
     if ((params.tier ?? 0) < 3) {
-      const cat = params.category.charAt(0).toUpperCase() + params.category.slice(1);
+      const cat =
+        params.category.charAt(0).toUpperCase() + params.category.slice(1);
       lines.push('', `<i>via Herald • ${cat}</i>`);
     }
 
@@ -462,7 +463,8 @@ export class TelegramService implements OnModuleInit {
     });
 
     if ((params.tier ?? 0) < 3) {
-      const cat = params.category.charAt(0).toUpperCase() + params.category.slice(1);
+      const cat =
+        params.category.charAt(0).toUpperCase() + params.category.slice(1);
       result += `\n\n<i>via Herald • ${cat}</i>`;
     }
 
