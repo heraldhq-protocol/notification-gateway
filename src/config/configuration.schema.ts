@@ -31,6 +31,7 @@ export const EnvironmentSchema = z.object({
 
   // ── AWS ───────────────────────────────────────────────────────────
   AWS_REGION: z.string().default('us-east-1'),
+  SECRET_ID: z.string().optional(),
   AWS_KMS_KEY_ID: z.string().optional(),
   NITRO_ENCLAVE_SOCKET: z.string().default('/run/enclave.sock'),
 
