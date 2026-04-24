@@ -398,15 +398,33 @@ model NotificationTemplate {
   subjectTemplate String?  @map("subject_template")
   htmlSource      String?  @map("html_source")
   textSource      String?  @map("text_source")
-  heraldFooter    String   @default("full") @map("herald_footer") @db.VarChar(20) // full|small|minimal|none
+  previewText     String?  @map("preview_text") @db.VarChar(200)
+  heraldFooter    String   @default("full") @map("herald_footer") @db.VarChar(20) // full|small|minimal|none|enterprise
   isActive        Boolean  @default(true) @map("is_active")
   isDefault       Boolean  @default(false) @map("is_default")
+  version         Int      @default(1) @map("version")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   protocol        Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  versions        NotificationTemplateVersion[]
 
   @@index([protocolId, category], map: "idx_notif_templates_protocol")
   @@map("notification_templates")
+}
+
+/// Version history for email templates (keeps last 10 versions).
+model NotificationTemplateVersion {
+  id              String   @id @default(uuid()) @db.Uuid
+  templateId      String   @map("template_id") @db.Uuid
+  version         Int      @default(1) @map("version")
+  htmlSource      String   @map("html_source")
+  subjectTemplate String?  @map("subject_template")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  template        NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version], map: "idx_template_version")
+  @@index([templateId], map: "idx_template_versions_template")
+  @@map("notification_template_versions")
 }
 
 model TelegramTemplate {

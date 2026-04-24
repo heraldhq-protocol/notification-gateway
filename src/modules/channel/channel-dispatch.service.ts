@@ -216,7 +216,10 @@ export class ChannelDispatchService {
           'X-Herald-Notification-Id': job.notificationId,
           'X-Herald-Timestamp': new Date().toISOString(),
           'List-Unsubscribe': `<https://notify.useherald.xyz/unsubscribe/${job.notificationId}>`,
-          Precedence: 'bulk',
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          'Precedence': 'bulk',
+          'X-Auto-Response-Suppress': 'OOF',
+          'Auto-Submitted': 'auto-generated',
         },
       });
 

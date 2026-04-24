@@ -1,0 +1,72 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{subject}}</mj-title>
+    <mj-preview>{{previewText}}</mj-preview>
+    <mj-breakpoint width="600px" />
+    <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
+    <mj-attributes>
+      <mj-all font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" />
+      <mj-text font-size="15px" line-height="1.6" color="#94a3b8" />
+      <mj-button background-color="#8B5CF6" color="#ffffff" font-weight="600" border-radius="6px" />
+    </mj-attributes>
+    <mj-style>
+      body { background-color: #060d18; }
+      @media only screen and (max-width: 600px) {
+        .mobile-padding { padding: 24px !important; }
+      }
+    </mj-style>
+  </mj-head>
+
+  <mj-body background-color="#060d18">
+    <mj-section padding="40px 0 20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#475569" text-transform="uppercase" letter-spacing="1px">
+          {{protocolName}} — Governance
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section background-color="#0d1f35" border="1px solid #1e293b" border-radius="8px" padding="0">
+      <mj-column width="100%">
+        <mj-section padding="32px" background-color="#0d1f35">
+          <mj-column>
+            <mj-text font-size="10px" font-weight="700" color="#8B5CF6" text-transform="uppercase" letter-spacing="0.5px">
+              Governance
+            </mj-text>
+            <mj-text font-size="22px" font-weight="700" color="#f8fafc" line-height="1.3" padding-top="8px">
+              {{subject}}
+            </mj-text>
+          </mj-column>
+        </mj-section>
+
+        <mj-section padding="0 32px 32px" background-color="#0d1f35">
+          <mj-column>
+            <mj-text color="#94a3b8">
+              {{body}}
+            </mj-text>
+          </mj-column>
+        </mj-section>
+
+        {{#if actionUrl}}
+        <mj-section padding="0 32px 32px" background-color="#0d1f35">
+          <mj-column>
+            <mj-button href="{{actionUrl}}" background-color="#8B5CF6" color="#ffffff">
+              {{actionLabel}}
+            </mj-button>
+          </mj-column>
+        </mj-section>
+        {{/if}}
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="24px 32px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#475569">
+          <a href="https://useherald.xyz" style="color:#00C896;text-decoration:none;">Herald</a>
+          <span style="color:#1e293b;margin:0 8px;">|</span>
+          <a href="{{unsubscribeUrl}}" style="color:#64748b;">Unsubscribe</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

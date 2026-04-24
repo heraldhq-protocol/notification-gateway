@@ -97,6 +97,9 @@ export const EnvironmentSchema = z.object({
     .min(16)
     .default('development-unsub-jwt-secret-32!!'),
 
+  // ── Internal Service Auth ────────────────────────────────────────
+  INTERNAL_API_KEY: z.string().min(32).optional(),
+
   // ── Monitoring ────────────────────────────────────────────────────
   PINO_LOG_LEVEL: z
     .enum(['trace', 'debug', 'info', 'warn', 'error'])

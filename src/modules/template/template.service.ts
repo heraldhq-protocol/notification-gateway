@@ -4,13 +4,16 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 import juice from 'juice';
 import { marked } from 'marked';
-import sanitizeHtml from 'sanitize-html';
 import { PrismaService } from '../../database/prisma.service';
 import { getTierLimits } from '../auth/rate-limit.constants';
 import {
   parseMarkdownLinks,
   convertLinksToHtml,
 } from '../../common/utils/link-parser';
+import { MjmlCompilerService } from './mjml-compiler.service';
+import { XssSanitizer } from './utils/xss-sanitizer';
+
+const HERALD_LOGO_URL = 'https://ucshdejvxzanuxlxrano.supabase.co/storage/v1/object/public/herald-public-asset/herald-logo.png';
 
 export interface RenderParams {
   template: string;
@@ -51,11 +54,12 @@ export interface TemplateValidationResult {
 export class TemplateService {
   private readonly logger = new Logger(TemplateService.name);
   private readonly templateDir: string;
-  /** In-memory compiled template cache to avoid repeated disk reads. */
   private readonly templateCache = new Map<
     string,
     HandlebarsTemplateDelegate
   >();
+  private readonly xssSanitizer: XssSanitizer;
+  private readonly mjmlCompiler: MjmlCompilerService;
 
   constructor(private readonly prisma: PrismaService) {
     const isProd = process.env.NODE_ENV === 'production';
@@ -63,6 +67,8 @@ export class TemplateService {
       ? path.join(process.cwd(), 'dist', 'modules', 'template', 'templates')
       : path.join(process.cwd(), 'src', 'modules', 'template', 'templates');
 
+    this.xssSanitizer = new XssSanitizer();
+    this.mjmlCompiler = new MjmlCompilerService();
     this.logger.log(`Template directory: ${this.templateDir}`);
     this.registerHelpers();
   }
@@ -157,7 +163,6 @@ export class TemplateService {
     const unsubscribeUrl = (variables.unsubscribeUrl as string) || '#';
 
     const footers: Record<string, string> = {
-      // Developer: full Herald branding
       full: `
         <div style="background:#040C18;padding:24px 32px;border-top:1px solid #0E2A3D;font-family:Arial,sans-serif;">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
@@ -173,7 +178,6 @@ export class TemplateService {
           </tr></table>
         </div>`,
 
-      // Growth: small "via Herald" line
       small: `
         <div style="background:#040C18;padding:16px 32px;border-top:1px solid #071520;font-family:Arial,sans-serif;">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
@@ -188,7 +192,6 @@ export class TemplateService {
           </tr></table>
         </div>`,
 
-      // Scale: minimal — unsubscribe + tiny Herald mark
       minimal: `
         <div style="background:#040C18;padding:12px 32px;border-top:1px solid #071520;text-align:center;font-family:Arial,sans-serif;">
           <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
@@ -196,9 +199,16 @@ export class TemplateService {
           <span style="font-size:11px;color:#1A2D3D;">◈ Herald</span>
         </div>`,
 
-      // Enterprise: unsubscribe only
       none: `
         <div style="padding:12px 32px;text-align:center;font-family:Arial,sans-serif;">
+          <a href="${unsubscribeUrl}" style="font-size:11px;color:#666;">Unsubscribe</a>
+        </div>`,
+
+      enterprise: `
+        <div style="padding:16px 32px;text-align:center;font-family:Arial,sans-serif;border-top:1px solid #e5e7eb;">
+          <img src="${HERALD_LOGO_URL}" alt="Herald" width="20" height="20" style="vertical-align:middle;margin-right:6px;">
+          <span style="font-size:11px;color:#666;">Herald</span>
+          <span style="color:#ccc;margin:0 8px;">|</span>
           <a href="${unsubscribeUrl}" style="font-size:11px;color:#666;">Unsubscribe</a>
         </div>`,
     };
@@ -210,10 +220,11 @@ export class TemplateService {
           ? 'small'
           : tier === 2
             ? 'minimal'
-            : 'none';
+            : tier === 3
+              ? 'enterprise'
+              : 'none';
 
     const footer = footers[footerKey];
-    // Inject before </body>, or append if no body tag
     return html.includes('</body>')
       ? html.replace('</body>', `${footer}</body>`)
       : html + footer;
@@ -304,66 +315,6 @@ export class TemplateService {
 
   // ── Security ──────────────────────────────────────────────────────────────
 
-  /** Strip script tags and event handlers from custom HTML using sanitize-html, but allow CSS and structural tags. */
-  private sanitizeHtml(sourceHtml: string): string {
-    return sanitizeHtml(sourceHtml, {
-      allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-        'html',
-        'head',
-        'body',
-        'style',
-        'meta',
-        'title',
-        'link',
-        'img',
-        'table',
-        'tr',
-        'td',
-        'tbody',
-        'thead',
-        'tfoot',
-        'th',
-        'center',
-        'font',
-      ]),
-      allowedAttributes: {
-        '*': [
-          'style',
-          'class',
-          'id',
-          'width',
-          'height',
-          'align',
-          'valign',
-          'bgcolor',
-          'border',
-          'cellpadding',
-          'cellspacing',
-          'color',
-          'dir',
-          'lang',
-        ],
-        a: ['href', 'name', 'target', 'title'],
-        img: ['src', 'alt', 'title', 'width', 'height', 'usemap'],
-        meta: ['content', 'name', 'charset', 'http-equiv', 'property'],
-        link: ['rel', 'href', 'type'],
-        style: ['type', 'media'],
-        td: ['colspan', 'rowspan', 'headers'],
-        th: ['colspan', 'rowspan', 'headers', 'scope'],
-      },
-      allowVulnerableTags: true, // Necessary to allow <style> tags and their contents
-      allowedSchemes: ['http', 'https', 'mailto', 'tel'],
-      allowProtocolRelative: false,
-      transformTags: {
-        // Enforce safe links
-        a: sanitizeHtml.simpleTransform('a', {
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        }),
-      },
-    });
-  }
-
   private sha(str: string): string {
     let h = 0;
     for (let i = 0; i < str.length; i++) {
@@ -379,6 +330,12 @@ export class TemplateService {
         <h3>{{subject}}</h3>
         <p>{{body}}</p>
       </body></html>`;
+  }
+
+  private sanitizeHtml(html: string): string {
+    let sanitized = html.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '');
+    sanitized = this.xssSanitizer.sanitize(sanitized, { maxLength: 51200 }).html;
+    return sanitized;
   }
 
   // ── Handlebars helpers ─────────────────────────────────────────────────────
@@ -445,6 +402,35 @@ export class TemplateService {
       return new Handlebars.SafeString(
         marked.parse(content, { gfm: true }) as string,
       );
+    });
+    Handlebars.registerHelper('money', (amount: number, symbol = 'USDC') => {
+      if (typeof amount !== 'number') {
+        return `${amount} ${symbol}`;
+      }
+      return `${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })} ${symbol}`;
+    });
+    Handlebars.registerHelper('truncateAddress', (address: string, chars = 4) => {
+      if (!address || typeof address !== 'string') {
+        return '';
+      }
+      if (address.length <= chars * 2 + 3) {
+        return address;
+      }
+      return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
+    });
+    Handlebars.registerHelper('timeAgo', (timestamp: number) => {
+      if (!timestamp) return '';
+      const now = Math.floor(Date.now() / 1000);
+      const seconds = now - timestamp;
+      if (seconds < 60) return 'just now';
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+      if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w ago`;
+      return new Date(timestamp * 1000).toLocaleDateString();
     });
     Handlebars.registerHelper('convertLinks', (body: string) => {
       if (!body) return '';

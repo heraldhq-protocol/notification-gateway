@@ -38,8 +38,8 @@ import { RedisModule } from './modules/redis/redis.module';
     // ── Global Config ─────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      cache: true,
       load: [loadConfiguration],
+      cache: true,
     }),
 
     // ── Database (PostgreSQL via Prisma) ──────────────────────
