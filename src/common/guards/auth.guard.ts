@@ -33,7 +33,7 @@ export class AuthGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { authProtocol: AuthenticatedProtocol }>();
 
-    // Internal service bypass for /domains/* endpoints
+    // Internal service bypass for /domains/* and /templates/* endpoints
     const internalKey = this.config.get('INTERNAL_API_KEY');
     if (internalKey) {
       const isInternalRequest =
@@ -41,8 +41,9 @@ export class AuthGuard implements CanActivate {
         request.headers['x-internal-key'] === internalKey;
 
       const isDomainPath = request.url.startsWith('/v1/domains');
+      const isTemplatePath = request.url.startsWith('/v1/templates');
 
-      if (isInternalRequest && isDomainPath) {
+      if (isInternalRequest && (isDomainPath || isTemplatePath)) {
         const protocolId = request.headers['x-protocol-id'] as string;
         if (!protocolId) {
           throw new UnauthorizedException('Missing x-protocol-id for internal request');
