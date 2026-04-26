@@ -6,6 +6,7 @@ import {
 } from './rate-limit.constants';
 import type { TierLimits } from './rate-limit.constants';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
+import { PrismaService } from '../../database/prisma.service';
 
 /**
  * Rate limit check result with headers for the response.
@@ -62,7 +63,10 @@ export class RateLimitService {
     return {current, ttl}
   `;
 
-  constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * Three-layer rate limit check.
@@ -100,7 +104,7 @@ export class RateLimitService {
 
     // Layer 3: Monthly quota (skip for sandbox)
     if (!isSandbox) {
-      const quotaResult = await this.checkMonthlyQuota(
+      const quotaResult = this.checkMonthlyQuota(
         protocol,
         batchCount,
         limits,
@@ -167,15 +171,21 @@ export class RateLimitService {
 
       return { allowed: true, headers };
     } catch (err) {
-      // Redis failure — fail open (allow the request)
-      this.logger.warn('Rate limit check failed, allowing request', {
-        error: (err as Error).message,
-      });
+      // Redis failure — fail closed (deny the request) to prevent DDoS
+      this.logger.error(
+        'Rate limit check failed (Redis error) — failing closed',
+        {
+          error: (err as Error).message,
+        },
+      );
       return {
-        allowed: true,
+        allowed: false,
+        error: 'RATE_LIMIT_UNAVAILABLE',
+        message: 'Rate limiting service is temporarily unavailable.',
+        httpStatus: 503,
         headers: {
-          'X-RateLimit-Limit': burstLimit.toString(),
-          'X-RateLimit-Remaining': burstLimit.toString(),
+          'X-RateLimit-Limit': '0',
+          'X-RateLimit-Remaining': '0',
           'X-RateLimit-Reset': '0',
         },
       };
@@ -185,12 +195,12 @@ export class RateLimitService {
   /**
    * Monthly quota check. Uses protocol's sendsThisPeriod (from auth cache).
    */
-  private async checkMonthlyQuota(
+  private checkMonthlyQuota(
     protocol: AuthenticatedProtocol,
     count: number,
     limits: TierLimits,
     existingHeaders: Record<string, string>,
-  ): Promise<RateLimitCheckResult> {
+  ): RateLimitCheckResult {
     const used = Number(protocol.sendsThisPeriod ?? 0n);
     const limit = limits.sendsPerMonth;
     const remaining = Math.max(0, limit - used);
@@ -264,14 +274,19 @@ export class RateLimitService {
    * Retrieves the current month's usage for a protocol without incrementing it.
    */
   async getCurrentUsage(protocolId: string): Promise<string> {
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const key = `quota:${protocolId}:${monthKey}`;
-    // We get quota used from the auth service usually, or read it if we store it.
-    // Wait, checkMonthlyQuota uses `protocol.sendsThisPeriod`.
-    // We can just rely on that instead, but we don't have protocol object here if we just want usage.
-    // Best is to return the protocol's tracked sendsThisPeriod.
-    return '0'; // Stub to be used by caller who already has the protocol
+    try {
+      const protocol = await this.prisma.protocol.findUnique({
+        where: { id: protocolId },
+        select: { sendsThisPeriod: true },
+      });
+      return (protocol?.sendsThisPeriod ?? 0n).toString();
+    } catch (error) {
+      this.logger.error(
+        `Failed to get usage for protocol ${protocolId}`,
+        (error as Error).stack,
+      );
+      return '0';
+    }
   }
 
   /**

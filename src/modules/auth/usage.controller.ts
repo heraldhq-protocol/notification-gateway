@@ -4,7 +4,6 @@ import { RateLimitService } from './rate-limit.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
-import { TierLimits } from './rate-limit.constants';
 
 @ApiTags('Usage')
 @ApiBearerAuth()
@@ -15,7 +14,7 @@ export class UsageController {
 
   @Get()
   @ApiOperation({ summary: 'Get current month API usage and quota limits' })
-  async getUsage(@ApiKey() protocol: AuthenticatedProtocol) {
+  getUsage(@ApiKey() protocol: AuthenticatedProtocol) {
     const tier = protocol.tier;
     const limit = this.rateLimitService.getTierLimits(tier)?.sendsPerMonth ?? 0;
 
