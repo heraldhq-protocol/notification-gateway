@@ -102,7 +102,10 @@ async function bootstrap() {
   console.log(`🔧 Environment: ${process.env.NODE_ENV ?? 'development'}\n`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Failed to start application:', err);
+  process.exit(1);
+});
 
 // Reboot dev server
 // Second reload

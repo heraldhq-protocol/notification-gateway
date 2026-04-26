@@ -11,16 +11,14 @@ import type { AuthenticatedProtocol } from '../types/protocol.types';
 
 @Injectable()
 export class InternalGuard implements CanActivate {
-  constructor(
-    @Inject(ConfigService) private config: ConfigService,
-  ) {}
+  constructor(@Inject(ConfigService) private config: ConfigService) {}
 
-  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+  canActivate(ctx: ExecutionContext): boolean {
     const request = ctx
       .switchToHttp()
       .getRequest<Request & { authProtocol: AuthenticatedProtocol }>();
 
-    const internalSecret = this.config.get('INTERNAL_SERVICE_SECRET');
+    const internalSecret = this.config.get('INTERNAL_API_KEY');
     const providedSecret = request.headers['x-internal-secret'];
 
     if (!internalSecret || internalSecret !== providedSecret) {

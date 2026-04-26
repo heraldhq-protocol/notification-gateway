@@ -58,7 +58,7 @@ export class MjmlCompilerService {
     return 'html';
   }
 
-  async compile(source: string, variables: Record<string, unknown>): Promise<string> {
+  compile(source: string, variables: Record<string, unknown>): string {
     const format = this.detectFormat(source);
 
     if (format === 'mjml') {
@@ -68,10 +68,7 @@ export class MjmlCompilerService {
     }
   }
 
-  async compileMjml(
-    mjmlSource: string,
-    variables: Record<string, unknown>,
-  ): Promise<string> {
+  compileMjml(mjmlSource: string, variables: Record<string, unknown>): string {
     let processedSource = mjmlSource;
 
     try {
@@ -96,7 +93,9 @@ export class MjmlCompilerService {
         const errorMessages = result.errors
           .map((e: MjmlError) => e.formattedMessage || e.message)
           .join(', ');
-        this.logger.warn('MJML compilation warnings', { warnings: errorMessages });
+        this.logger.warn('MJML compilation warnings', {
+          warnings: errorMessages,
+        });
       }
 
       compiled = result.html;
@@ -110,10 +109,7 @@ export class MjmlCompilerService {
     return compiled;
   }
 
-  async compileHtml(
-    htmlSource: string,
-    variables: Record<string, unknown>,
-  ): Promise<string> {
+  compileHtml(htmlSource: string, variables: Record<string, unknown>): string {
     let processedHtml = htmlSource;
 
     try {
@@ -123,7 +119,9 @@ export class MjmlCompilerService {
       this.logger.warn('Handlebars compilation failed', {
         error: (err as Error).message,
       });
-      throw new Error(`Handlebars compilation failed: ${(err as Error).message}`);
+      throw new Error(
+        `Handlebars compilation failed: ${(err as Error).message}`,
+      );
     }
 
     let inlinedHtml: string;
@@ -272,15 +270,18 @@ export class MjmlCompilerService {
       })} ${symbol}`;
     });
 
-    Handlebars.registerHelper('truncateAddress', (address: string, chars = 4) => {
-      if (!address || typeof address !== 'string') {
-        return '';
-      }
-      if (address.length <= chars * 2 + 3) {
-        return address;
-      }
-      return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
-    });
+    Handlebars.registerHelper(
+      'truncateAddress',
+      (address: string, chars = 4) => {
+        if (!address || typeof address !== 'string') {
+          return '';
+        }
+        if (address.length <= chars * 2 + 3) {
+          return address;
+        }
+        return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
+      },
+    );
 
     Handlebars.registerHelper('timeAgo', (timestamp: number) => {
       if (!timestamp) return '';
@@ -320,8 +321,11 @@ export class MjmlCompilerService {
 
     Handlebars.registerHelper('not', (value: unknown) => !value);
 
-    Handlebars.registerHelper('default', (value: unknown, defaultValue: unknown) => {
-      return value ?? defaultValue;
-    });
+    Handlebars.registerHelper(
+      'default',
+      (value: unknown, defaultValue: unknown) => {
+        return value ?? defaultValue;
+      },
+    );
   }
 }
