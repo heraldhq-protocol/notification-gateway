@@ -80,15 +80,14 @@ export class UrlValidator {
       }
     }
 
-    if (
-      trimmedUrl.startsWith('http:') ||
-      trimmedUrl.startsWith('https://')
-    ) {
+    if (trimmedUrl.startsWith('http:') || trimmedUrl.startsWith('https://')) {
       const allowedHosts = options?.allowedHosts ?? ALLOWED_HOSTS;
-      const parsedUrl = new URL(trimmedUrl.startsWith('http:')
-        ? trimmedUrl
-        : `https://${trimmedUrl.replace(/^\/\//, '')}`);
-      
+      const parsedUrl = new URL(
+        trimmedUrl.startsWith('http:')
+          ? trimmedUrl
+          : `https://${trimmedUrl.replace(/^\/\//, '')}`,
+      );
+
       const isAllowedHost = allowedHosts.some(
         (host) =>
           parsedUrl.hostname === host ||

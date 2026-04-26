@@ -48,8 +48,6 @@ export default async function secretsLoader(): Promise<SecretsConfig> {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(
-      `Failed to fetch AWS secret "${secretId}": ${message}`,
-    );
+    throw new Error(`Failed to fetch AWS secret "${secretId}": ${message}`);
   }
 }

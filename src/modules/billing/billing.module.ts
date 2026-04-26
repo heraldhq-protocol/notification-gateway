@@ -11,6 +11,7 @@ import { AuthModule } from '../auth/auth.module.js';
 
 import { BillingController } from './billing.controller.js';
 import { BillingService } from './billing.service.js';
+import { OverageMeteringService } from './overage-metering.service.js';
 
 import { HelioService } from './helio/helio.service.js';
 import { HelioWebhookController } from './helio/helio.webhook.controller.js';
@@ -40,6 +41,7 @@ import { HelioEventRepository } from './repositories/helio-event.repository.js';
   controllers: [BillingController, HelioWebhookController],
   providers: [
     BillingService,
+    OverageMeteringService,
     HelioService,
     SubscriptionService,
     OnChainRenewalService,
@@ -52,6 +54,7 @@ import { HelioEventRepository } from './repositories/helio-event.repository.js';
   ],
   exports: [
     BillingService,
+    OverageMeteringService,
     SubscriptionService,
     SubscriptionGuard,
     SubscriptionRepository,

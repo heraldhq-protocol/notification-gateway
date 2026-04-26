@@ -26,7 +26,7 @@ function createMockExecutionContext(options: {
     headers: {},
     authProtocol: undefined,
   };
-  
+
   if (options.authHeader) {
     request.headers.authorization = options.authHeader;
   }
@@ -39,7 +39,7 @@ function createMockExecutionContext(options: {
   if (options.protocolId) {
     request.headers['x-protocol-id'] = options.protocolId;
   }
-  
+
   return {
     switchToHttp: () => ({
       getRequest: () => request,
@@ -66,12 +66,16 @@ describe('AuthGuard', () => {
   describe('standard API key auth', () => {
     it('should deny requests without Authorization header', async () => {
       const ctx = createMockExecutionContext({});
-      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should deny requests with non-Bearer authorization', async () => {
       const ctx = createMockExecutionContext({ authHeader: 'Basic abc123' });
-      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should deny requests with invalid API key', async () => {
@@ -79,7 +83,9 @@ describe('AuthGuard', () => {
       const ctx = createMockExecutionContext({
         authHeader: 'Bearer hrld_live_invalidkey123456789012345',
       });
-      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should allow requests with valid API key and attach authProtocol', async () => {
@@ -145,7 +151,9 @@ describe('AuthGuard', () => {
         url: '/v1/notify',
       });
 
-      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should deny internal requests without x-protocol-id', async () => {
@@ -157,7 +165,9 @@ describe('AuthGuard', () => {
         url: '/v1/domains',
       });
 
-      await expect(guard.canActivate(ctx)).rejects.toThrow('Missing x-protocol-id');
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'Missing x-protocol-id',
+      );
     });
 
     it('should deny internal requests with invalid protocolId', async () => {
@@ -171,7 +181,9 @@ describe('AuthGuard', () => {
         url: '/v1/domains',
       });
 
-      await expect(guard.canActivate(ctx)).rejects.toThrow('Invalid protocolId');
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        'Invalid protocolId',
+      );
     });
 
     it('should deny internal requests with wrong key', async () => {
@@ -184,7 +196,9 @@ describe('AuthGuard', () => {
         url: '/v1/domains',
       });
 
-      await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(ctx)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

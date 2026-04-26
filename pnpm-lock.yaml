@@ -24,8 +24,8 @@ importers:
         specifier: ^3.1029.0
         version: 3.1030.0
       '@herald-protocol/sdk':
-        specifier: ^1.2.2
-        version: 1.2.2(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)
+        specifier: ^1.3.0
+        version: 1.3.0(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@lightprotocol/stateless.js':
         specifier: ^0.23.3
         version: 0.23.3(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))
@@ -119,6 +119,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      ipaddr.js:
+        specifier: ^2.3.0
+        version: 2.3.0
       jsdom:
         specifier: ^29.0.2
         version: 29.0.2(@noble/hashes@1.8.0)
@@ -906,8 +909,8 @@ packages:
   '@heliofi/sdk@3.0.3':
     resolution: {integrity: sha512-2Lcw29qaquF822tn89UOdsQkiWlLXg+cjSK6vkB1BfBKTymfH18Yqs5L0v6uf+AeymBqGx+WgcI9zcxY2/Z7pg==}
 
-  '@herald-protocol/sdk@1.2.2':
-    resolution: {integrity: sha512-FcJXJLeAfPZs6/hougVf3w0/XlcJhAzt4EE+YagPxdfuimB/JlWpzc++b3x5O/sAf8epUS5upen5fmcj2ExDaw==}
+  '@herald-protocol/sdk@1.3.0':
+    resolution: {integrity: sha512-L/dq9Pw/CnqDIjYArNyyqvH4l3aBUk2VZzsJ4VRNfdFXbqyW1kmxQ/0bJ8Nu7rW2795nsIOSb0F/+h1sdgPEjw==}
     engines: {node: '>=18.0.0'}
 
   '@hono/node-server@1.19.11':
@@ -3951,6 +3954,10 @@ packages:
   ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
+
+  ipaddr.js@2.3.0:
+    resolution: {integrity: sha512-Zv/pA+ciVFbCSBBjGfaKUya/CcGmUHzTydLMaTwrUUEM2DIEO3iZvueGxmacvmN50fGpGVKeTXpb2LcYQxeVdg==}
+    engines: {node: '>= 10'}
 
   is-array-buffer@3.0.5:
     resolution: {integrity: sha512-DDfANUiiG2wC1qawP66qlTugJeL5HyzMpfr8lLK+jMQirGzNod0B12cFB/9q838Ru27sBwfw78/rdoU7RERz6A==}
@@ -7538,11 +7545,12 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@herald-protocol/sdk@1.2.2(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)':
+  '@herald-protocol/sdk@1.3.0(@babel/core@7.29.0)(@nestjs/common@11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)':
     dependencies:
       '@coral-xyz/anchor': 0.30.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@heliofi/sdk': 3.0.3(@babel/core@7.29.0)(bufferutil@4.1.0)(jest@30.3.0(@types/node@22.19.17)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@lightprotocol/stateless.js': 0.17.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@noble/hashes': 1.8.0
       '@sendgrid/mail': 8.1.6
       '@solana/spl-token': 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -11242,6 +11250,8 @@ snapshots:
       - supports-color
 
   ipaddr.js@1.9.1: {}
+
+  ipaddr.js@2.3.0: {}
 
   is-array-buffer@3.0.5:
     dependencies:

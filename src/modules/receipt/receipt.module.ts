@@ -1,14 +1,18 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { QueueNames } from '../queue/queue.constants';
 import { ReceiptService } from './receipt.service';
 import { LightClientService } from './light-client.service';
 import { ReceiptWorker } from './receipt.worker';
+import { SolanaModule } from '../../solana/solana.module';
 
 @Module({
   imports: [
     ConfigModule,
+    ScheduleModule.forRoot(),
+    SolanaModule,
     BullModule.registerQueue({
       name: QueueNames.RECEIPT_BATCH,
     }),

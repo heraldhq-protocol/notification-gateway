@@ -21,6 +21,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { RoutingModule } from './modules/routing/routing.module';
 import { ChannelModule } from './modules/channel/channel.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
+import { EnclaveModule } from './modules/enclave/enclave.module';
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -96,6 +97,7 @@ import { RedisModule } from './modules/redis/redis.module';
     AdminModule,
     RoutingModule,
     ChannelModule,
+    EnclaveModule,
     LoggerModule.forRoot({
       pinoHttp: {
         transport:

@@ -46,12 +46,19 @@ export class AuthGuard implements CanActivate {
       if (isInternalRequest && (isDomainPath || isTemplatePath)) {
         const protocolId = request.headers['x-protocol-id'] as string;
         if (!protocolId) {
-          throw new UnauthorizedException('Missing x-protocol-id for internal request');
+          throw new UnauthorizedException(
+            'Missing x-protocol-id for internal request',
+          );
         }
 
         const protocol = await this.prisma.protocol.findUnique({
           where: { id: protocolId },
-          select: { id: true, protocolPubkey: true, tier: true, isActive: true },
+          select: {
+            id: true,
+            protocolPubkey: true,
+            tier: true,
+            isActive: true,
+          },
         });
         if (!protocol) {
           throw new UnauthorizedException('Invalid protocolId');

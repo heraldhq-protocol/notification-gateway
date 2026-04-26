@@ -259,6 +259,7 @@ export const DEFAULT_PREVIEW_VARIABLES: Record<string, unknown> = {
   actionLabel: 'View Details',
   recipientAddress: '7xKXtg2cq8N4X5Yz9R5W5J5B5X5Z5X5Z5X5Z5X5Z5X5',
   txHash: '5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x5x',
-  previewText: 'This is the preview text shown in email clients after the subject line...',
+  previewText:
+    'This is the preview text shown in email clients after the subject line...',
   unsubscribeUrl: 'https://notify.useherald.xyz/unsubscribe/test123',
 };

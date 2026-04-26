@@ -6,7 +6,8 @@ export type NotificationStatus =
   | 'partial'
   | 'failed'
   | 'opted_out'
-  | 'duplicate';
+  | 'duplicate'
+  | 'digested';
 
 /** Supported notification categories mapped to on-chain opt-in flags. */
 export type NotificationCategory =
@@ -39,6 +40,13 @@ export interface IdentityAccount {
   encryptedPhone: Uint8Array;
   phoneHash: Uint8Array;
   nonceSms: Uint8Array;
+  // Notification key
+  sealedX25519Pubkey?: Uint8Array;
+  senderX25519Pubkey?: Uint8Array;
+  notificationNonce?: Uint8Array;
+  notificationKeyVersion?: number;
+  notificationKeyUpdatedAt?: number;
+  notificationKeyRotationCount?: number;
 }
 
 /** BullMQ job payload for notification delivery. SEC-001: no PII in job data. */
@@ -48,6 +56,7 @@ export interface NotificationJobData {
   protocolPubkey: string;
   protocolName: string;
   wallet: string; // base58 pubkey — used for Solana PDA lookup in worker
+  walletHash?: string; // SHA-256 hex — used for unsubscribe URLs and digest grouping
   subject: string; // No PII — protocol-authored subject
   body: string; // No PII — protocol-authored body
   category: string;

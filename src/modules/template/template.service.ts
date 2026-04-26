@@ -13,7 +13,8 @@ import {
 import { MjmlCompilerService } from './mjml-compiler.service';
 import { XssSanitizer } from './utils/xss-sanitizer';
 
-const HERALD_LOGO_URL = 'https://ucshdejvxzanuxlxrano.supabase.co/storage/v1/object/public/herald-public-asset/herald-logo.png';
+const HERALD_LOGO_URL =
+  'https://ucshdejvxzanuxlxrano.supabase.co/storage/v1/object/public/herald-public-asset/herald-logo.png';
 
 export interface RenderParams {
   template: string;
@@ -334,7 +335,9 @@ export class TemplateService {
 
   private sanitizeHtml(html: string): string {
     let sanitized = html.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '');
-    sanitized = this.xssSanitizer.sanitize(sanitized, { maxLength: 51200 }).html;
+    sanitized = this.xssSanitizer.sanitize(sanitized, {
+      maxLength: 51200,
+    }).html;
     return sanitized;
   }
 
@@ -412,15 +415,18 @@ export class TemplateService {
         maximumFractionDigits: 2,
       })} ${symbol}`;
     });
-    Handlebars.registerHelper('truncateAddress', (address: string, chars = 4) => {
-      if (!address || typeof address !== 'string') {
-        return '';
-      }
-      if (address.length <= chars * 2 + 3) {
-        return address;
-      }
-      return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
-    });
+    Handlebars.registerHelper(
+      'truncateAddress',
+      (address: string, chars = 4) => {
+        if (!address || typeof address !== 'string') {
+          return '';
+        }
+        if (address.length <= chars * 2 + 3) {
+          return address;
+        }
+        return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`;
+      },
+    );
     Handlebars.registerHelper('timeAgo', (timestamp: number) => {
       if (!timestamp) return '';
       const now = Math.floor(Date.now() / 1000);

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac } from 'crypto';
 import type {
   DecryptedChannels,
   ChannelDeliveryOutcome,
@@ -21,6 +22,8 @@ interface ProtocolAsset {
 export class ChannelDispatchService {
   private readonly logger = new Logger(ChannelDispatchService.name);
   private readonly isProduction: boolean;
+  private readonly unsubscribeSecret: string;
+  private readonly unsubscribeBaseUrl: string;
 
   constructor(
     private readonly mailService: MailService,
@@ -32,6 +35,14 @@ export class ChannelDispatchService {
   ) {
     this.isProduction =
       this.config.get<string>('NODE_ENV', 'development') === 'production';
+    this.unsubscribeSecret = this.config.get<string>(
+      'UNSUBSCRIBE_JWT_SECRET',
+      'development-unsub-jwt-secret-32!!',
+    );
+    this.unsubscribeBaseUrl = this.config.get<string>(
+      'UNSUBSCRIBE_BASE_URL',
+      'https://notify.useherald.xyz',
+    );
   }
 
   /**
@@ -197,7 +208,10 @@ export class ChannelDispatchService {
           body: job.body,
           category: job.category,
           recipientAddress: job.wallet,
-          unsubscribeUrl: `https://notify.useherald.xyz/unsubscribe/${job.notificationId}`,
+          unsubscribeUrl: this.generateSignedUnsubscribeUrl(
+            job.walletHash || '',
+            job.category,
+          ),
           heraldLogoUrl:
             logoAsset?.url ?? 'https://cdn.useherald.xyz/logo-email.png',
           bannerUrl: bannerAsset?.url,
@@ -215,9 +229,9 @@ export class ChannelDispatchService {
           'X-Herald-Protocol': job.protocolName,
           'X-Herald-Notification-Id': job.notificationId,
           'X-Herald-Timestamp': new Date().toISOString(),
-          'List-Unsubscribe': `<https://notify.useherald.xyz/unsubscribe/${job.notificationId}>`,
+          'List-Unsubscribe': `<${this.generateSignedUnsubscribeUrl(job.walletHash || '', job.category)}>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-          'Precedence': 'bulk',
+          Precedence: 'bulk',
           'X-Auto-Response-Suppress': 'OOF',
           'Auto-Submitted': 'auto-generated',
         },
@@ -369,5 +383,26 @@ export class ChannelDispatchService {
       marketing: 'marketing',
     };
     return map[category] ?? 'defi-alert';
+  }
+
+  /**
+   * Generate an HMAC-signed unsubscribe URL.
+   * Supports per-category (e.g. 'governance') and full opt-out (category = null/'all').
+   */
+  private generateSignedUnsubscribeUrl(
+    walletHash: string,
+    category?: string | null,
+  ): string {
+    const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days
+    const payload = JSON.stringify({
+      walletHash,
+      category: category || null,
+      expiresAt,
+    });
+    const payloadB64 = Buffer.from(payload).toString('base64url');
+    const signature = createHmac('sha256', this.unsubscribeSecret)
+      .update(payloadB64)
+      .digest('base64url');
+    return `${this.unsubscribeBaseUrl}/unsubscribe/${payloadB64}.${signature}`;
   }
 }

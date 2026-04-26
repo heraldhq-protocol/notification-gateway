@@ -77,6 +77,23 @@ export class SolanaService {
         encryptedPhone: new Uint8Array(identity.encryptedPhone ?? []),
         phoneHash: new Uint8Array(identity.phoneHash ?? []),
         nonceSms: new Uint8Array(identity.nonceSms ?? []),
+        // Notification key
+        // Cast to any since the installed SDK may not yet include these fields
+        sealedX25519Pubkey: new Uint8Array(
+          (identity as any).sealedX25519Pubkey ?? [],
+        ),
+        senderX25519Pubkey: new Uint8Array(
+          (identity as any).senderX25519Pubkey ?? [],
+        ),
+        notificationNonce: new Uint8Array(
+          (identity as any).notificationNonce ?? [],
+        ),
+        notificationKeyVersion: (identity as any).notificationKeyVersion ?? 0,
+        notificationKeyUpdatedAt: Number(
+          (identity as any).notificationKeyUpdatedAt ?? 0,
+        ),
+        notificationKeyRotationCount:
+          (identity as any).notificationKeyRotationCount ?? 0,
       };
     } catch (err) {
       this.rpcManager.recordFailure();

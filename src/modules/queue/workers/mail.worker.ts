@@ -4,6 +4,9 @@ import { Job } from 'bullmq';
 import { QueueNames } from '../queue.constants';
 import { RoutingService } from '../../routing/routing.service';
 import { ChannelDispatchService } from '../../channel/channel-dispatch.service';
+import { WebhookService } from '../../webhook/webhook.service';
+import { OverageMeteringService } from '../../billing/overage-metering.service';
+import { DigestService } from '../../notify/digest.service';
 import { PrismaService } from '../../../database/prisma.service';
 import type { NotificationJobData } from '../../../common/types/notification.types';
 
@@ -11,10 +14,13 @@ import type { NotificationJobData } from '../../../common/types/notification.typ
  * MailWorker — processes notification delivery jobs via multi-channel dispatch.
  *
  * Flow (production):
- *   1. Resolve identity (cached PDA lookup, 10min TTL)
- *   2. Decrypt ALL active channels via TEE (single round-trip)
- *   3. Dispatch to all channels in parallel (email, telegram, sms)
- *   4. Update notification record with per-channel results
+ *   1. Check digestMode → buffer for later if true
+ *   2. Resolve identity (cached PDA lookup, 10min TTL)
+ *   3. Decrypt ALL active channels via TEE (single round-trip)
+ *   4. Dispatch to all channels in parallel (email, telegram, sms)
+ *   5. Update notification record with per-channel results
+ *   6. Increment send counter for overage metering
+ *   7. Fire webhook events (notification.delivered / notification.failed)
  *
  * Flow (sandbox):
  *   - Skips PDA lookup and TEE decryption entirely
@@ -35,6 +41,9 @@ export class MailWorker extends WorkerHost {
   constructor(
     private readonly routingService: RoutingService,
     private readonly channelDispatch: ChannelDispatchService,
+    private readonly webhookService: WebhookService,
+    private readonly overageMetering: OverageMeteringService,
+    private readonly digestService: DigestService,
     private readonly prisma: PrismaService,
   ) {
     super();
@@ -126,9 +135,28 @@ export class MailWorker extends WorkerHost {
   private async processProduction(
     job: Job<NotificationJobData>,
   ): Promise<void> {
-    const { notificationId, wallet } = job.data;
+    const { notificationId, wallet, protocolId, digestMode } = job.data;
 
     try {
+      // ── Step 0: Check digest mode ──────────────────────────────
+      if (digestMode) {
+        await this.digestService.bufferForDigest({
+          walletHash: job.data.walletHash || '',
+          protocolId: job.data.protocolId,
+          subject: job.data.subject,
+          body: job.data.body,
+          category: job.data.category,
+        });
+
+        await this.prisma.notification.update({
+          where: { id: notificationId },
+          data: { status: 'digested' },
+        });
+
+        this.logger.debug(`Notification ${notificationId} buffered for digest`);
+        return;
+      }
+
       // ── Step 1: Resolve identity ──────────────────────────────
       const identity = await this.routingService.resolveIdentity(wallet);
       if (!identity) {
@@ -164,12 +192,16 @@ export class MailWorker extends WorkerHost {
       const result = await this.channelDispatch.dispatch(channels, job.data);
 
       // ── Step 4: Update notification record ─────────────────────
+      let finalStatus: string;
+
       if (result.allDelivered) {
+        finalStatus = 'delivered';
         await this.prisma.notification.update({
           where: { id: notificationId },
           data: { status: 'delivered', deliveredAt: new Date() },
         });
       } else if (result.successCount > 0) {
+        finalStatus = 'partial';
         await this.prisma.notification.update({
           where: { id: notificationId },
           data: {
@@ -179,6 +211,7 @@ export class MailWorker extends WorkerHost {
           },
         });
       } else {
+        finalStatus = 'failed';
         await this.prisma.notification.update({
           where: { id: notificationId },
           data: {
@@ -193,6 +226,43 @@ export class MailWorker extends WorkerHost {
           .join('; ');
         throw new Error(`All channels failed: ${errors}`);
       }
+
+      // ── Step 5: Increment send counter (overage metering) ──────
+      if (result.successCount > 0) {
+        this.overageMetering
+          .incrementSendsThisPeriod(protocolId, 1)
+          .catch((err) =>
+            this.logger.warn(
+              `Metering increment failed for ${protocolId}: ${err.message}`,
+            ),
+          );
+      }
+
+      // ── Step 6: Fire webhook events ────────────────────────────
+      const eventType =
+        finalStatus === 'delivered'
+          ? 'notification.delivered'
+          : finalStatus === 'partial'
+            ? 'notification.partial'
+            : 'notification.failed';
+
+      this.webhookService
+        .dispatch(protocolId, eventType, {
+          notificationId,
+          wallet: job.data.wallet,
+          status: finalStatus,
+          channels: result.outcomes.map((o) => ({
+            channel: o.channel,
+            success: o.success,
+            provider: o.provider,
+          })),
+          deliveredAt: new Date().toISOString(),
+        })
+        .catch((err) =>
+          this.logger.warn(
+            `Webhook dispatch failed for ${notificationId}: ${err.message}`,
+          ),
+        );
 
       this.logger.log('Notification dispatched', {
         notificationId,
@@ -216,6 +286,17 @@ export class MailWorker extends WorkerHost {
           retryCount: { increment: 1 },
         },
       });
+
+      // Fire failure webhook
+      this.webhookService
+        .dispatch(job.data.protocolId, 'notification.failed', {
+          notificationId,
+          wallet: job.data.wallet,
+          status: 'failed',
+          error: err.message,
+        })
+        .catch(() => {}); // Swallow — webhook failure shouldn't block error flow
+
       throw err;
     }
   }

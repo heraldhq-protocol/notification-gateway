@@ -190,10 +190,14 @@ export class NotifyController {
   async preview(
     @Body() dto: NotifyDto,
     @ApiKey() protocol: AuthenticatedProtocol,
-  ): Promise<{ renderedHtml?: string; telegramText?: string; smsText?: string }> {
+  ): Promise<{
+    renderedHtml?: string;
+    telegramText?: string;
+    smsText?: string;
+  }> {
     const category = dto.category ?? 'defi';
     const subject = dto.subject ?? 'Notification';
-    
+
     // Map category to template name (defi folder contains defi-alert template)
     const templateName = category === 'defi' ? 'defi-alert' : category;
 
@@ -212,8 +216,16 @@ export class NotifyController {
       },
     });
 
-    const telegramText = this.buildTelegramPreview(dto.subject, dto.body, category);
-    const smsText = this.buildSmsPreview(protocol.name ?? 'Protocol', subject, dto.body);
+    const telegramText = this.buildTelegramPreview(
+      dto.subject,
+      dto.body,
+      category,
+    );
+    const smsText = this.buildSmsPreview(
+      protocol.name ?? 'Protocol',
+      subject,
+      dto.body,
+    );
 
     return {
       renderedHtml: html,
@@ -222,7 +234,11 @@ export class NotifyController {
     };
   }
 
-  private buildTelegramPreview(subject: string, body: string, category: string): string {
+  private buildTelegramPreview(
+    subject: string,
+    body: string,
+    category: string,
+  ): string {
     const emoji: Record<string, string> = {
       defi: '💰',
       governance: '🗳️',
@@ -234,7 +250,11 @@ export class NotifyController {
     return `${icon} <b>Preview</b>\n\n<b>${subject}</b>\n\n${body}\n\n<i>via Herald • ${category}</i>`;
   }
 
-  private buildSmsPreview(protocolName: string, subject: string, body: string): string {
+  private buildSmsPreview(
+    protocolName: string,
+    subject: string,
+    body: string,
+  ): string {
     const truncatedBody = body.length > 120 ? body.slice(0, 119) + '…' : body;
     return `[${protocolName}] ${subject}: ${truncatedBody} (via Herald)`;
   }

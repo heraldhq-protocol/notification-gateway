@@ -100,10 +100,15 @@ export class DomainController {
     const keys = await this.dkimService.getDomainKeys(protocol.protocolId);
     return keys.map((k) => {
       const publicKey = k.publicKey || '';
-      const base64Match = publicKey.match(/-----BEGIN PUBLIC KEY-----([A-Za-z0-9+/=\n]+)-----END PUBLIC KEY-----/);
-      const base64Key = base64Match 
+      const base64Match = publicKey.match(
+        /-----BEGIN PUBLIC KEY-----([A-Za-z0-9+/=\n]+)-----END PUBLIC KEY-----/,
+      );
+      const base64Key = base64Match
         ? base64Match[1].replace(/\n/g, '')
-        : publicKey.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|[\n]/g, '');
+        : publicKey.replace(
+            /-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|[\n]/g,
+            '',
+          );
       return {
         id: k.id,
         domain: k.domain,
