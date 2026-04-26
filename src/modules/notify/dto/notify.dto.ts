@@ -9,6 +9,9 @@ import {
   ArrayMaxSize,
   ValidateNested,
   ValidateIf,
+  registerDecorator,
+  ValidationOptions,
+  ValidationArguments,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -18,6 +21,38 @@ export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number];
 
 export const NOTIFY_PRIORITIES = ['normal', 'important', 'critical'] as const;
 export type NotifyPriority = (typeof NOTIFY_PRIORITIES)[number];
+
+export function IsBodyLengthValid(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isBodyLengthValid',
+      target: object.constructor,
+      propertyName: propertyName,
+      options: validationOptions,
+      validator: {
+        validate(value: any, args: ValidationArguments) {
+          const dto = args.object as NotifyDto;
+          if (typeof value !== 'string') return false;
+
+          if (dto.preferred_channel === 'sms' && value.length > 1600)
+            return false;
+          if (dto.preferred_channel === 'telegram' && value.length > 4096)
+            return false;
+
+          return value.length <= 10000;
+        },
+        defaultMessage(args: ValidationArguments) {
+          const dto = args.object as NotifyDto;
+          if (dto.preferred_channel === 'sms')
+            return 'Body cannot exceed 1600 characters for SMS.';
+          if (dto.preferred_channel === 'telegram')
+            return 'Body cannot exceed 4096 characters for Telegram.';
+          return 'Body cannot exceed 10000 characters.';
+        },
+      },
+    });
+  };
+}
 
 /**
  * DTO for POST /v1/notify — single notification send.
@@ -44,7 +79,7 @@ export class NotifyDto {
   @ApiProperty({
     description:
       'Notification body (markdown supported for email and Telegram). ' +
-      'Max 10,000 characters.',
+      'Max 10,000 characters for email, 4,096 for Telegram, and 1,600 for SMS.',
     example: [
       '**Position at risk**',
       '',
@@ -62,7 +97,7 @@ export class NotifyDto {
     maxLength: 10000,
   })
   @IsString()
-  @MaxLength(10000)
+  @IsBodyLengthValid()
   body: string;
 
   @ApiPropertyOptional({

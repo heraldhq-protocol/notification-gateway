@@ -63,8 +63,11 @@ export const EnvironmentSchema = z.object({
   IRYS_NODE: z.string().default('https://node1.irys.xyz'),
   IRYS_TOKEN: z.string().optional(),
 
-  // ── Herald Auth ───────────────────────────────────────────────────
+  // ── Herald Auth & KMS ─────────────────────────────────────────────
   HERALD_AUTHORITY_KMS_KEY_ID: z.string().optional(),
+  HERALD_AUTHORITY_SECRET_CIPHERTEXT: z.string().optional(),
+  HERALD_X25519_PRIV_HEX: z.string().optional(),
+  HERALD_X25519_PRIV_CIPHERTEXT: z.string().optional(),
   HERALD_MERKLE_TREE_ADDRESS: z.string().optional(),
   DEV_AUTHORITY_KEYPAIR_PATH: z.string().optional(),
 
@@ -83,12 +86,20 @@ export const EnvironmentSchema = z.object({
     .url()
     .default('https://app.useherald.xyz/billing'),
 
+  // ── Light Protocol (ZK Compression Receipts) ────────────────────
+  LIGHT_RPC_URL: z.string().optional(),
+  LIGHT_OUTPUT_TREE: z.string().optional(),
+  HERALD_AUTHORITY_SECRET: z.string().optional(),
+  RECEIPT_BATCH_SIZE: z.coerce.number().default(20),
+
   // ── Webhooks ──────────────────────────────────────────────────────
   WEBHOOK_SIGNING_SECRET: z
     .string()
     .min(16)
     .default('development-webhook-secret-32chars!!'),
   WEBHOOK_MAX_RETRIES: z.coerce.number().default(3),
+  WEBHOOK_AUTO_DISABLE_THRESHOLD: z.coerce.number().default(10),
+  ALLOW_LOCAL_WEBHOOKS: z.coerce.boolean().default(false),
 
   // ── Unsubscribe ───────────────────────────────────────────────────
   UNSUBSCRIBE_BASE_URL: z.string().default('https://notify.useherald.xyz'),

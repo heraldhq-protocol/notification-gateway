@@ -198,7 +198,16 @@ const ALLOWED_ATTRS = [
   'title',
 ];
 
-const ALLOWED_URL_ATTRS = ['href', 'src', 'action', 'data', 'poster', 'xlink:href', 'cite', 'ping'];
+const ALLOWED_URL_ATTRS = [
+  'href',
+  'src',
+  'action',
+  'data',
+  'poster',
+  'xlink:href',
+  'cite',
+  'ping',
+];
 
 const MJML_TAGS = [
   'mjml',
@@ -269,10 +278,41 @@ export class XssSanitizer {
     this.purify.setConfig({
       ALLOWED_TAGS: [...ALLOWED_TAGS, ...MJML_TAGS],
       ALLOWED_ATTR: [...ALLOWED_ATTRS, ...ALLOWED_URL_ATTRS],
-      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+\-]+:(?![^a-z+\-]))/i,
+      ALLOWED_URI_REGEXP:
+        /^(?:(?:https?|mailto):|[^a-z]|[a-z+-]+:(?![^a-z+-]))/i,
       ALLOW_DATA_ATTR: false,
       ADD_ATTR: ['target', 'rel', 'loading', 'decoding', 'referrerpolicy'],
-      FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'label', 'meta', 'link', 'base', 'applet', 'audio', 'video', 'source', 'track', 'canvas', 'map', 'area', 'del', 'ins', 'samp', 'kbd', 'var', 'noscript', 'template'],
+      FORBID_TAGS: [
+        'script',
+        'style',
+        'iframe',
+        'object',
+        'embed',
+        'form',
+        'input',
+        'button',
+        'select',
+        'textarea',
+        'label',
+        'meta',
+        'link',
+        'base',
+        'applet',
+        'audio',
+        'video',
+        'source',
+        'track',
+        'canvas',
+        'map',
+        'area',
+        'del',
+        'ins',
+        'samp',
+        'kbd',
+        'var',
+        'noscript',
+        'template',
+      ],
       FORBID_ATTR: [
         'onerror',
         'onload',
@@ -302,14 +342,20 @@ export class XssSanitizer {
     const errors: string[] = [];
 
     if (!html || typeof html !== 'string') {
-      return { html: '', warnings: [], errors: ['Input is required and must be a string'] };
+      return {
+        html: '',
+        warnings: [],
+        errors: ['Input is required and must be a string'],
+      };
     }
 
     if (config?.maxLength && html.length > config.maxLength) {
       return {
         html: '',
         warnings: [],
-        errors: [`Template exceeds maximum length of ${config.maxLength} bytes`],
+        errors: [
+          `Template exceeds maximum length of ${config.maxLength} bytes`,
+        ],
       };
     }
 
@@ -337,7 +383,10 @@ export class XssSanitizer {
 
     if (sanitized.includes('<script')) {
       errors.push('Script tags detected and removed');
-      sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      sanitized = sanitized.replace(
+        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+        '',
+      );
     }
 
     if (sanitized.includes('javascript:')) {
@@ -363,10 +412,7 @@ export class XssSanitizer {
   }
 
   private stripEventHandlers(html: string): string {
-    return html.replace(
-      /\s*on\w+\s*=\s*(['"])[^'"]*\1/gi,
-      '',
-    );
+    return html.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '');
   }
 
   private enforceRelAttribute(html: string): string {
@@ -377,7 +423,9 @@ export class XssSanitizer {
     links.forEach((link: any) => {
       const rel = link.getAttribute('rel') || '';
       if (!rel.includes('noopener')) {
-        const newRel = [rel, 'noopener', 'noreferrer'].filter(Boolean).join(' ');
+        const newRel = [rel, 'noopener', 'noreferrer']
+          .filter(Boolean)
+          .join(' ');
         link.setAttribute('rel', newRel);
       }
     });
@@ -457,7 +505,9 @@ export class XssSanitizer {
     };
   }
 
-  private sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
+  private sanitizeObject(
+    obj: Record<string, unknown>,
+  ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {
