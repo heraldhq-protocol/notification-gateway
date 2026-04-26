@@ -353,6 +353,9 @@ jobs:
             [ "$CLEAN_BUILD" = "true" ] && rm -rf node_modules
             pnpm install --frozen-lockfile --ignore-scripts
             
+            # Build the app (ensure dist is properly built after artifact extraction)
+            pnpm build
+            
             export DATABASE_URL="$CLEAN_DB"
             export DIRECT_URL="$CLEAN_DIRECT"
             
