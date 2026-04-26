@@ -351,6 +351,8 @@ jobs:
             
             # Install deps
             [ "$CLEAN_BUILD" = "true" ] && rm -rf node_modules
+            
+            export NODE_OPTIONS="--max-old-space-size=450"
             pnpm install --frozen-lockfile --ignore-scripts
             
             # Build the app (ensure dist is properly built after artifact extraction)
