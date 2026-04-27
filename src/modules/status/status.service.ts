@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Redis } from 'ioredis';
-import { PrismaService } from '../../../database/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.module';
+import { PrismaService } from '../../database/prisma.service';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import { StatusResponseDto } from './dto/status-response.dto';
 
 @Injectable()
