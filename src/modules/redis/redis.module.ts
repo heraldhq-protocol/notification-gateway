@@ -1,29 +1,58 @@
 import { Module, Global } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
-@Global() // Makes Redis available everywhere without importing
+export const REDIS_CLIENT = 'REDIS_CLIENT';
+
+@Global()
 @Module({
-  imports: [ConfigModule],
   providers: [
     {
-      provide: 'REDIS_CLIENT',
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const url = config.get<string>('REDIS_URL', 'redis://localhost:6379');
-        const isSecure = url.startsWith('rediss://');
+      provide: REDIS_CLIENT,
+      useFactory: (configService: ConfigService) => {
+        let redisUrl = configService.getOrThrow<string>('REDIS_URL');
 
-        return new Redis(url, {
-          maxRetriesPerRequest: 3,
-          enableReadyCheck: true,
-          tls: isSecure ? {} : undefined,
-          retryStrategy(times) {
-            return Math.min(times * 200, 5000);
-          },
-        });
+        // Sanitize: strip trailing comments and whitespace
+        if (redisUrl && typeof redisUrl === 'string') {
+          redisUrl = redisUrl.split('#')[0].trim();
+        }
+
+        // If REDIS_URL is a full Upstash-style URL, pass it directly to ioredis
+        if (
+          redisUrl?.startsWith('redis://') ||
+          redisUrl?.startsWith('rediss://')
+        ) {
+          return new Redis(redisUrl, {
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+          });
+        }
+
+        const isCluster = redisUrl.includes('clustercfg');
+        const enableTls =
+          redisUrl.includes('amazonaws.com') || redisUrl.includes('upstash.io');
+
+        const options = {
+          host: redisUrl,
+          port: 6379,
+          ...(enableTls && { tls: {} }),
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+        };
+
+        // If sharding (Cluster Mode Enabled) is active
+        if (isCluster) {
+          return new Redis.Cluster([{ host: redisUrl, port: 6379 }], {
+            redisOptions: options,
+          });
+        }
+
+        // Standalone or Cluster Mode Disabled Master Node
+        return new Redis(options);
       },
+      inject: [ConfigService],
     },
   ],
-  exports: ['REDIS_CLIENT'],
+  exports: [REDIS_CLIENT],
 })
 export class RedisModule {}

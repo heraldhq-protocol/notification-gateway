@@ -292,7 +292,7 @@ jobs:
             DB_URL="${{ secrets.DATABASE_URL }}"
             DIRECT_DB_URL="${{ secrets.DIRECT_URL }}"
             SECRET_ID="${{ secrets.SECRET_ID }}"
-            NODE_ENV=staging
+            NODE_ENV=production
             
             rollback() {
               echo "❌ Deployment failed — rolling back..."
@@ -364,7 +364,7 @@ jobs:
             export DATABASE_URL="$CLEAN_DB"
             export DIRECT_URL="$CLEAN_DIRECT"
             export SECRET_ID
-            export NODE_ENV=staging
+            export NODE_ENV=production
             
             echo "--- Verifying Connectivity ---"
             RDS_HOST=$(echo "$CLEAN_DB" | awk -F'[@:]' '{print $4}')

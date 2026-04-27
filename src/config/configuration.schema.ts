@@ -14,7 +14,7 @@ export const EnvironmentSchema = z.object({
   SERVICE_NAME: z.string().default('herald-gateway'),
 
   // ── Database ──────────────────────────────────────────────────────
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.string(),
   DATABASE_POOL_MIN: z.coerce.number().default(2),
   DATABASE_POOL_MAX: z.coerce.number().default(20),
 

@@ -9,6 +9,7 @@ import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { NotifyModule } from './modules/notify/notify.module';
 import { HealthModule } from './modules/health/health.module';
+import { StatusModule } from './modules/status/status.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { BounceModule } from './modules/bounce/bounce.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -85,6 +86,7 @@ import { RedisModule } from './modules/redis/redis.module';
     SandboxModule,
     AuthModule,
     HealthModule,
+    StatusModule,
     NotifyModule,
     WebhookModule,
     BounceModule,
