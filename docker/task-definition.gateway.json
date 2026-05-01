@@ -39,6 +39,7 @@
         { "name": "AWS_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:AWS_REGION::" },
         { "name": "MAIL_PROVIDER",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:MAIL_PROVIDER::" },
         { "name": "RESEND_API_KEY",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:RESEND_API_KEY::" },
+        { "name": "SES_FROM_ADDRESS",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_FROM_ADDRESS::" },
         { "name": "SES_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_REGION::" },
         { "name": "HELIO_API_KEY",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_API_KEY::" },
         { "name": "HELIO_WEBHOOK_SECRET",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_WEBHOOK_SECRET::" },
@@ -51,8 +52,9 @@
         { "name": "UNSUBSCRIBE_BASE_URL",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:UNSUBSCRIBE_BASE_URL::" },
         { "name": "UNSUBSCRIBE_JWT_SECRET",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:UNSUBSCRIBE_JWT_SECRET::" },
         { "name": "PINO_LOG_LEVEL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:PINO_LOG_LEVEL::" },
-        { "name": "HELIO_TEMPLATE_ONBOARDING",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_ONBOARDING::" },
-        { "name": "INTERNAL_API_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" }
+        { "name": "HELIO_TEMPLATE_OVERCHARGE",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_OVERCHARGE::" },
+        { "name": "INTERNAL_API_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" },
+        { "name": "HERALD_AUTHORITY_SECRET",    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_SECRET::" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health/live || exit 1"],
