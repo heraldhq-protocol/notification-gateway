@@ -4,8 +4,8 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/herald-ecs-execution-role",
-  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/herald-ecs-task-role",
+  "executionRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-task-role",
   "volumes": [
     {
       "name": "enclave-socket"
