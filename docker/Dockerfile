@@ -19,7 +19,9 @@ FROM deps AS builder
 WORKDIR /app
 
 COPY . .
-RUN pnpx prisma generate
+# NOTE: Prisma client is already generated in the deps stage (via postinstall).
+# Do NOT run prisma generate here — prisma.config.ts requires DIRECT_URL
+# which we intentionally do not pass as a build arg.
 RUN pnpm run build
 
 # ── Stage 3: Production Image ────────────────────────────────────────
