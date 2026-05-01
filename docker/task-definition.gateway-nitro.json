@@ -32,40 +32,35 @@
       "environment": [
         { "name": "NODE_ENV",             "value": "production" },
         { "name": "PORT",                 "value": "3000" },
+        { "name": "API_VERSION",          "value": "v1" },
+        { "name": "SERVICE_NAME",         "value": "herald-gateway" },
         { "name": "NITRO_ENCLAVE_SOCKET", "value": "/run/herald-enclave/enclave.sock" },
         { "name": "ENCLAVE_MODE",         "value": "production" },
-        { "name": "MAIL_PROVIDER",        "value": "ses" },
-        { "name": "LOG_LEVEL",            "value": "info" },
-        { "name": "PII_REDACTION",        "value": "true" },
-        { "name": "ALLOW_LOCAL_WEBHOOKS", "value": "false" },
-        { "name": "SNS_SENDER_ID",        "value": "Herald" },
-        { "name": "AWS_REGION",           "value": "eu-north-1" }
+        { "name": "SECRET_ID",            "value": "herald-gateway/staging" }
       ],
       "secrets": [
-        { "name": "DATABASE_URL",                       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:DATABASE_URL::" },
-        { "name": "REDIS_URL",                          "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:REDIS_URL::" },
-        { "name": "JWT_SECRET",                         "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:JWT_SECRET::" },
-        { "name": "INTERNAL_API_KEY",                   "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" },
-        { "name": "SOLANA_RPC_URL",                     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SOLANA_RPC_URL::" },
-        { "name": "SOLANA_FALLBACK_RPC_URL",            "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SOLANA_FALLBACK_RPC_URL::" },
-        { "name": "HERALD_PROGRAM_ID",                  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_PROGRAM_ID::" },
-        { "name": "HERALD_AUTHORITY_KMS_KEY_ID",        "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_KMS_KEY_ID::" },
-        { "name": "HERALD_AUTHORITY_SECRET_CIPHERTEXT", "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_SECRET_CIPHERTEXT::" },
-        { "name": "AWS_KMS_KEY_ID",                     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:AWS_KMS_KEY_ID::" },
-        { "name": "HERALD_X25519_PRIV_CIPHERTEXT",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_X25519_PRIV_CIPHERTEXT::" },
-        { "name": "DKIM_KMS_KEY_ID",                    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:DKIM_KMS_KEY_ID::" },
-        { "name": "RESEND_API_KEY",                     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:RESEND_API_KEY::" },
-        { "name": "SENDGRID_API_KEY",                   "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SENDGRID_API_KEY::" },
-        { "name": "TELEGRAM_BOT_TOKEN",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_BOT_TOKEN::" },
-        { "name": "WEBHOOK_SIGNING_SECRET",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:WEBHOOK_SIGNING_SECRET::" },
-        { "name": "HELIO_API_KEY",                      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_API_KEY::" },
-        { "name": "HELIO_SECRET_KEY",                   "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_SECRET_KEY::" },
-        { "name": "HELIO_WEBHOOK_SECRET",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_WEBHOOK_SECRET::" },
-        { "name": "HELIO_TEMPLATE_GROWTH",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_GROWTH::" },
-        { "name": "HELIO_TEMPLATE_SCALE",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_SCALE::" },
-        { "name": "HELIO_TEMPLATE_ENTERPRISE",          "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_ENTERPRISE::" },
-        { "name": "LIGHT_RPC_URL",                      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_RPC_URL::" },
-        { "name": "LIGHT_OUTPUT_TREE",                  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_OUTPUT_TREE::" }
+        { "name": "DATABASE_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:DATABASE_URL::" },
+        { "name": "REDIS_URL",                  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:REDIS_URL::" },
+        { "name": "JWT_SECRET",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:JWT_SECRET::" },
+        { "name": "SOLANA_RPC_URL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SOLANA_RPC_URL::" },
+        { "name": "HERALD_PROGRAM_ID",          "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_PROGRAM_ID::" },
+        { "name": "AWS_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:AWS_REGION::" },
+        { "name": "MAIL_PROVIDER",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:MAIL_PROVIDER::" },
+        { "name": "RESEND_API_KEY",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:RESEND_API_KEY::" },
+        { "name": "SES_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_REGION::" },
+        { "name": "HELIO_API_KEY",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_API_KEY::" },
+        { "name": "HELIO_WEBHOOK_SECRET",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_WEBHOOK_SECRET::" },
+        { "name": "HELIO_TEMPLATE_GROWTH",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_GROWTH::" },
+        { "name": "HELIO_TEMPLATE_SCALE",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_SCALE::" },
+        { "name": "HELIO_TEMPLATE_ENTERPRISE",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_ENTERPRISE::" },
+        { "name": "HELIO_CHECKOUT_SUCCESS_URL", "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_CHECKOUT_SUCCESS_URL::" },
+        { "name": "HELIO_CHECKOUT_CANCEL_URL",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_CHECKOUT_CANCEL_URL::" },
+        { "name": "WEBHOOK_SIGNING_SECRET",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:WEBHOOK_SIGNING_SECRET::" },
+        { "name": "UNSUBSCRIBE_BASE_URL",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:UNSUBSCRIBE_BASE_URL::" },
+        { "name": "UNSUBSCRIBE_JWT_SECRET",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:UNSUBSCRIBE_JWT_SECRET::" },
+        { "name": "PINO_LOG_LEVEL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:PINO_LOG_LEVEL::" },
+        { "name": "HELIO_TEMPLATE_ONBOARDING",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_ONBOARDING::" },
+        { "name": "INTERNAL_API_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health/live || exit 1"],
@@ -74,43 +69,12 @@
         "retries": 3,
         "startPeriod": 60
       },
-      "dependsOn": [
-        { "containerName": "pgbouncer", "condition": "START" }
-      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
           "awslogs-group":         "/ecs/herald-gateway-nitro",
           "awslogs-region":        "eu-north-1",
           "awslogs-stream-prefix": "gateway"
-        }
-      }
-    },
-    {
-      "name": "pgbouncer",
-      "image": "bitnami/pgbouncer:latest",
-      "essential": false,
-      "environment": [
-        { "name": "PGBOUNCER_POOL_MODE",         "value": "transaction" },
-        { "name": "PGBOUNCER_MAX_CLIENT_CONN",   "value": "100" },
-        { "name": "PGBOUNCER_DEFAULT_POOL_SIZE",  "value": "10" },
-        { "name": "PGBOUNCER_MIN_POOL_SIZE",     "value": "2" },
-        { "name": "PGBOUNCER_PORT",              "value": "6432" },
-        { "name": "PGBOUNCER_DATABASE",          "value": "*" }
-      ],
-      "secrets": [
-        { "name": "POSTGRESQL_HOST",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:POSTGRES_HOST::" },
-        { "name": "POSTGRESQL_PORT",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:POSTGRES_PORT::" },
-        { "name": "POSTGRESQL_DATABASE", "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:POSTGRES_DB::" },
-        { "name": "POSTGRESQL_USERNAME", "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:POSTGRES_USER::" },
-        { "name": "POSTGRESQL_PASSWORD", "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:POSTGRES_PASSWORD::" }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group":         "/ecs/herald-gateway-nitro",
-          "awslogs-region":        "eu-north-1",
-          "awslogs-stream-prefix": "pgbouncer"
         }
       }
     }
