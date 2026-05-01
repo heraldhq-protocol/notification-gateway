@@ -131,8 +131,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     outputs:
-      gateway-image: ${{ steps.push-gateway.outputs.image }}
-      enclave-image: ${{ steps.push-enclave.outputs.image }}
+      image-tag: ${{ steps.push-gateway.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -156,7 +155,7 @@ jobs:
             -t "${{ env.ECR_GATEWAY_REPO }}:latest" \
             .
           docker push "${{ env.ECR_GATEWAY_REPO }}" --all-tags
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push mock-enclave image
         id: push-enclave
@@ -167,7 +166,7 @@ jobs:
             -t "${{ env.ECR_ENCLAVE_REPO }}:latest" \
             .
           docker push "${{ env.ECR_ENCLAVE_REPO }}" --all-tags
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          # No need to output tag again, it's the same (github.sha)
 
   # ── 3. Deploy to ECS ─────────────────────────────────────────────────
   deploy-ecs:
@@ -190,7 +189,7 @@ jobs:
         with:
           task-definition:  ${{ env.TASK_DEFINITION_FILE }}
           container-name:   gateway
-          image:            ${{ needs.build-push-ecr.outputs.gateway-image }}
+          image:            ${{ env.ECR_GATEWAY_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
 
       # Inject the new enclave image URI (second render pass)
       - name: Render task definition — mock-enclave container
@@ -199,7 +198,7 @@ jobs:
         with:
           task-definition:  ${{ steps.render-gateway.outputs.task-definition }}
           container-name:   mock-enclave
-          image:            ${{ needs.build-push-ecr.outputs.enclave-image }}
+          image:            ${{ env.ECR_ENCLAVE_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
 
       - name: Deploy to ECS and wait for stability
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2

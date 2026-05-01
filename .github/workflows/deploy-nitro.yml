@@ -87,7 +87,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     outputs:
-      gateway-image: ${{ steps.push.outputs.image }}
+      image-tag: ${{ steps.push.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -103,7 +103,7 @@ jobs:
           IMAGE="${{ env.ECR_GATEWAY_REPO }}:${TAG}"
           docker build -f docker/Dockerfile -t "$IMAGE" -t "${{ env.ECR_GATEWAY_REPO }}:nitro-latest" .
           docker push "${{ env.ECR_GATEWAY_REPO }}" --all-tags
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   deploy-ecs:
     needs: [migrate, build-push-ecr]
@@ -121,7 +121,7 @@ jobs:
         with:
           task-definition: ${{ env.TASK_DEFINITION_FILE }}
           container-name:  gateway
-          image:           ${{ needs.build-push-ecr.outputs.gateway-image }}
+          image:           ${{ env.ECR_GATEWAY_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
       - name: Deploy to EC2 cluster
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
