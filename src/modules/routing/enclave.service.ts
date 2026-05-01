@@ -38,11 +38,22 @@ export interface DecryptAllParams {
 /**
  * EnclaveService — communicates with AWS Nitro Enclave for decryption.
  *
- * In production: sends encrypted data to the Nitro Enclave via Unix socket.
- * In sandbox/development/test: uses ENCLAVE_TEST_KEY (base64 32-byte key) for real nacl decryption.
- *   - Portal uses same key to encrypt in test/sandbox mode
- *   - Gateway uses same key to decrypt in test/sandbox mode
- *   - Provides end-to-end encryption verification without Nitro Enclave
+ * Decryption modes (selected automatically by environment):
+ *
+ *   1. 'direct'  — In-process nacl.box decryption using HERALD_X25519_PRIV_HEX.
+ *                  Zero cost. No socket. No sidecar. Key loaded from Secrets Manager
+ *                  at startup. Use this for MVP / pre-Nitro production.
+ *
+ *   2. 'sandbox' — In-process nacl.secretbox using ENCLAVE_TEST_KEY (symmetric).
+ *                  Requires portal to encrypt with same key. For devnet / local testing.
+ *
+ *   3. 'production' — Unix socket to real Nitro Enclave (Phase 2).
+ *                     Requires enclave-enabled EC2 + EIF + vsock proxy.
+ *
+ * Mode selection:
+ *   - HERALD_X25519_PRIV_HEX is set → 'direct' (no ENCLAVE_MODE needed)
+ *   - ENCLAVE_MODE=sandbox OR NODE_ENV=development/test → 'sandbox'
+ *   - Otherwise → 'production' (socket)
  *
  * SEC-003: Plaintext identifiers ONLY exist in memory, never touch filesystem.
  */
@@ -51,12 +62,53 @@ export class EnclaveService {
   private static readonly TEST_KEY_CONFIG = 'ENCLAVE_TEST_KEY';
   private readonly logger = new Logger(EnclaveService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  /** Gateway X25519 keypair for direct (in-process) decryption. */
+  private directPrivKey: Uint8Array | null = null;
+
+  constructor(private readonly config: ConfigService) {
+    this.loadDirectKey();
+  }
+
+  /**
+   * Load the Herald gateway X25519 private key for direct in-process decryption.
+   * Called once at construction — key is held in memory only.
+   */
+  private loadDirectKey(): void {
+    const hex = this.config.get<string>('HERALD_X25519_PRIV_HEX');
+    if (!hex) return;
+    try {
+      const bytes = Buffer.from(hex, 'hex');
+      if (bytes.length !== 32) {
+        this.logger.error(
+          'HERALD_X25519_PRIV_HEX must be exactly 32 bytes (64 hex chars)',
+        );
+        return;
+      }
+      this.directPrivKey = new Uint8Array(bytes);
+      this.logger.log(
+        'Herald X25519 private key loaded for direct in-process decryption',
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to parse HERALD_X25519_PRIV_HEX: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Whether direct in-process decryption is available. */
+  private isDirectMode(): boolean {
+    return this.directPrivKey !== null;
+  }
 
   /**
    * Decrypt an encrypted email (legacy single-channel method).
    */
   async decrypt(params: DecryptParams): Promise<string> {
+    // Direct mode: in-process nacl.box — no socket, no sidecar, no Nitro needed.
+    if (this.isDirectMode()) {
+      return this.directNaclBoxDecrypt(params.encryptedEmail, params.nonce);
+    }
+
     const env = this.config.get<string>('NODE_ENV');
     const mode = this.config.get<string>('ENCLAVE_MODE');
 
@@ -68,11 +120,8 @@ export class EnclaveService {
   }
 
   /**
-   * Decrypt all active channels in a single enclave round-trip.
-   * Reduces latency vs. making separate decrypt calls per channel.
-   *
-   * @param identity - The on-chain identity account with encrypted channel data
-   * @returns DecryptedChannels with only the active channel identifiers populated
+   * Decrypt all active channels in a single round-trip.
+   * In direct mode: in-process nacl.box per channel (no socket latency).
    */
   async decryptAllChannels(
     identity: IdentityAccount,
@@ -90,6 +139,11 @@ export class EnclaveService {
       channelSms: identity.channelSms,
     };
 
+    // Direct mode: in-process decryption — no socket, no ENCLAVE_MODE flag.
+    if (this.isDirectMode()) {
+      return this.directDecryptAll(params);
+    }
+
     const env = this.config.get<string>('NODE_ENV');
     const mode = this.config.get<string>('ENCLAVE_MODE');
     if (mode === 'sandbox' || env === 'development' || env === 'test') {
@@ -100,8 +154,127 @@ export class EnclaveService {
   }
 
   /**
+   * Direct in-process nacl.box decryption.
+   *
+   * Handles three blob formats automatically:
+   *
+   * 1. **Dual format** `[0xAA, 0xBB, eph1(32), len(2), gateway_cipher(len), eph2(32), user_cipher(len)]`
+   *    → extracts gateway block only, ignores user block
+   *
+   * 2. **Legacy single format** `[eph(32), ciphertext]`
+   *    → direct nacl.box.open with gateway private key
+   *
+   * 3. **Secretbox fallback** (sandbox-registered wallets)
+   *    → nacl.secretbox.open with ENCLAVE_TEST_KEY
+   */
+  private directNaclBoxDecrypt(
+    encryptedBlob: Uint8Array,
+    nonce: Uint8Array,
+  ): string {
+    if (!this.directPrivKey) {
+      throw new RoutingUnavailableException();
+    }
+
+    // ── Format 1: Dual encryption (magic prefix 0xAA 0xBB) ──────────────────
+    if (
+      encryptedBlob.length >= 2 &&
+      encryptedBlob[0] === 0xaa &&
+      encryptedBlob[1] === 0xbb
+    ) {
+      let offset = 2;
+      const ephemeralPubkey = encryptedBlob.slice(offset, offset + 32);
+      offset += 32;
+      const len = (encryptedBlob[offset] << 8) | encryptedBlob[offset + 1];
+      offset += 2;
+      const gatewayCiphertext = encryptedBlob.slice(offset, offset + len);
+
+      const decrypted = nacl.box.open(
+        gatewayCiphertext,
+        nonce,
+        ephemeralPubkey,
+        this.directPrivKey,
+      );
+      if (decrypted) return encodeUTF8(decrypted);
+
+      this.logger.warn(
+        'Dual-format blob: nacl.box.open failed for gateway block',
+      );
+      throw new RoutingUnavailableException();
+    }
+
+    // ── Format 2: Legacy single format [eph(32) || ciphertext] ──────────────
+    if (encryptedBlob.length >= 33) {
+      const ephemeralPubkey = encryptedBlob.slice(0, 32);
+      const ciphertext = encryptedBlob.slice(32);
+
+      const decrypted = nacl.box.open(
+        ciphertext,
+        nonce,
+        ephemeralPubkey,
+        this.directPrivKey,
+      );
+      if (decrypted) return encodeUTF8(decrypted);
+    }
+
+    // ── Format 3: Secretbox fallback (sandbox-registered wallets) ───────────
+    this.logger.debug(
+      'nacl.box.open failed — trying secretbox fallback (sandbox wallet)',
+    );
+    return this.secretboxDecrypt(encryptedBlob, nonce);
+  }
+
+  /**
+   * Direct in-process decryption of all channels.
+   */
+  private directDecryptAll(params: DecryptAllParams): DecryptedChannels {
+    const result: DecryptedChannels = {};
+
+    if (params.channelEmail && params.encryptedEmail.length > 0) {
+      try {
+        result.email = this.directNaclBoxDecrypt(
+          params.encryptedEmail,
+          params.nonce,
+        );
+      } catch {
+        this.logger.warn(
+          `Direct email decrypt failed for ${params.ownerPubkey.slice(0, 8)}`,
+        );
+      }
+    }
+
+    if (params.channelTelegram && params.encryptedTelegramId.length > 0) {
+      try {
+        result.telegramChatId = this.directNaclBoxDecrypt(
+          params.encryptedTelegramId,
+          params.nonceTelegram,
+        );
+      } catch {
+        this.logger.warn(
+          `Direct telegram decrypt failed for ${params.ownerPubkey.slice(0, 8)}`,
+        );
+      }
+    }
+
+    if (params.channelSms && params.encryptedPhone.length > 0) {
+      try {
+        result.phone = this.directNaclBoxDecrypt(
+          params.encryptedPhone,
+          params.nonceSms,
+        );
+      } catch {
+        this.logger.warn(
+          `Direct phone decrypt failed for ${params.ownerPubkey.slice(0, 8)}`,
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Production: Nitro Enclave socket — decrypt all channels in one call.
    */
+
   private async enclaveDecryptAll(
     params: DecryptAllParams,
   ): Promise<DecryptedChannels> {

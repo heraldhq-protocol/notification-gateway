@@ -1,0 +1,132 @@
+name: Deploy to ECS EC2 (Nitro Enclave)
+
+on:
+  push:
+    tags:
+      - 'v*-nitro'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'ECR image tag to deploy (defaults to sha)'
+        required: false
+        default: 'nitro-latest'
+
+env:
+  AWS_REGION:           eu-north-1
+  ECS_CLUSTER:          ${{ secrets.ECS_NITRO_CLUSTER }}
+  ECS_SERVICE:          ${{ secrets.ECS_NITRO_GATEWAY_SERVICE }}
+  ECR_GATEWAY_REPO:     ${{ secrets.ECR_GATEWAY_REPO_URI }}
+  TASK_DEFINITION_FILE: docker/task-definition.gateway-nitro.json
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - run: pnpm install --frozen-lockfile
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+      - run: pnpm lint
+      - run: npx tsc --noEmit
+
+  migrate:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - run: pnpm install --frozen-lockfile
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+      - run: pnpm db:generate
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+      - name: Run migrations
+        run: |
+          EXIT_CODE=0
+          npx prisma migrate deploy > /tmp/migrate.log 2>&1 || EXIT_CODE=$?
+          cat /tmp/migrate.log
+          if [ $EXIT_CODE -ne 0 ]; then
+            if grep -q "P3009\|P3005\|P3018" /tmp/migrate.log && grep -q "already exists" /tmp/migrate.log; then
+              echo "Baselining..."
+              for dir in prisma/migrations/*/; do
+                NAME=$(basename "$dir")
+                [ "$NAME" != "*" ] && npx prisma migrate resolve --applied "$NAME" || true
+              done
+              npx prisma migrate deploy
+            else
+              exit 1
+            fi
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
+
+  build-push-ecr:
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      gateway-image: ${{ steps.push.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push
+        id: push
+        run: |
+          TAG=$( [[ "${{ github.ref_type }}" == "tag" ]] && echo "${{ github.ref_name }}" || echo "${{ github.event.inputs.image_tag || github.sha }}" )
+          IMAGE="${{ env.ECR_GATEWAY_REPO }}:${TAG}"
+          docker build -f docker/Dockerfile -t "$IMAGE" -t "${{ env.ECR_GATEWAY_REPO }}:nitro-latest" .
+          docker push "${{ env.ECR_GATEWAY_REPO }}" --all-tags
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  deploy-ecs:
+    needs: [migrate, build-push-ecr]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+      - name: Render task definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.TASK_DEFINITION_FILE }}
+          container-name:  gateway
+          image:           ${{ needs.build-push-ecr.outputs.gateway-image }}
+      - name: Deploy to EC2 cluster
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition:            ${{ steps.render.outputs.task-definition }}
+          service:                    ${{ env.ECS_SERVICE }}
+          cluster:                    ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes:           15

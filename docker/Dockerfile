@@ -29,6 +29,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable pnpm
 
+# Runtime system deps + non-root user
+RUN apk add --no-cache \
+    wget \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/cache/apk/* \
+    && addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nodejs
+
 # Copy only what's needed for production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
@@ -38,10 +47,9 @@ COPY --from=builder /app/package.json ./
 # MJML templates
 COPY --from=builder /app/src/modules/template/templates ./dist/modules/template/templates
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD wget -qO- http://localhost:3000/health || exit 1
+RUN chown -R nodejs:nodejs /app
+USER nodejs
 
+# HEALTHCHECK is defined in the ECS task definition, not here.
 EXPOSE 3000
-
 CMD ["node", "dist/main.js"]

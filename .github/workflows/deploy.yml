@@ -1,18 +1,34 @@
-name: Deploy to EC2
+# ─────────────────────────────────────────────────────────────────────
+# Herald Notification Gateway — Deploy to ECR + ECS Fargate
+# ─────────────────────────────────────────────────────────────────────
+# Pipeline:
+#   validate → ┬─ migrate      ─┐
+#              └─ build-push-ecr─┴─ deploy-ecs
+#
+# Required GitHub Secrets:
+#   AWS_ACCOUNT_ID, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   ECR_GATEWAY_REPO_URI, ECR_ENCLAVE_REPO_URI
+#   ECS_CLUSTER, ECS_GATEWAY_SERVICE, ECS_GATEWAY_TASK_FAMILY
+#   DIRECT_URL  (direct RDS URL for migrations, not routed via pgbouncer)
+# ─────────────────────────────────────────────────────────────────────
+
+name: Deploy to ECS Fargate
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      clean_install:
-        description: 'Force a clean reinstall'
-        required: false
-        type: boolean
-        default: false
+
+env:
+  AWS_REGION:           eu-north-1
+  ECS_CLUSTER:          ${{ secrets.ECS_CLUSTER }}
+  ECS_SERVICE:          ${{ secrets.ECS_GATEWAY_SERVICE }}
+  ECR_GATEWAY_REPO:     ${{ secrets.ECR_GATEWAY_REPO_URI }}
+  ECR_ENCLAVE_REPO:     ${{ secrets.ECR_ENCLAVE_REPO_URI }}
+  TASK_DEFINITION_FILE: docker/task-definition.gateway.json
 
 jobs:
-  # ── 1. Validate ──────────────────────────────────────────────────────────────
+  # ── 1. Validate ──────────────────────────────────────────────────────
   validate:
     runs-on: ubuntu-latest
     steps:
@@ -38,8 +54,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
 
       - name: Lint
         run: pnpm lint
@@ -47,8 +62,10 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-  # ── 2. Build ─────────────────────────────────────────────────────────────────
-  build:
+  # ── 2a. Migrate (parallel with build) ────────────────────────────────
+  # Runs prisma migrate deploy against the direct RDS URL from CI.
+  # Uses DIRECT_URL (bypasses pgbouncer) so DDL transactions work.
+  migrate:
     needs: validate
     runs-on: ubuntu-latest
     steps:
@@ -74,377 +91,118 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
 
-      - name: Build
-        run: pnpm build
+      - name: Generate Prisma client
+        run: pnpm db:generate
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
 
-      - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ github.sha }}
-          path: dist/
-          retention-days: 3
-
-  # ── 3. PgBouncer Setup (runs once, idempotent) ─────────────────────────────
-  setup-pgbouncer:
-    needs: build
-    runs-on: ubuntu-latest
-    env:
-      EC2_HOST: ${{ secrets.EC2_HOST }}
-      EC2_USER: ec2-user
-    steps:
-      - name: Setup SSH Key
+      - name: Run database migrations
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
-          chmod 600 ~/.ssh/ec2_key.pem
+          EXIT_CODE=0
+          npx prisma migrate deploy > /tmp/migrate.log 2>&1 || EXIT_CODE=$?
+          cat /tmp/migrate.log
 
-      - name: Install & Configure PgBouncer on EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 5m
-          script: |
-            set -euo pipefail
-
-            # Install PgBouncer if not already present
-            if ! command -v pgbouncer &> /dev/null; then
-              echo "Installing PgBouncer..."
-              sudo yum install -y pgbouncer || sudo amazon-linux-extras install -y pgbouncer || {
-                sudo yum install -y gcc libevent-devel openssl-devel
-                cd /tmp
-                curl -sL https://www.pgbouncer.org/downloads/files/1.23.0/pgbouncer-1.23.0.tar.gz | tar xz
-                cd pgbouncer-1.23.0
-                ./configure --prefix=/usr/local
-                make && sudo make install
-                cd ~ && rm -rf /tmp/pgbouncer-1.23.0
-              }
-              echo "PgBouncer installed."
+          if [ $EXIT_CODE -ne 0 ]; then
+            if grep -q "P3009\|P3005\|P3018" /tmp/migrate.log && grep -q "already exists" /tmp/migrate.log; then
+              echo "⚠️ Baselining existing database..."
+              for dir in prisma/migrations/*/; do
+                NAME=$(basename "$dir")
+                [ "$NAME" != "*" ] && npx prisma migrate resolve --applied "$NAME" || true
+              done
+              npx prisma migrate deploy
             else
-              echo "PgBouncer already installed: $(pgbouncer --version 2>&1 | head -1)"
-            fi
-
-            # Create PgBouncer directories
-            sudo mkdir -p /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer
-            sudo chown -R ec2-user:ec2-user /etc/pgbouncer /var/log/pgbouncer /var/run/pgbouncer
-
-            # Write PgBouncer config
-            cat > /etc/pgbouncer/pgbouncer.ini <<'PGBCONF'
-            [databases]
-            postgres = host=herald-db.c7k8cekuws83.eu-north-1.rds.amazonaws.com port=5432 dbname=postgres
-
-            [pgbouncer]
-            listen_addr = 127.0.0.1
-            listen_port = 6432
-            auth_type = md5
-            auth_file = /etc/pgbouncer/userlist.txt
-            pool_mode = transaction
-            default_pool_size = 20
-            min_pool_size = 5
-            max_client_conn = 100
-            max_db_connections = 15
-            server_idle_timeout = 300
-            server_lifetime = 3600
-            log_connections = 0
-            log_disconnections = 0
-            logfile = /var/log/pgbouncer/pgbouncer.log
-            pidfile = /var/run/pgbouncer/pgbouncer.pid
-            admin_users = postgres
-            PGBCONF
-
-            # Write userlist (password hash will be set from RDS credentials)
-            RDS_PASS="${{ secrets.RDS_PASSWORD }}"
-            MD5_HASH=$(echo -n "${RDS_PASS}postgres" | md5sum | cut -d' ' -f1)
-            echo "\"postgres\" \"md5${MD5_HASH}\"" | sudo tee /etc/pgbouncer/userlist.txt > /dev/null
-            sudo chown ec2-user:ec2-user /etc/pgbouncer/userlist.txt
-            sudo chmod 600 /etc/pgbouncer/userlist.txt
-
-            # Restart PgBouncer
-            if pgrep pgbouncer > /dev/null 2>&1; then
-              echo "Reloading PgBouncer config..."
-              pkill -HUP pgbouncer || true
-            else
-              echo "Starting PgBouncer..."
-              pgbouncer -d /etc/pgbouncer/pgbouncer.ini || sudo pgbouncer -d /etc/pgbouncer/pgbouncer.ini
-            fi
-
-            sleep 2
-            if pgrep pgbouncer > /dev/null 2>&1; then
-              echo "✅ PgBouncer is running on port 6432"
-            else
-              echo "⚠️ PgBouncer failed to start, check /var/log/pgbouncer/pgbouncer.log"
-              cat /var/log/pgbouncer/pgbouncer.log 2>/dev/null | tail -20 || true
+              echo "❌ Migration failed"
               exit 1
             fi
+          fi
 
-  # ── 4. Deploy ────────────────────────────────────────────────────────────────
-  deploy:
-    needs: [build, setup-pgbouncer]
+          echo "✅ Migrations complete"
+        env:
+          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
+
+  # ── 2b. Build & Push to ECR (parallel with migrate) ──────────────────
+  build-push-ecr:
+    needs: validate
     runs-on: ubuntu-latest
-    env:
-      CLEAN_BUILD: ${{ github.event.inputs.clean_install == 'true' || contains(github.event.head_commit.message, '[clean]') }}
-      EC2_HOST: ${{ secrets.EC2_HOST }}
-      EC2_USER: ec2-user
+    outputs:
+      gateway-image: ${{ steps.push-gateway.outputs.image }}
+      enclave-image: ${{ steps.push-enclave.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download dist artifact
-        uses: actions/download-artifact@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: dist-${{ github.sha }}
-          path: dist/
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
 
-      - name: Setup SSH Key
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push gateway image
+        id: push-gateway
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key.pem
-          chmod 600 ~/.ssh/ec2_key.pem
+          IMAGE="${{ env.ECR_GATEWAY_REPO }}:${{ github.sha }}"
+          docker build -f docker/Dockerfile \
+            -t "$IMAGE" \
+            -t "${{ env.ECR_GATEWAY_REPO }}:latest" \
+            .
+          docker push "${{ env.ECR_GATEWAY_REPO }}" --all-tags
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-          cat > ~/.ssh/config <<EOF
-          Host ec2-deploy
-            HostName ${{ env.EC2_HOST }}
-            User ${{ env.EC2_USER }}
-            IdentityFile ~/.ssh/ec2_key.pem
-            StrictHostKeyChecking no
-            UserKnownHostsFile /dev/null
-            ConnectTimeout 60
-            ConnectionAttempts 5
-            ServerAliveInterval 30
-            ServerAliveCountMax 3
-            TCPKeepAlive yes
-          EOF
-          chmod 600 ~/.ssh/config
-
-      - name: Debug Network Path
+      - name: Build and push mock-enclave image
+        id: push-enclave
         run: |
-          echo "=== DNS Resolution ==="
-          dig ${{ env.EC2_HOST }} +short || true
+          IMAGE="${{ env.ECR_ENCLAVE_REPO }}:${{ github.sha }}"
+          docker build -f docker/Dockerfile.enclave \
+            -t "$IMAGE" \
+            -t "${{ env.ECR_ENCLAVE_REPO }}:latest" \
+            .
+          docker push "${{ env.ECR_ENCLAVE_REPO }}" --all-tags
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-          echo "=== TCP Connection Test ==="
-          nc -zv ${{ env.EC2_HOST }} 22
+  # ── 3. Deploy to ECS ─────────────────────────────────────────────────
+  deploy-ecs:
+    needs: [migrate, build-push-ecr]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-          echo "=== Checking SSH Banner (timeout 15s) ==="
-          timeout 15 bash -c 'cat < /dev/tcp/${{ env.EC2_HOST }}/22' || echo "No banner received (timeout)"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
 
-          echo "=== Traceroute (first 5 hops) ==="
-          traceroute -T -p 22 -m 5 ${{ env.EC2_HOST }} || true
+      # Inject the new gateway image URI into the task definition
+      - name: Render task definition — gateway container
+        id: render-gateway
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition:  ${{ env.TASK_DEFINITION_FILE }}
+          container-name:   gateway
+          image:            ${{ needs.build-push-ecr.outputs.gateway-image }}
 
-      - name: Test SSH with Verbose Output
-        run: |
-          echo "Attempting SSH connection with debug..."
-          for i in 1 2 3; do
-            echo "Attempt $i..."
-            if ssh -vvv -i ~/.ssh/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "echo 'SUCCESS'" 2>&1 | head -50; then
-              echo "SSH connection successful!"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "All SSH attempts failed"
-          exit 1
+      # Inject the new enclave image URI (second render pass)
+      - name: Render task definition — mock-enclave container
+        id: render-enclave
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition:  ${{ steps.render-gateway.outputs.task-definition }}
+          container-name:   mock-enclave
+          image:            ${{ needs.build-push-ecr.outputs.enclave-image }}
 
-      # If SSH works, proceed with deployment...
-      - name: Create Deployment Archive
-        if: success()
-        run: |
-          tar -czf deploy.tar.gz \
-            dist/ \
-            package.json \
-            pnpm-lock.yaml \
-            prisma/schema.prisma \
-            prisma/migrations/ \
-            prisma.config.ts \
-            ecosystem.config.js
-
-      - name: Copy and Deploy
-        if: success()
-        env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_DB_URL: ${{ secrets.DIRECT_URL }}
-          SECRET_ID: ${{ secrets.SECRET_ID }}
-        run: |
-          for i in 1 2 3 4 5; do
-            echo "SCP attempt $i..."
-            if scp -i ~/.ssh/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=60 \
-              deploy.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/home/${{ env.EC2_USER }}/notification-gateway/; then
-              echo "SCP succeeded"
-              break
-            fi
-            echo "SCP failed, retrying in 15s..."
-            sleep 15
-          done
-
-          ssh -i ~/.ssh/ec2_key.pem -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'REMOTE_SCRIPT'
-            set -euo pipefail
-            
-            APP_DIR="$HOME/notification-gateway"
-            PM2_APP_NAME="herald-gateway"
-            HEALTH_URL="http://localhost:3000/health/live"
-            CLEAN_BUILD="${{ env.CLEAN_BUILD }}"
-            
-            DB_URL="${{ secrets.DATABASE_URL }}"
-            DIRECT_DB_URL="${{ secrets.DIRECT_URL }}"
-            SECRET_ID="${{ secrets.SECRET_ID }}"
-            NODE_ENV=production
-            
-            rollback() {
-              echo "❌ Deployment failed — rolling back..."
-              cd "$APP_DIR"
-              if [ -d "dist.backup" ]; then
-                rm -rf dist
-                mv dist.backup dist
-                pm2 restart "$PM2_APP_NAME" --update-env || pm2 start ecosystem.config.js --update-env
-                pm2 save
-                echo "⚠️ Rollback complete."
-              else
-                echo "⚠️ No backup available."
-              fi
-              exit 1
-            }
-            
-            trap rollback ERR
-            cd "$APP_DIR"
-            
-            # Backup current
-            if [ -d "dist" ]; then
-              rm -rf dist.backup
-              cp -r dist dist.backup
-              echo "📦 Backed up dist."
-            fi
-            
-            # Extract
-            tar -xzf deploy.tar.gz && rm deploy.tar.gz
-            
-            # Update .env
-            touch .env
-            
-            # Export clean URLs (stripping quotes if any were typed in GitHub Secrets)
-            CLEAN_DB=$(echo "$DB_URL" | sed 's/"//g')
-            CLEAN_DIRECT=$(echo "$DIRECT_DB_URL" | sed 's/"//g')
-            
-            # Enforce SSL & Timeout for runtime
-            if [[ "$CLEAN_DB" != *"sslmode"* ]]; then
-              if [[ "$CLEAN_DB" == *"?"* ]]; then
-                CLEAN_DB="${CLEAN_DB}&sslmode=no-verify&connect_timeout=30"
-              else
-                CLEAN_DB="${CLEAN_DB}?sslmode=no-verify&connect_timeout=30"
-              fi
-            fi
-
-            # Enforce SSL & Timeout for migrations
-            if [[ "$CLEAN_DIRECT" != *"sslmode"* ]]; then
-              if [[ "$CLEAN_DIRECT" == *"?"* ]]; then
-                CLEAN_DIRECT="${CLEAN_DIRECT}&sslmode=no-verify&connect_timeout=30"
-              else
-                CLEAN_DIRECT="${CLEAN_DIRECT}?sslmode=no-verify&connect_timeout=30"
-              fi
-            fi
-
-            sed -i '/^DATABASE_URL=/d' .env
-            echo "DATABASE_URL=$CLEAN_DB" >> .env
-            sed -i '/^DIRECT_URL=/d' .env
-            echo "DIRECT_URL=$CLEAN_DIRECT" >> .env
-            
-            if [ -n "$SECRET_ID" ]; then
-              sed -i '/^SECRET_ID=/d' .env
-              echo "SECRET_ID=$SECRET_ID" >> .env
-            fi
-            
-            # Install deps
-            [ "$CLEAN_BUILD" = "true" ] && rm -rf node_modules
-            pnpm install --frozen-lockfile --ignore-scripts
-            
-            export DATABASE_URL="$CLEAN_DB"
-            export DIRECT_URL="$CLEAN_DIRECT"
-            export SECRET_ID
-            export NODE_ENV=production
-            
-            echo "--- Verifying Connectivity ---"
-            RDS_HOST=$(echo "$CLEAN_DB" | awk -F'[@:]' '{print $4}')
-            REDIS_URL=$(grep "^REDIS_URL=" .env | cut -d'=' -f2- | sed 's/"//g')
-            
-            echo "Testing RDS ($RDS_HOST)..."
-            node -e "const net = require('net'); const client = net.connect(5432, '$RDS_HOST', () => { console.log('✅ RDS Connected'); client.destroy(); }); client.on('error', (e) => { console.error('❌ RDS Failure:', e.message); process.exit(1); }); client.setTimeout(5000, () => { console.error('❌ RDS Timeout'); process.exit(1); });"
-            
-            # Parse hostname from either full URL or bare hostname
-            if [[ "$REDIS_URL" == *"@"* ]]; then
-              # URL format: rediss://default:pass@host:6379
-              REDIS_HOST=$(echo "$REDIS_URL" | awk -F'[@:]' '{print $4}')
-            else
-              # Bare hostname
-              REDIS_HOST="$REDIS_URL"
-            fi
-            
-            pnpm db:generate
-            
-            # Safely capture migration exit code
-            EXIT_CODE=0
-            npx prisma migrate deploy > /tmp/prisma_deploy.log 2>&1 || EXIT_CODE=$?
-            cat /tmp/prisma_deploy.log
-            
-            if [ $EXIT_CODE -ne 0 ]; then
-              # Handle PostgreSQL transaction aborted state
-              if grep -q "current transaction is aborted" /tmp/prisma_deploy.log; then
-                echo "⚠️ Transaction aborted - recovering..."
-                node -e "
-                  const { PrismaClient } = require('@prisma/client');
-                  const prisma = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } });
-                  prisma.\$executeRaw\`ROLLBACK;\`.then(() => console.log('Transaction rolled back')).catch(e => console.log('Recovery skipped:', e.message)).finally(() => prisma.\$disconnect());
-                " || true
-              fi
-              
-              if grep -q "P3009" /tmp/prisma_deploy.log || grep -q "P3005" /tmp/prisma_deploy.log || { grep -q "P3018" /tmp/prisma_deploy.log && grep -q "already exists" /tmp/prisma_deploy.log; }; then
-                echo "⚠️ Existing database detected. Baselining..."
-                for dir in prisma/migrations/*/; do
-                  MIGRATION_NAME=$(basename "$dir")
-                  [ "$MIGRATION_NAME" != "*" ] && npx prisma migrate resolve --applied "$MIGRATION_NAME" || true
-                done
-                npx prisma migrate deploy
-              else
-                echo "❌ Migration failed"
-                exit 1
-              fi
-            fi
-            
-            # Restart
-            pm2 stop all || true
-            pm2 delete mock-enclave || true
-            pm2 restart "$PM2_APP_NAME" --update-env || pm2 start ecosystem.config.js --update-env
-            pm2 save
-            
-            # Capture startup errors
-            sleep 3
-            echo "=== PM2 logs ==="
-            pm2 logs "$PM2_APP_NAME" --nostream --lines 50 2>&1 || true
-            
-            # Health check debugging
-            for i in $(seq 1 6); do
-              sleep 10
-              HTTP_RESP=$(curl -is "$HEALTH_URL" || true)
-              STATUS=$(echo "$HTTP_RESP" | grep HTTP | awk '{print $2}' || echo "000")
-              BODY=$(echo "$HTTP_RESP" | grep "^{" || echo "No JSON response")
-              
-              echo "Health check $i: HTTP $STATUS"
-              if [ "$STATUS" != "200" ]; then
-                echo "Detailed Body: $BODY"
-              fi
-              
-              if [ "$STATUS" = "200" ]; then
-                echo "✅ Deployment successful!"
-                trap - ERR
-                rm -rf dist.backup
-                pm2 status
-                exit 0
-              fi
-            done
-            
-            echo "❌ Health check failed"
-            rollback
-          REMOTE_SCRIPT
+      - name: Deploy to ECS and wait for stability
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition:         ${{ steps.render-enclave.outputs.task-definition }}
+          service:                 ${{ env.ECS_SERVICE }}
+          cluster:                 ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes:        10

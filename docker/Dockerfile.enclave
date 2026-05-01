@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────────────
+# Herald Mock Enclave — Sidecar Dockerfile
+# ─────────────────────────────────────────────────────────────────────
+# Simulates the Nitro Enclave Unix socket interface for non-production
+# environments. Built as a separate ECR image so it can be swapped for
+# the real EIF in Phase 2 (Nitro Enclave migration) without touching
+# the main gateway image.
+#
+# Phase 2: Replace this image with the real Nitro Enclave EIF binary.
+# ─────────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine
+WORKDIR /app
+
+# Copy only the mock enclave script
+COPY docker/mock-enclave.js ./mock-enclave.js
+
+# Socket path matches the ECS task definition volume mount
+ENV NITRO_ENCLAVE_SOCKET=/run/enclave.sock
+
+# Non-root user
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nodejs \
+    && chown -R nodejs:nodejs /app
+USER nodejs
+
+CMD ["node", "mock-enclave.js"]
