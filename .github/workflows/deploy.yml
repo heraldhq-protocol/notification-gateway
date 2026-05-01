@@ -52,9 +52,13 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
         env:
           DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
 
       - name: Lint
         run: pnpm lint
@@ -89,14 +93,13 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          DATABASE_URL: ${{ secrets.DIRECT_URL }}
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Generate Prisma client
         run: pnpm db:generate
         env:
           DATABASE_URL: ${{ secrets.DIRECT_URL }}
+          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
 
       - name: Run database migrations
         run: |
