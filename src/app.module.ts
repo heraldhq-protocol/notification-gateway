@@ -87,10 +87,7 @@ import { RedisModule } from './modules/redis/redis.module';
         else {
           const configTls = config.get<boolean>('REDIS_TLS');
           const enableTls =
-            configTls !== undefined
-              ? configTls
-              : redisUrl.includes('amazonaws.com') ||
-                redisUrl.includes('upstash.io');
+            configTls !== undefined ? configTls : redisUrl.includes('upstash.io');
 
           connectionOptions.host = redisUrl;
           connectionOptions.port = 6379;

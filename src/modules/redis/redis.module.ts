@@ -34,10 +34,7 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
 
         const configTls = configService.get<boolean>('REDIS_TLS');
         const enableTls =
-          configTls !== undefined
-            ? configTls
-            : redisUrl.includes('amazonaws.com') ||
-              redisUrl.includes('upstash.io');
+          configTls !== undefined ? configTls : redisUrl.includes('upstash.io');
 
         const options = {
           host: redisUrl,
