@@ -53,36 +53,51 @@ import { RedisModule } from './modules/redis/redis.module';
     // ── BullMQ (Redis-backed queues) ──────────────────────────
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => {
-        const rawRedisUrl = config.get<string>(
+        let redisUrl = config.get<string>(
           'REDIS_URL',
           'redis://localhost:6379',
         );
 
-        // Handle raw hostnames (common in AWS ElastiCache config)
-        const isSecure =
-          rawRedisUrl.startsWith('rediss://') ||
-          rawRedisUrl.includes('amazonaws.com') ||
-          rawRedisUrl.includes('upstash.io');
+        // Sanitize: strip trailing comments and whitespace
+        redisUrl = redisUrl.split('#')[0].trim();
 
-        const redisUrl = rawRedisUrl.includes('://')
-          ? rawRedisUrl
-          : `${isSecure ? 'rediss' : 'redis'}://${rawRedisUrl}`;
+        const connectionOptions: any = {
+          maxRetriesPerRequest: null, // Required for BullMQ
+        };
 
-        const url = new URL(redisUrl);
+        // Case 1: Full Redis URL (Upstash, Heroku, etc.)
+        if (
+          redisUrl.startsWith('redis://') ||
+          redisUrl.startsWith('rediss://')
+        ) {
+          const url = new URL(redisUrl);
+          connectionOptions.host = url.hostname;
+          connectionOptions.port = parseInt(url.port || '6379', 10);
+          if (url.password) {
+            connectionOptions.password = decodeURIComponent(url.password);
+          }
+          if (url.username) {
+            connectionOptions.username = decodeURIComponent(url.username);
+          }
+          if (redisUrl.startsWith('rediss://')) {
+            connectionOptions.tls = {};
+          }
+        }
+        // Case 2: Raw hostname (AWS ElastiCache, etc.)
+        else {
+          const enableTls =
+            redisUrl.includes('amazonaws.com') ||
+            redisUrl.includes('upstash.io');
+
+          connectionOptions.host = redisUrl;
+          connectionOptions.port = 6379;
+          if (enableTls) {
+            connectionOptions.tls = {};
+          }
+        }
 
         return {
-          connection: {
-            host: url.hostname,
-            port: parseInt(url.port || '6379', 10),
-            password: url.password
-              ? decodeURIComponent(url.password)
-              : undefined,
-            username: url.username
-              ? decodeURIComponent(url.username)
-              : undefined,
-            tls: redisUrl.startsWith('rediss://') ? {} : undefined,
-            maxRetriesPerRequest: null, // Required for BullMQ
-          },
+          connection: connectionOptions,
           // Reduce Redis command volume from BullMQ polling
           defaultJobOptions: {
             removeOnComplete: { age: 3600 }, // Remove completed after 1hr (not by count)
