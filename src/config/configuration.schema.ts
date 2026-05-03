@@ -73,10 +73,12 @@ export const EnvironmentSchema = z.object({
 
   // ── Helio Billing ───────────────────────────────────────────────────
   HELIO_API_KEY: z.string().optional(),
+  HELIO_SECRET_KEY: z.string().optional(),
   HELIO_WEBHOOK_SECRET: z.string().min(32).optional(),
   HELIO_TEMPLATE_GROWTH: z.string().optional(),
   HELIO_TEMPLATE_SCALE: z.string().optional(),
   HELIO_TEMPLATE_ENTERPRISE: z.string().optional(),
+  HELIO_TEMPLATE_OVERCHARGE: z.string().optional(),
   HELIO_CHECKOUT_SUCCESS_URL: z
     .string()
     .url()

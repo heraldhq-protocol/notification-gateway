@@ -50,6 +50,7 @@
         { "name": "SES_FROM_ADDRESS",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_FROM_ADDRESS::" },
         { "name": "SES_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_REGION::" },
         { "name": "HELIO_API_KEY",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_API_KEY::" },
+        { "name": "HELIO_SECRET_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_SECRET_KEY::" },
         { "name": "HELIO_WEBHOOK_SECRET",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_WEBHOOK_SECRET::" },
         { "name": "HELIO_TEMPLATE_GROWTH",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_GROWTH::" },
         { "name": "HELIO_TEMPLATE_SCALE",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_SCALE::" },
