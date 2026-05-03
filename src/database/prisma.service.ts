@@ -25,10 +25,19 @@ export class PrismaService
   private logger = new Logger(PrismaService.name);
 
   constructor() {
-    const connectionString = `${process.env.DATABASE_URL}`;
+    let connectionString = `${process.env.DATABASE_URL}`;
 
-    // Disable SSL for local development to avoid TLS errors if the local DB
-    // doesn't support SSL. RDS/Production (hosted) will still use SSL.
+    // RDS/AWS Secrets Manager sometimes appends sslmode=verify-full which
+    // overrides our driver-level rejectUnauthorized: false.
+    if (connectionString.includes('sslmode=')) {
+      connectionString = connectionString.replace(/sslmode=[^&]*/, 'sslmode=no-verify');
+    } else if (!connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) {
+      const separator = connectionString.includes('?') ? '&' : '?';
+      connectionString += `${separator}sslmode=no-verify`;
+    }
+
+    // Disable SSL for local development. RDS/Production will use SSL but
+    // skip certificate verification to handle AWS self-signed/internal certs.
     const isLocal =
       connectionString.includes('localhost') ||
       connectionString.includes('127.0.0.1');
@@ -39,6 +48,8 @@ export class PrismaService
         ? false
         : {
             rejectUnauthorized: false,
+            // Bypass hostname verification for internal AWS endpoints
+            checkServerIdentity: () => undefined,
           },
     });
 
