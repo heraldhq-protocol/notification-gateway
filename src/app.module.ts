@@ -53,10 +53,21 @@ import { RedisModule } from './modules/redis/redis.module';
     // ── BullMQ (Redis-backed queues) ──────────────────────────
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => {
-        const redisUrl = config.get<string>(
+        const rawRedisUrl = config.get<string>(
           'REDIS_URL',
           'redis://localhost:6379',
         );
+
+        // Handle raw hostnames (common in AWS ElastiCache config)
+        const isSecure =
+          rawRedisUrl.startsWith('rediss://') ||
+          rawRedisUrl.includes('amazonaws.com') ||
+          rawRedisUrl.includes('upstash.io');
+
+        const redisUrl = rawRedisUrl.includes('://')
+          ? rawRedisUrl
+          : `${isSecure ? 'rediss' : 'redis'}://${rawRedisUrl}`;
+
         const url = new URL(redisUrl);
 
         return {
