@@ -11,8 +11,9 @@ export async function loadConfiguration(): Promise<GatewayConfig> {
   const isStaging = process.env.NODE_ENV === 'staging';
 
   let rawConfig: Record<string, unknown>;
+  const hasInjectedSecrets = !!process.env.DATABASE_URL;
 
-  if (isProduction || isStaging) {
+  if ((isProduction || isStaging) && !hasInjectedSecrets) {
     rawConfig = await secretsLoader();
   } else {
     rawConfig = process.env;
