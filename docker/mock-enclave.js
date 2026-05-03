@@ -65,6 +65,11 @@ const server = net.createServer((socket) => {
   });
 });
 
+server.on('error', (err) => {
+  console.error('SERVER ERROR (Mock Enclave):', err.message);
+  process.exit(1);
+});
+
 server.listen(SOCKET_PATH, () => {
   console.log(`Mock Enclave listening on ${SOCKET_PATH}`);
   // Ensure the socket is world-writable so the Gateway container can access it
