@@ -21,6 +21,7 @@ export const EnvironmentSchema = z.object({
   // ── Redis ─────────────────────────────────────────────────────────
   REDIS_URL: z.string().default('redis://localhost:6379'),
   REDIS_CLUSTER_MODE: z.coerce.boolean().default(false),
+  REDIS_TLS: z.coerce.boolean().optional(),
 
   // ── Solana ────────────────────────────────────────────────────────
   SOLANA_RPC_URL: z.string().url().default('http://localhost:8899'),

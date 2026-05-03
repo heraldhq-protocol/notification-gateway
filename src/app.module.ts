@@ -85,9 +85,12 @@ import { RedisModule } from './modules/redis/redis.module';
         }
         // Case 2: Raw hostname (AWS ElastiCache, etc.)
         else {
+          const configTls = config.get<boolean>('REDIS_TLS');
           const enableTls =
-            redisUrl.includes('amazonaws.com') ||
-            redisUrl.includes('upstash.io');
+            configTls !== undefined
+              ? configTls
+              : redisUrl.includes('amazonaws.com') ||
+                redisUrl.includes('upstash.io');
 
           connectionOptions.host = redisUrl;
           connectionOptions.port = 6379;
@@ -95,6 +98,8 @@ import { RedisModule } from './modules/redis/redis.module';
             connectionOptions.tls = {};
           }
         }
+
+        console.log('BullModule connection options:', connectionOptions);
 
         return {
           connection: connectionOptions,
