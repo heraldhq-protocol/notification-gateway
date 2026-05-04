@@ -2,13 +2,6 @@ name: Issue SSL Cert via acme.sh
 
 on:
   workflow_dispatch:
-    inputs:
-      txt1:
-        description: '_acme-challenge.api.useherald.xyz TXT value'
-        required: false
-      txt2:
-        description: '_acme-challenge.api.register.useherald.xyz TXT value'
-        required: false
 
 jobs:
   issue-cert:
@@ -17,24 +10,26 @@ jobs:
       - name: Install acme.sh
         run: curl https://get.acme.sh | sh -s email=herald.admin@gmail.com
 
-      - name: Issue cert (pre-added DNS records)
+      - name: Issue cert and verify in one shot
         run: |
-          ~/.acme.sh/acme.sh --renew \
+          ~/.acme.sh/acme.sh --issue \
             --dns \
             -d api.useherald.xyz \
             -d api.register.useherald.xyz \
+            --yes-I-know-dns-manual-mode-enough-go-ahead-please \
+            --force
+
+          # Wait for DNS (already propagated, so verify immediately)
+          sleep 10
+
+          ~/.acme.sh/acme.sh --renew \
+            -d api.useherald.xyz \
             --yes-I-know-dns-manual-mode-enough-go-ahead-please
 
       - name: Print base64 certs
         run: |
-          echo "=== FULLCHAIN api.useherald.xyz ==="
-          cat ~/.acme.sh/api.useherald.xyz/fullchain.cer | base64 -w 0
+          echo "=== FULLCHAIN ==="
+          cat ~/.acme.sh/api.useherald.xyz_ecc/fullchain.cer | base64 -w 0
           echo ""
-          echo "=== KEY api.useherald.xyz ==="
-          cat ~/.acme.sh/api.useherald.xyz/api.useherald.xyz.key | base64 -w 0
-          echo ""
-          echo "=== FULLCHAIN api.register.useherald.xyz ==="
-          cat ~/.acme.sh/api.useherald.xyz/fullchain.cer | base64 -w 0
-          echo ""
-          echo "=== KEY api.register.useherald.xyz ==="
-          cat ~/.acme.sh/api.useherald.xyz/api.useherald.xyz.key | base64 -w 0
+          echo "=== KEY ==="
+          cat ~/.acme.sh/api.useherald.xyz_ecc/api.useherald.xyz.key | base64 -w 0
