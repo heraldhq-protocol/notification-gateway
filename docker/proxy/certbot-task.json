@@ -9,19 +9,16 @@
   "containerDefinitions": [
     {
       "name": "certbot",
-      "image": "certbot/certbot:latest",
+      "image": "certbot/dns-route53:latest",
       "essential": true,
       "command": [
         "certonly",
-        "--standalone",
+        "--dns-route53",
         "--non-interactive",
         "--agree-tos",
         "--email", "herald.admin@gmail.com",
         "-d", "api.useherald.xyz",
         "-d", "api.register.useherald.xyz"
-      ],
-      "portMappings": [
-        { "containerPort": 80, "protocol": "tcp" }
       ],
       "mountPoints": [
         {
