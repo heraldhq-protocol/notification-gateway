@@ -19,7 +19,7 @@ jobs:
 
       - name: Issue cert (pre-added DNS records)
         run: |
-          ~/.acme.sh/acme.sh --issue \
+          ~/.acme.sh/acme.sh --renew \
             --dns \
             -d api.useherald.xyz \
             -d api.register.useherald.xyz \
@@ -27,8 +27,14 @@ jobs:
 
       - name: Print base64 certs
         run: |
-          echo "=== FULLCHAIN ==="
+          echo "=== FULLCHAIN api.useherald.xyz ==="
           cat ~/.acme.sh/api.useherald.xyz/fullchain.cer | base64 -w 0
           echo ""
-          echo "=== KEY ==="
+          echo "=== KEY api.useherald.xyz ==="
+          cat ~/.acme.sh/api.useherald.xyz/api.useherald.xyz.key | base64 -w 0
+          echo ""
+          echo "=== FULLCHAIN api.register.useherald.xyz ==="
+          cat ~/.acme.sh/api.useherald.xyz/fullchain.cer | base64 -w 0
+          echo ""
+          echo "=== KEY api.register.useherald.xyz ==="
           cat ~/.acme.sh/api.useherald.xyz/api.useherald.xyz.key | base64 -w 0
