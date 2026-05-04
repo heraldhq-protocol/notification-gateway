@@ -19,12 +19,11 @@ jobs:
 
       - name: Issue cert (pre-added DNS records)
         run: |
-          ~/.acme.sh/acme.sh --issue \
+          ~/.acme.sh/acme.sh --renew \
             --dns \
             -d api.useherald.xyz \
             -d api.register.useherald.xyz \
-            --yes-I-know-dns-manual-mode-enough-go-ahead-please \
-            --force
+            --yes-I-know-dns-manual-mode-enough-go-ahead-please
 
       - name: Print base64 certs
         run: |
