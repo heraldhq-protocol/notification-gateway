@@ -39,7 +39,6 @@
         "fileSystemId": "fs-0fc89d5fd37587dfb",
         "transitEncryption": "ENABLED",
         "authorizationConfig": {
-          "accessPointId": "fsap-06de016391033b2ea",
           "iam": "ENABLED"
         }
       }
