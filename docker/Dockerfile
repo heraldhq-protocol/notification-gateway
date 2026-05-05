@@ -19,9 +19,7 @@ FROM deps AS builder
 WORKDIR /app
 
 COPY . .
-# NOTE: Prisma client is already generated in the deps stage (via postinstall).
-# Do NOT run prisma generate here — prisma.config.ts requires DIRECT_URL
-# which we intentionally do not pass as a build arg.
+# Prisma client is already generated in the deps stage (via postinstall).
 RUN pnpm run build
 
 # ── Stage 3: Production Image ────────────────────────────────────────
@@ -44,6 +42,7 @@ RUN apk add --no-cache \
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/package.json ./
 COPY docker/entrypoint.sh ./entrypoint.sh
 
