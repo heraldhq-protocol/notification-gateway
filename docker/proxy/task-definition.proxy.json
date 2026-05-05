@@ -37,6 +37,7 @@
       "name": "herald-ssl-certs",
       "efsVolumeConfiguration": {
         "fileSystemId": "fs-0fc89d5fd37587dfb",
+        "rootDirectory": "/letsencrypt",
         "transitEncryption": "ENABLED",
         "authorizationConfig": {
           "iam": "ENABLED"
