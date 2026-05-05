@@ -45,13 +45,14 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./
+COPY docker/entrypoint.sh ./entrypoint.sh
 
 # MJML templates
 COPY --from=builder /app/src/modules/template/templates ./dist/modules/template/templates
 
-RUN chown -R nodejs:nodejs /app
+RUN chmod +x ./entrypoint.sh && chown -R nodejs:nodejs /app
 USER nodejs
 
 # HEALTHCHECK is defined in the ECS task definition, not here.
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+CMD ["sh", "./entrypoint.sh"]

@@ -2,14 +2,16 @@
 # Herald Notification Gateway — Deploy to ECR + ECS Fargate
 # ─────────────────────────────────────────────────────────────────────
 # Pipeline:
-#   validate → ┬─ migrate      ─┐
-#              └─ build-push-ecr─┴─ deploy-ecs
+#   validate ── build-push-ecr ── deploy-ecs
+#
+# Migrations run inside the ECS container on startup (entrypoint.sh),
+# so CI never needs direct access to RDS. This allows RDS inbound to be
+# locked down to the ECS/application security groups only.
 #
 # Required GitHub Secrets:
-#   AWS_ACCOUNT_ID, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 #   ECR_GATEWAY_REPO_URI, ECR_ENCLAVE_REPO_URI
-#   ECS_CLUSTER, ECS_GATEWAY_SERVICE, ECS_GATEWAY_TASK_FAMILY
-#   DIRECT_URL  (direct RDS URL for migrations, not routed via pgbouncer)
+#   ECS_CLUSTER, ECS_GATEWAY_SERVICE
 # ─────────────────────────────────────────────────────────────────────
 
 name: Deploy to ECS Fargate
@@ -57,8 +59,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm db:generate
         env:
-          DATABASE_URL: ${{ secrets.DIRECT_URL }}
-          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
+          # prisma generate only reads the schema — no real DB connection needed
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          DIRECT_URL:   postgresql://ci:ci@localhost:5432/ci
 
       - name: Lint
         run: pnpm lint
@@ -66,67 +69,7 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-  # ── 2a. Migrate (parallel with build) ────────────────────────────────
-  # Runs prisma migrate deploy against the direct RDS URL from CI.
-  # Uses DIRECT_URL (bypasses pgbouncer) so DDL transactions work.
-  migrate:
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.14'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Restore pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/pnpm/store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Generate Prisma client
-        run: pnpm db:generate
-        env:
-          DATABASE_URL: ${{ secrets.DIRECT_URL }}
-          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
-
-      - name: Run database migrations
-        run: |
-          EXIT_CODE=0
-          npx prisma migrate deploy > /tmp/migrate.log 2>&1 || EXIT_CODE=$?
-          cat /tmp/migrate.log
-
-          if [ $EXIT_CODE -ne 0 ]; then
-            if grep -q "P3009\|P3005\|P3018" /tmp/migrate.log && grep -q "already exists" /tmp/migrate.log; then
-              echo "⚠️ Baselining existing database..."
-              for dir in prisma/migrations/*/; do
-                NAME=$(basename "$dir")
-                [ "$NAME" != "*" ] && npx prisma migrate resolve --applied "$NAME" || true
-              done
-              npx prisma migrate deploy
-            else
-              echo "❌ Migration failed"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Migrations complete"
-        env:
-          DATABASE_URL: ${{ secrets.DIRECT_URL }}
-          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
-
-  # ── 2b. Build & Push to ECR (parallel with migrate) ──────────────────
+  # ── 2. Build & Push to ECR ───────────────────────────────────────────
   build-push-ecr:
     needs: validate
     runs-on: ubuntu-latest
@@ -158,7 +101,6 @@ jobs:
           echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push mock-enclave image
-        id: push-enclave
         run: |
           IMAGE="${{ env.ECR_ENCLAVE_REPO }}:${{ github.sha }}"
           docker build -f docker/Dockerfile.enclave \
@@ -166,11 +108,10 @@ jobs:
             -t "${{ env.ECR_ENCLAVE_REPO }}:latest" \
             .
           docker push "${{ env.ECR_ENCLAVE_REPO }}" --all-tags
-          # No need to output tag again, it's the same (github.sha)
 
   # ── 3. Deploy to ECS ─────────────────────────────────────────────────
   deploy-ecs:
-    needs: [migrate, build-push-ecr]
+    needs: [build-push-ecr]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -182,7 +123,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
-      # Inject the new gateway image URI into the task definition
       - name: Render task definition — gateway container
         id: render-gateway
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -191,7 +131,6 @@ jobs:
           container-name:   gateway
           image:            ${{ env.ECR_GATEWAY_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
 
-      # Inject the new enclave image URI (second render pass)
       - name: Render task definition — mock-enclave container
         id: render-enclave
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -201,10 +140,36 @@ jobs:
           image:            ${{ env.ECR_ENCLAVE_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
 
       - name: Deploy to ECS and wait for stability
+        id: deploy
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:         ${{ steps.render-enclave.outputs.task-definition }}
-          service:                 ${{ env.ECS_SERVICE }}
-          cluster:                 ${{ env.ECS_CLUSTER }}
+          task-definition:            ${{ steps.render-enclave.outputs.task-definition }}
+          service:                    ${{ env.ECS_SERVICE }}
+          cluster:                    ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
-          wait-for-minutes:        10
+          wait-for-minutes:           10
+
+      - name: Tail CloudWatch logs (always — catches DB/Redis errors post-start)
+        if: always()
+        run: |
+          LOG_GROUP="/ecs/herald-gateway"
+          echo "=== Recent container logs from $LOG_GROUP ==="
+          STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 1 \
+            --query 'logStreams[0].logStreamName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$STREAM" ] && [ "$STREAM" != "None" ]; then
+            echo "Log stream: $STREAM"
+            aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$STREAM" \
+              --limit 150 \
+              --query 'events[*].message' \
+              --output text
+          else
+            echo "No log streams found in $LOG_GROUP"
+          fi
