@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "postinstall": "pnpm db:generate",
     "db:generate": "npx prisma generate",
+    "schema:check": "node scripts/check-schema-sync.js ../herald-admin-registration-api/prisma/schema.prisma",
     "db:push": "npx prisma db push",
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
