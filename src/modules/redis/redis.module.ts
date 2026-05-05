@@ -12,34 +12,44 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       useFactory: (configService: ConfigService) => {
         let redisUrl = configService.getOrThrow<string>('REDIS_URL');
 
-        // Sanitize: strip trailing comments and whitespace
-        if (redisUrl && typeof redisUrl === 'string') {
+        // Strip trailing inline comments (e.g. "host:6379 #added from AWS")
+        if (typeof redisUrl === 'string') {
           redisUrl = redisUrl.split('#')[0].trim();
         }
 
-        // If REDIS_URL is a full Upstash-style URL, pass it directly to ioredis
-        if (
-          redisUrl?.startsWith('redis://') ||
-          redisUrl?.startsWith('rediss://')
-        ) {
+        // Full URL path — rediss:// or redis://
+        if (redisUrl.startsWith('rediss://') || redisUrl.startsWith('redis://')) {
           return new Redis(redisUrl, {
             maxRetriesPerRequest: null,
             enableReadyCheck: false,
           });
         }
 
+        // Bare host or host:port — parse into parts
+        let host = redisUrl;
+        let port = 6379;
+        if (redisUrl.includes(':')) {
+          const [h, p] = redisUrl.split(':');
+          host = h;
+          port = parseInt(p, 10) || 6379;
+        }
+
         const isCluster =
           configService.get<boolean>('REDIS_CLUSTER_MODE') ||
           redisUrl.includes('clustercfg');
 
-        const configTls = configService.get<boolean>('REDIS_TLS');
+        // Enable TLS for ElastiCache (encryption in transit required) and Upstash.
+        // Can be overridden explicitly with REDIS_TLS=true/false.
+        const configTls = configService.get<string>('REDIS_TLS');
         const enableTls =
-          configTls !== undefined ? configTls : redisUrl.includes('upstash.io');
+          configTls !== undefined
+            ? configTls === 'true'
+            : host.includes('cache.amazonaws.com') || host.includes('upstash.io');
 
         const options = {
-          host: redisUrl,
-          port: 6379,
-          ...(enableTls && { tls: {} }),
+          host,
+          port,
+          ...(enableTls && { tls: { rejectUnauthorized: false } }),
           maxRetriesPerRequest: null,
           enableReadyCheck: false,
         };
@@ -49,19 +59,14 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
         );
 
         const client = isCluster
-          ? new Redis.Cluster([{ host: redisUrl, port: 6379 }], {
-              redisOptions: options,
-            })
+          ? new Redis.Cluster([{ host, port }], { redisOptions: options })
           : new Redis(options);
 
         client.on('error', (err) => {
-          console.error(
-            `[RedisModule] Redis connection error: ${err.message}`,
-            {
-              host: options.host,
-              tls: !!options.tls,
-            },
-          );
+          console.error(`[RedisModule] Redis connection error: ${err.message}`, {
+            host: options.host,
+            tls: !!options.tls,
+          });
         });
 
         return client;
