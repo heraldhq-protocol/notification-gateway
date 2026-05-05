@@ -154,22 +154,27 @@ jobs:
         run: |
           LOG_GROUP="/ecs/herald-gateway"
           echo "=== Recent container logs from $LOG_GROUP ==="
+
           STREAM=$(aws logs describe-log-streams \
             --log-group-name "$LOG_GROUP" \
             --order-by LastEventTime \
             --descending \
             --limit 1 \
+            --no-paginate \
             --query 'logStreams[0].logStreamName' \
-            --output text 2>/dev/null || echo "")
+            --output text) || { echo "ERROR: could not list log streams (check IAM logs:DescribeLogStreams permission)"; exit 0; }
 
-          if [ -n "$STREAM" ] && [ "$STREAM" != "None" ]; then
-            echo "Log stream: $STREAM"
-            aws logs get-log-events \
-              --log-group-name "$LOG_GROUP" \
-              --log-stream-name "$STREAM" \
-              --limit 150 \
-              --query 'events[*].message' \
-              --output text
-          else
+          if [ -z "$STREAM" ] || [ "$STREAM" = "None" ]; then
             echo "No log streams found in $LOG_GROUP"
+            exit 0
           fi
+
+          echo "Log stream: $STREAM"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" \
+            --start-time $(date -d '15 minutes ago' +%s000) \
+            --limit 200 \
+            --no-paginate \
+            --query 'events[*].message' \
+            --output text || echo "ERROR: could not read log events (check IAM logs:GetLogEvents permission)"
