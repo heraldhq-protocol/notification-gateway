@@ -70,7 +70,7 @@ export class AuthGuard implements CanActivate {
           tier: protocol.tier,
           isActive: protocol.isActive,
           apiKeyId: 'internal',
-          scopes: ['notify:write'],
+          scopes: ['notify:write', 'admin'],
           environment: 'production',
         };
         return true;

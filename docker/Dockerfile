@@ -2,11 +2,11 @@
 # Herald Notification Gateway — Production Dockerfile
 # ─────────────────────────────────────────────────────────────────────
 # Multi-stage build for minimal production image.
-# Final image: Node.js 20 LTS Alpine (~130MB)
+# Final image: Node.js 22 LTS Alpine (~130MB)
 # ─────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Install Dependencies ────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 RUN corepack enable pnpm
 
@@ -23,7 +23,7 @@ COPY . .
 RUN pnpm run build
 
 # ── Stage 3: Production Image ────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
