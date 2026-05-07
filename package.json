@@ -120,6 +120,20 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/engines",
+      "@scarf/scarf",
+      "bcrypt",
+      "bigint-buffer",
+      "bufferutil",
+      "esbuild",
+      "prisma",
+      "unrs-resolver",
+      "utf-8-validate"
+    ]
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
