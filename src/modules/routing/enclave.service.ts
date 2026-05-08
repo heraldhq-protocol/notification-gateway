@@ -1,12 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nacl from 'tweetnacl';
-import {
-  encodeUTF8,
-  decodeUTF8,
-  encodeBase64,
-  decodeBase64,
-} from 'tweetnacl-util';
+import { encodeUTF8 } from 'tweetnacl-util';
 import { RoutingUnavailableException } from '../../common/exceptions/herald.exception';
 import type {
   DecryptedChannels,
@@ -36,30 +31,24 @@ export interface DecryptAllParams {
 }
 
 /**
- * EnclaveService — communicates with AWS Nitro Enclave for decryption.
+ * EnclaveService — decrypts channel identifiers for notification delivery.
  *
- * Decryption modes (selected automatically by environment):
+ * Decryption modes:
  *
- *   1. 'direct'  — In-process nacl.box decryption using HERALD_X25519_PRIV_HEX.
- *                  Zero cost. No socket. No sidecar. Key loaded from Secrets Manager
- *                  at startup. Use this for MVP / pre-Nitro production.
+ *   1. 'direct' — In-process nacl.box decryption using HERALD_X25519_PRIV_HEX.
+ *                 Zero cost. No socket. No sidecar. Use for dev/pre-Nitro production.
  *
- *   2. 'sandbox' — In-process nacl.secretbox using ENCLAVE_TEST_KEY (symmetric).
- *                  Requires portal to encrypt with same key. For devnet / local testing.
- *
- *   3. 'production' — Unix socket to real Nitro Enclave (Phase 2).
+ *   2. 'production' — Unix socket to AWS Nitro Enclave (Phase 2).
  *                     Requires enclave-enabled EC2 + EIF + vsock proxy.
  *
  * Mode selection:
- *   - HERALD_X25519_PRIV_HEX is set → 'direct' (no ENCLAVE_MODE needed)
- *   - ENCLAVE_MODE=sandbox OR NODE_ENV=development/test → 'sandbox'
- *   - Otherwise → 'production' (socket)
+ *   - HERALD_X25519_PRIV_HEX is set → 'direct' (default for dev/local)
+ *   - Otherwise → 'production' (Nitro socket)
  *
  * SEC-003: Plaintext identifiers ONLY exist in memory, never touch filesystem.
  */
 @Injectable()
 export class EnclaveService {
-  private static readonly TEST_KEY_CONFIG = 'ENCLAVE_TEST_KEY';
   private readonly logger = new Logger(EnclaveService.name);
 
   /** Gateway X25519 keypair for direct (in-process) decryption. */
@@ -104,16 +93,8 @@ export class EnclaveService {
    * Decrypt an encrypted email (legacy single-channel method).
    */
   async decrypt(params: DecryptParams): Promise<string> {
-    // Direct mode: in-process nacl.box — no socket, no sidecar, no Nitro needed.
     if (this.isDirectMode()) {
       return this.directNaclBoxDecrypt(params.encryptedEmail, params.nonce);
-    }
-
-    const env = this.config.get<string>('NODE_ENV');
-    const mode = this.config.get<string>('ENCLAVE_MODE');
-
-    if (mode === 'sandbox' || env === 'development' || env === 'test') {
-      return this.sandboxDecrypt(params);
     }
 
     return this.enclaveDecrypt(params);
@@ -139,15 +120,8 @@ export class EnclaveService {
       channelSms: identity.channelSms,
     };
 
-    // Direct mode: in-process decryption — no socket, no ENCLAVE_MODE flag.
     if (this.isDirectMode()) {
       return this.directDecryptAll(params);
-    }
-
-    const env = this.config.get<string>('NODE_ENV');
-    const mode = this.config.get<string>('ENCLAVE_MODE');
-    if (mode === 'sandbox' || env === 'development' || env === 'test') {
-      return this.sandboxDecryptAll(params);
     }
 
     return this.enclaveDecryptAll(params);
@@ -156,16 +130,13 @@ export class EnclaveService {
   /**
    * Direct in-process nacl.box decryption.
    *
-   * Handles three blob formats automatically:
+   * Handles two blob formats:
    *
    * 1. **Dual format** `[0xAA, 0xBB, eph1(32), len(2), gateway_cipher(len), eph2(32), user_cipher(len)]`
    *    → extracts gateway block only, ignores user block
    *
-   * 2. **Legacy single format** `[eph(32), ciphertext]`
+   * 2. **Legacy single format** `[eph(32) || ciphertext]`
    *    → direct nacl.box.open with gateway private key
-   *
-   * 3. **Secretbox fallback** (sandbox-registered wallets)
-   *    → nacl.secretbox.open with ENCLAVE_TEST_KEY
    */
   private directNaclBoxDecrypt(
     encryptedBlob: Uint8Array,
@@ -175,7 +146,6 @@ export class EnclaveService {
       throw new RoutingUnavailableException();
     }
 
-    // ── Format 1: Dual encryption (magic prefix 0xAA 0xBB) ──────────────────
     if (
       encryptedBlob.length >= 2 &&
       encryptedBlob[0] === 0xaa &&
@@ -202,7 +172,6 @@ export class EnclaveService {
       throw new RoutingUnavailableException();
     }
 
-    // ── Format 2: Legacy single format [eph(32) || ciphertext] ──────────────
     if (encryptedBlob.length >= 33) {
       const ephemeralPubkey = encryptedBlob.slice(0, 32);
       const ciphertext = encryptedBlob.slice(32);
@@ -216,11 +185,10 @@ export class EnclaveService {
       if (decrypted) return encodeUTF8(decrypted);
     }
 
-    // ── Format 3: Secretbox fallback (sandbox-registered wallets) ───────────
-    this.logger.debug(
-      'nacl.box.open failed — trying secretbox fallback (sandbox wallet)',
+    this.logger.warn(
+      'nacl.box.open failed — cannot decrypt blob',
     );
-    return this.secretboxDecrypt(encryptedBlob, nonce);
+    throw new RoutingUnavailableException();
   }
 
   /**
@@ -451,129 +419,6 @@ export class EnclaveService {
         reject(new RoutingUnavailableException());
       });
     });
-  }
-
-  /**
-   * Sandbox mode: Real nacl secretbox decryption using ENCLAVE_TEST_KEY.
-   * The test key must be base64-encoded 32 bytes (nacl.secretbox key).
-   * Portal uses the same key to encrypt in sandbox mode.
-   */
-  private async sandboxDecrypt(params: DecryptParams): Promise<string> {
-    const mode = this.config.get<string>('ENCLAVE_MODE');
-    const env = this.config.get<string>('NODE_ENV');
-    const isSandboxMode =
-      mode === 'sandbox' || env === 'development' || env === 'test';
-
-    if (isSandboxMode) {
-      return this.secretboxDecrypt(params.encryptedEmail, params.nonce);
-    }
-
-    return this.enclaveDecrypt(params);
-  }
-
-  /**
-   * Sandbox mode: Real nacl secretbox for all channels.
-   */
-  private async sandboxDecryptAll(
-    params: DecryptAllParams,
-  ): Promise<DecryptedChannels> {
-    const mode = this.config.get<string>('ENCLAVE_MODE');
-    const env = this.config.get<string>('NODE_ENV');
-    const isSandboxMode =
-      mode === 'sandbox' || env === 'development' || env === 'test';
-
-    const result: DecryptedChannels = {};
-
-    if (isSandboxMode) {
-      if (params.channelEmail && params.encryptedEmail.length > 0) {
-        result.email = this.secretboxDecrypt(
-          params.encryptedEmail,
-          params.nonce,
-        );
-      }
-      if (params.channelTelegram && params.encryptedTelegramId.length > 0) {
-        result.telegramChatId = this.secretboxDecrypt(
-          params.encryptedTelegramId,
-          params.nonceTelegram,
-        );
-      }
-      if (params.channelSms && params.encryptedPhone.length > 0) {
-        result.phone = this.secretboxDecrypt(
-          params.encryptedPhone,
-          params.nonceSms,
-        );
-      }
-      return result;
-    }
-
-    return this.enclaveDecryptAll(params);
-  }
-
-  private getTestKey(): Uint8Array | null {
-    const testKeyBase64 = this.config.get<string>(
-      EnclaveService.TEST_KEY_CONFIG,
-    );
-    if (!testKeyBase64) {
-      return null;
-    }
-    try {
-      return decodeBase64(testKeyBase64);
-    } catch {
-      this.logger.error('ENCLAVE_TEST_KEY is not valid base64');
-      return null;
-    }
-  }
-
-  /**
-   * nacl.secretbox decryption using test key.
-   * Format: nonce (24 bytes) + ciphertext
-   * NOTE: This requires portal to also use secretbox (not SDK's box).
-   * If portal uses SDK encryptEmail, this will fall through to deterministic.
-   */
-  private secretboxDecrypt(ciphertext: Uint8Array, nonce: Uint8Array): string {
-    if (ciphertext.length === 0) return '';
-
-    const key = this.getTestKey();
-    if (!key || key.length !== 32) {
-      this.logger.warn(
-        'ENCLAVE_TEST_KEY not configured, falling through to deterministic',
-      );
-      const deterministic = this.deriveDeterministicValue(
-        'test-key-not-configured',
-      );
-      return `${deterministic}@test.local`;
-    }
-
-    try {
-      const decrypted = nacl.secretbox.open(ciphertext, nonce, key);
-      if (decrypted) {
-        return encodeUTF8(decrypted);
-      }
-    } catch (err) {
-      this.logger.warn(
-        'Secretbox decryption failed, using deterministic fallback',
-        {
-          error: (err as Error).message,
-        },
-      );
-    }
-
-    const deterministic = this.deriveDeterministicValue('decrypt-failed');
-    return `${deterministic}@test.local`;
-  }
-
-  private deriveDeterministicValue(seed: string): string {
-    const hash = nacl.hash(new TextEncoder().encode(seed));
-    return `sandbox-${Buffer.from(hash.slice(0, 4)).toString('base64').replace(/[+/=]/g, '').slice(0, 8)}`;
-  }
-
-  /**
-   * Generate a random 32-byte key for ENCLAVE_TEST_KEY.
-   * Usage: Set ENCLAVE_TEST_KEY=$(openssl rand -base64 32) in environment.
-   */
-  static generateTestKey(): string {
-    const key = nacl.randomBytes(32);
-    return encodeBase64(key);
   }
 
   private isValidEmail(s: unknown): boolean {
