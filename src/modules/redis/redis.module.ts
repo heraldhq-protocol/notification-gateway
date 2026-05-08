@@ -18,7 +18,10 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
         }
 
         // Full URL path — rediss:// or redis://
-        if (redisUrl.startsWith('rediss://') || redisUrl.startsWith('redis://')) {
+        if (
+          redisUrl.startsWith('rediss://') ||
+          redisUrl.startsWith('redis://')
+        ) {
           return new Redis(redisUrl, {
             maxRetriesPerRequest: null,
             enableReadyCheck: false,
@@ -44,7 +47,8 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
         const enableTls =
           configTls !== undefined
             ? configTls === 'true'
-            : host.includes('cache.amazonaws.com') || host.includes('upstash.io');
+            : host.includes('cache.amazonaws.com') ||
+              host.includes('upstash.io');
 
         const options = {
           host,
@@ -63,10 +67,13 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
           : new Redis(options);
 
         client.on('error', (err) => {
-          console.error(`[RedisModule] Redis connection error: ${err.message}`, {
-            host: options.host,
-            tls: !!options.tls,
-          });
+          console.error(
+            `[RedisModule] Redis connection error: ${err.message}`,
+            {
+              host: options.host,
+              tls: !!options.tls,
+            },
+          );
         });
 
         return client;

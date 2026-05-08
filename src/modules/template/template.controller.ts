@@ -125,7 +125,9 @@ export class TemplateController {
   }
 
   @Put('email/:id')
-  @ApiOperation({ summary: 'Update a custom email template (creates new version)' })
+  @ApiOperation({
+    summary: 'Update a custom email template (creates new version)',
+  })
   async updateEmailTemplate(
     @ApiKey() protocol: AuthenticatedProtocol,
     @Param('id') id: string,
@@ -147,13 +149,18 @@ export class TemplateController {
 
     const updates: any = { updatedAt: new Date() };
     if (body.name !== undefined) updates.name = body.name;
-    if (body.subjectTemplate !== undefined) updates.subjectTemplate = body.subjectTemplate;
+    if (body.subjectTemplate !== undefined)
+      updates.subjectTemplate = body.subjectTemplate;
     if (body.previewText !== undefined) updates.previewText = body.previewText;
-    if (body.heraldFooter !== undefined) updates.heraldFooter = body.heraldFooter;
+    if (body.heraldFooter !== undefined)
+      updates.heraldFooter = body.heraldFooter;
     if (body.isDefault !== undefined) {
       if (body.isDefault) {
         await this.prisma.notificationTemplate.updateMany({
-          where: { protocolId: protocol.protocolId, category: existing.category },
+          where: {
+            protocolId: protocol.protocolId,
+            category: existing.category,
+          },
           data: { isDefault: false },
         });
       }

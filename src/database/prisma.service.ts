@@ -30,8 +30,14 @@ export class PrismaService
     // RDS/AWS Secrets Manager sometimes appends sslmode=verify-full which
     // overrides our driver-level rejectUnauthorized: false.
     if (connectionString.includes('sslmode=')) {
-      connectionString = connectionString.replace(/sslmode=[^&]*/, 'sslmode=no-verify');
-    } else if (!connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) {
+      connectionString = connectionString.replace(
+        /sslmode=[^&]*/,
+        'sslmode=no-verify',
+      );
+    } else if (
+      !connectionString.includes('localhost') &&
+      !connectionString.includes('127.0.0.1')
+    ) {
       const separator = connectionString.includes('?') ? '&' : '?';
       connectionString += `${separator}sslmode=no-verify`;
     }
