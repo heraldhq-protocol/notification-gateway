@@ -23,6 +23,7 @@ import { RoutingModule } from './modules/routing/routing.module';
 import { ChannelModule } from './modules/channel/channel.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
 import { EnclaveModule } from './modules/enclave/enclave.module';
+import { ArweaveStorageModule } from './storage/arweave-storage.module';
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -130,6 +131,7 @@ import { RedisModule } from './modules/redis/redis.module';
     RoutingModule,
     ChannelModule,
     EnclaveModule,
+    ArweaveStorageModule,
     LoggerModule.forRoot({
       pinoHttp: {
         transport:

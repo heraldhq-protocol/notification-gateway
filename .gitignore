@@ -61,3 +61,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Agents
 .gemini/
+
+# Script secrets
+scripts/test-wallet.json

@@ -2,13 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PublicKey } from '@solana/web3.js';
 import { Rpc, createRpc } from '@lightprotocol/stateless.js';
-
-export interface LightProofResponse {
-  compressedProof: any;
-  outputTreeIndex: number;
-  remainingAccounts: any[];
-  merkleTrees: string[];
-}
+import { fetchProofForReceipt, type LightProofResponse } from '@herald-protocol/sdk';
 
 /**
  * Known Solana genesis hashes for cluster detection.
@@ -57,8 +51,10 @@ export class LightClientService implements OnModuleInit {
   }
 
   /**
-   * Fetches a ValidityProof using Light Protocol's official SDK.
-   * Works for both local test-validator and devnet.
+   * Fetches a ValidityProof via the SDK's fetchProofForReceipt helper.
+   * Calls Light RPC getValidityProof with the output tree address,
+   * returning proof, outputTreeIndex, and remainingAccounts for CPI.
+   * Works for both local test-validator and devnet/mainnet.
    */
   async getValidityProof(
     outputTreeAddress: PublicKey | string,
@@ -69,15 +65,7 @@ export class LightClientService implements OnModuleInit {
         : outputTreeAddress;
 
     try {
-      const proof = await this.lightRpc.getValidityProofV0([], []);
-
-      const p = proof as any;
-      return {
-        compressedProof: p.compressedProof,
-        outputTreeIndex: p.rootIndices?.[0] || 0,
-        remainingAccounts: p.remainingAccounts || [],
-        merkleTrees: p.merkleTrees || [treeAddress.toBase58()],
-      };
+      return await fetchProofForReceipt(this.lightRpc, treeAddress);
     } catch (error) {
       this.logger.error(
         `Failed to get ValidityProof from ${this.photonRpcUrl}: ${(error as Error).message}`,

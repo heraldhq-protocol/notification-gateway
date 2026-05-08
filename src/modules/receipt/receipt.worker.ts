@@ -14,6 +14,7 @@ import { PrismaService } from '../../database/prisma.service';
 import {
   AuthorityClient,
   NOTIFICATION_CATEGORIES,
+  buildLightRemainingAccounts,
   type NotificationCategory,
 } from '@herald-protocol/sdk';
 import bs58 from 'bs58';
@@ -156,7 +157,9 @@ export class ReceiptWorker extends WorkerHost {
 
     throw new Error(
       `LIGHT_OUTPUT_TREE must be configured for ${this.clusterType}. ` +
-        'Create a tree via Light CLI: `light create-tree --canopy-depth 14`',
+        'Use one of the default Light Protocol trees: ' +
+        'bmt1LryLZUMmF7ZtqESaw7wifBXLfXHQYoE4GAmrahU (devnet) or bmt1... (mainnet). ' +
+        'See @lightprotocol/stateless.js for the full list.',
     );
   }
 
@@ -224,18 +227,12 @@ export class ReceiptWorker extends WorkerHost {
         const ix = await this.authorityClient.writeReceipt({
           authority: this.authorityKeypair.publicKey,
           protocolOwner: new PublicKey(protocolOwner),
-          proof: validityProof.compressedProof,
+          proof: validityProof.proof,
           outputTreeIndex: validityProof.outputTreeIndex,
           recipientHash: new Uint8Array(recipientHashBytes),
           notificationId: new Uint8Array(notificationIdBytes),
           category: categoryInt,
-          lightRemainingAccounts: (validityProof.merkleTrees ?? []).map(
-            (treePubkey: string) => ({
-              pubkey: new PublicKey(treePubkey),
-              isSigner: false,
-              isWritable: true,
-            }),
-          ),
+          lightRemainingAccounts: buildLightRemainingAccounts(validityProof.remainingAccounts),
         });
 
         // 5. Send Transaction

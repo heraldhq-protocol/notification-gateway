@@ -8,6 +8,7 @@ import { WebhookService } from '../../webhook/webhook.service';
 import { OverageMeteringService } from '../../billing/overage-metering.service';
 import { DigestService } from '../../notify/digest.service';
 import { PrismaService } from '../../../database/prisma.service';
+import { ArweaveStorageService, type NotificationPayload } from '../../../storage/arweave-storage.service';
 import type { NotificationJobData } from '../../../common/types/notification.types';
 
 /**
@@ -45,6 +46,7 @@ export class MailWorker extends WorkerHost {
     private readonly overageMetering: OverageMeteringService,
     private readonly digestService: DigestService,
     private readonly prisma: PrismaService,
+    private readonly arweaveStorage: ArweaveStorageService,
   ) {
     super();
   }
@@ -188,7 +190,34 @@ export class MailWorker extends WorkerHost {
         return;
       }
 
-      // ── Step 3: Dispatch to all channels ──────────────────────
+      // ── Step 3: Store notification body on Arweave ────────────
+      let arweaveId: string | null = null;
+      try {
+        const primaryChannel: 'email' | 'telegram' | 'sms' =
+          channels.email ? 'email'
+          : channels.telegramChatId ? 'telegram'
+          : 'sms';
+
+        const payload: NotificationPayload = {
+          protocolId: job.data.protocolId,
+          recipientHash: job.data.walletHash ?? '',
+          channel: primaryChannel,
+          subject: job.data.subject,
+          body: job.data.body,
+          metadata: {},
+          timestamp: Date.now(),
+        };
+
+        const receipt = await this.arweaveStorage.storeNotificationPayload(payload);
+        arweaveId = receipt.arweaveId;
+      } catch (err) {
+        this.logger.warn('Arweave storage failed, continuing without permanent storage', {
+          notificationId,
+          error: (err as Error).message,
+        });
+      }
+
+      // ── Step 4: Dispatch to all channels ──────────────────────
       const result = await this.channelDispatch.dispatch(channels, job.data);
 
       // ── Step 4: Update notification record ─────────────────────
@@ -198,7 +227,7 @@ export class MailWorker extends WorkerHost {
         finalStatus = 'delivered';
         await this.prisma.notification.update({
           where: { id: notificationId },
-          data: { status: 'delivered', deliveredAt: new Date() },
+          data: { status: 'delivered', deliveredAt: new Date(), arweaveId },
         });
       } else if (result.successCount > 0) {
         finalStatus = 'partial';
@@ -207,6 +236,7 @@ export class MailWorker extends WorkerHost {
           data: {
             status: 'partial',
             deliveredAt: new Date(),
+            arweaveId,
             errorCode: `PARTIAL_${result.successCount}/${result.totalChannels}`,
           },
         });

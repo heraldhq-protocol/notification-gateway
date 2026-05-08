@@ -63,6 +63,7 @@ export const EnvironmentSchema = z.object({
   // ── Arweave / Irys ────────────────────────────────────────────────
   IRYS_NODE: z.string().default('https://node1.irys.xyz'),
   IRYS_TOKEN: z.string().optional(),
+  IRYS_NETWORK: z.enum(['mainnet', 'devnet']).default('devnet'),
 
   // ── Herald Auth & KMS ─────────────────────────────────────────────
   HERALD_AUTHORITY_KMS_KEY_ID: z.string().optional(),

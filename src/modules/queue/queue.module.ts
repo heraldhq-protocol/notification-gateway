@@ -12,6 +12,7 @@ import { TemplateModule } from '../template/template.module';
 import { ChannelModule } from '../channel/channel.module';
 import { WebhookModule } from '../webhook/webhook.module';
 import { BillingModule } from '../billing/billing.module';
+import { ArweaveStorageModule } from '../../storage/arweave-storage.module';
 
 /**
  * QueueModule — registers all BullMQ queues and their workers.
@@ -36,6 +37,7 @@ import { BillingModule } from '../billing/billing.module';
     ChannelModule,
     WebhookModule,
     BillingModule,
+    ArweaveStorageModule,
   ],
   providers: [QueueService, MailWorker, DigestWorker, DigestService],
   exports: [QueueService, DigestService],
