@@ -58,7 +58,10 @@ export class MjmlCompilerService {
     return 'html';
   }
 
-  compile(source: string, variables: Record<string, unknown>): string {
+  async compile(
+    source: string,
+    variables: Record<string, unknown>,
+  ): Promise<string> {
     const format = this.detectFormat(source);
 
     if (format === 'mjml') {
@@ -68,7 +71,10 @@ export class MjmlCompilerService {
     }
   }
 
-  compileMjml(mjmlSource: string, variables: Record<string, unknown>): string {
+  async compileMjml(
+    mjmlSource: string,
+    variables: Record<string, unknown>,
+  ): Promise<string> {
     let processedSource = mjmlSource;
 
     try {
@@ -82,7 +88,7 @@ export class MjmlCompilerService {
 
     let compiled: string;
     try {
-      const result = mjml2html(processedSource, {
+      const result = await mjml2html(processedSource, {
         validationLevel: 'soft',
         minify: false,
         beautify: false,
@@ -141,7 +147,7 @@ export class MjmlCompilerService {
     return inlinedHtml;
   }
 
-  validate(source: string): MjmlValidationResult {
+  async validate(source: string): Promise<MjmlValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -161,7 +167,7 @@ export class MjmlCompilerService {
 
     if (format === 'mjml') {
       try {
-        const result = mjml2html(source, {
+        const result = await mjml2html(source, {
           validationLevel: 'strict',
           minify: false,
         });
