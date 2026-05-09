@@ -2,10 +2,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PublicKey } from '@solana/web3.js';
 import { Rpc, createRpc } from '@lightprotocol/stateless.js';
-import {
-  fetchProofForReceipt,
-  type LightProofResponse,
-} from '@herald-protocol/sdk';
+import { fetchProofForReceipt } from '@herald-protocol/sdk/light';
+import type { LightProofResponse } from '@herald-protocol/sdk';
+import { HERALD_PROGRAM_ID } from '@herald-protocol/sdk';
 
 /**
  * Known Solana genesis hashes for cluster detection.
@@ -34,6 +33,8 @@ export class LightClientService implements OnModuleInit {
     this.photonRpcUrl =
       this.config.get<string>('LIGHT_RPC_URL') || this.solanaRpcUrl;
 
+    // createRpc in stateless.js v0.23.x accepts a single Helius endpoint
+    // that supports both Solana RPC and Photon compression methods.
     this.lightRpc = createRpc(this.solanaRpcUrl, this.photonRpcUrl);
   }
 
@@ -44,7 +45,7 @@ export class LightClientService implements OnModuleInit {
     try {
       const cluster = await this.getClusterType();
       this.logger.log(
-        `Light Protocol client initialized — cluster: ${cluster}, Solana RPC: ${this.solanaRpcUrl}, Photon RPC: ${this.photonRpcUrl}`,
+        `Light Protocol client initialized (V2) — cluster: ${cluster}, Solana RPC: ${this.solanaRpcUrl}, Photon RPC: ${this.photonRpcUrl}`,
       );
     } catch (e) {
       this.logger.warn(
@@ -54,23 +55,29 @@ export class LightClientService implements OnModuleInit {
   }
 
   /**
-   * Fetches a ValidityProof via the SDK's fetchProofForReceipt helper.
-   * Calls Light RPC getValidityProof with the output tree address,
-   * returning proof, outputTreeIndex, and remainingAccounts for CPI.
-   * Works for both local test-validator and devnet/mainnet.
+   * Fetches a ValidityProof for writing a new delivery receipt.
+   *
+   * Uses the ZK Compression V2 API:
+   *   - Derives a unique compressed-account address from notificationId + recipientHash
+   *   - Calls getValidityProofV0 to prove non-existence of the new address
+   *   - Packs Light System accounts + address tree + output state tree
+   *
+   * @param notificationId  UUID v4 as 16 bytes
+   * @param recipientHash   SHA-256 of the recipient wallet pubkey (32 bytes)
    */
   async getValidityProof(
-    outputTreeAddress: PublicKey | string,
+    notificationId: Uint8Array,
+    recipientHash: Uint8Array,
   ): Promise<LightProofResponse> {
-    const treeAddress =
-      typeof outputTreeAddress === 'string'
-        ? new PublicKey(outputTreeAddress)
-        : outputTreeAddress;
-
     try {
-      return await fetchProofForReceipt(this.lightRpc, treeAddress);
+      return await fetchProofForReceipt(
+        this.lightRpc,
+        notificationId,
+        recipientHash,
+        HERALD_PROGRAM_ID,
+      );
     } catch (error) {
-      this.logger.error(
+      this.logger.warn(
         `Failed to get ValidityProof from ${this.photonRpcUrl}: ${(error as Error).message}`,
       );
       throw error;
@@ -89,14 +96,12 @@ export class LightClientService implements OnModuleInit {
       if (genesis === GENESIS_HASHES.DEVNET) return 'devnet';
       if (genesis === GENESIS_HASHES.MAINNET) return 'mainnet';
 
-      // Unknown genesis hash — could be a custom validator
       this.logger.warn(
         `Unknown genesis hash: ${genesis}. Defaulting to 'devnet' behavior.`,
       );
       return 'devnet';
     } catch (e) {
       this.logger.warn(`Failed to get genesis hash: ${(e as Error).message}`);
-      // If RPC is unreachable, check URL heuristics
       if (
         this.solanaRpcUrl.includes('localhost') ||
         this.solanaRpcUrl.includes('127.0.0.1')
@@ -106,7 +111,7 @@ export class LightClientService implements OnModuleInit {
       if (this.solanaRpcUrl.includes('devnet')) {
         return 'devnet';
       }
-      return 'mainnet'; // Conservative default for production safety
+      return 'mainnet';
     }
   }
 

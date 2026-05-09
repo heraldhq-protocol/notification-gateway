@@ -64,3 +64,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Script secrets
 scripts/test-wallet.json
+
+# Local script copies (real data for testing)
+scripts/local/

@@ -14,6 +14,7 @@ import {
   ValidationArguments,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PublicKey } from '@solana/web3.js';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const NOTIFY_CHANNELS = ['email', 'telegram', 'sms'] as const;
@@ -54,6 +55,31 @@ export function IsBodyLengthValid(validationOptions?: ValidationOptions) {
   };
 }
 
+export function IsSolanaPublicKey(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isSolanaPublicKey',
+      target: object.constructor,
+      propertyName: propertyName,
+      options: {
+        message: '$property must be a valid Solana public key (base58, 32–44 chars)',
+        ...validationOptions,
+      },
+      validator: {
+        validate(value: any) {
+          if (typeof value !== 'string') return false;
+          try {
+            const pk = new PublicKey(value);
+            return pk.toBase58() === value;
+          } catch {
+            return false;
+          }
+        },
+      },
+    });
+  };
+}
+
 /**
  * DTO for POST /v1/notify — single notification send.
  */
@@ -63,6 +89,7 @@ export class NotifyDto {
     example: 'GsbwXfJraMomNxBcjYLcG3mxkBUiyWXAB8fGgrru3vaE',
   })
   @IsString()
+  @IsSolanaPublicKey()
   wallet: string;
 
   @ApiProperty({

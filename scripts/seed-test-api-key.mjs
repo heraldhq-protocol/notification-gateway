@@ -15,7 +15,7 @@ async function main() {
   const keyPrefix = plainText.substring(0, 16);
 
   // Upsert a test protocol
-  const protocolPubkey = 'TestProtocol11111111111111111111111xyz';
+  const protocolPubkey = 'TestProtocoL11111111111111111111111xyz';
   const protocolResult = await pool.query(`
     INSERT INTO protocols (id, protocol_pubkey, name_encrypted, tier, is_active, sends_this_period, period_reset_at)
     VALUES (gen_random_uuid(), $1, $2, $3, true, 0, NOW() + INTERVAL '30 days')

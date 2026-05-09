@@ -56,7 +56,8 @@ try {
   process.exit(0);
 }
 
-const email = 'adebayo.anuoluwa02@gmail.com';
+// Replace with your own email (or copy from scripts/local/)
+const email = 'wallet1@test.com';
 
 async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');

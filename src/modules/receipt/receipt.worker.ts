@@ -140,29 +140,6 @@ export class ReceiptWorker extends WorkerHost {
     }
   }
 
-  private getOrCreateOutputTree(): PublicKey {
-    const configTree = this.config.get<string>('LIGHT_OUTPUT_TREE');
-
-    if (configTree && configTree !== PublicKey.default.toBase58()) {
-      return new PublicKey(configTree);
-    }
-
-    // For local dev: Allow default tree
-    if (this.clusterType === 'local') {
-      this.logger.warn(
-        'No output tree configured, using default for local testing',
-      );
-      return PublicKey.default;
-    }
-
-    throw new Error(
-      `LIGHT_OUTPUT_TREE must be configured for ${this.clusterType}. ` +
-        'Use one of the default Light Protocol trees: ' +
-        'bmt1LryLZUMmF7ZtqESaw7wifBXLfXHQYoE4GAmrahU (devnet) or bmt1... (mainnet). ' +
-        'See @lightprotocol/stateless.js for the full list.',
-    );
-  }
-
   async process(job: Job<any, any, string>): Promise<void> {
     this.logger.debug(`Processing receipt batch job ${job.id}`);
 
@@ -187,8 +164,6 @@ export class ReceiptWorker extends WorkerHost {
       throw new Error('Authority keypair missing');
     }
 
-    const outputTree = this.getOrCreateOutputTree();
-
     let successCount = 0;
     let failCount = 0;
 
@@ -206,27 +181,45 @@ export class ReceiptWorker extends WorkerHost {
           continue;
         }
 
-        // 1. Fetch ValidityProof from Light Protocol
-        const validityProof =
-          await this.lightClient.getValidityProof(outputTree);
+        let protocolOwnerPubkey: PublicKey;
+        try {
+          protocolOwnerPubkey = new PublicKey(protocolOwner);
+        } catch {
+          this.logger.warn(
+            `Invalid protocol pubkey for protocol ${notification.protocolId}: "${protocolOwner}". Disabling receipt and skipping.`,
+          );
+          await this.prisma.notification.update({
+            where: { id: notification.id },
+            data: { writeReceipt: false },
+          });
+          continue;
+        }
 
-        // 2. Parse hash to bytes
+        // 1. Decode notificationId (UUID) as 16 raw bytes
+        const notificationIdBytes = Buffer.from(
+          notification.id.replace(/-/g, ''),
+          'hex',
+        ); // 32 hex chars → 16 bytes
+
+        // 2. Decode recipient hash (SHA-256, 32 bytes)
         const recipientHashBytes = Buffer.from(notification.walletHash, 'hex');
 
-        // Format notification ID as 16 bytes
-        const notificationIdBytes = Buffer.from(
-          notification.id.replace(/-/g, '').padEnd(32, '0'),
-          'hex',
+        // 3. Fetch ValidityProof via ZK Compression V2 API.
+        //    Derives the receipt address from notificationId + recipientHash,
+        //    proves non-existence, packs Light System + tree accounts.
+        const validityProof = await this.lightClient.getValidityProof(
+          new Uint8Array(notificationIdBytes),
+          new Uint8Array(recipientHashBytes),
         );
 
-        // 3. Map category string to on-chain integer
+        // 4. Map category string to on-chain integer
         const categoryInt: NotificationCategory =
           CATEGORY_MAP[notification.category] ?? NOTIFICATION_CATEGORIES.DEFI;
 
-        // 4. Build instruction using the Photon proof fields
+        // 5. Build the write_receipt instruction
         const ix = await this.authorityClient.writeReceipt({
           authority: this.authorityKeypair.publicKey,
-          protocolOwner: new PublicKey(protocolOwner),
+          protocolOwner: protocolOwnerPubkey,
           proof: validityProof.proof,
           outputTreeIndex: validityProof.outputTreeIndex,
           recipientHash: new Uint8Array(recipientHashBytes),
@@ -284,11 +277,14 @@ export class ReceiptWorker extends WorkerHost {
       `Receipt batch complete: ${successCount} succeeded, ${failCount} failed out of ${notifications.length}`,
     );
 
-    // If all failed, throw to trigger BullMQ retry
-    if (successCount === 0 && notifications.length > 0) {
-      throw new Error(
-        `All ${notifications.length} receipt writes failed in batch`,
-      );
-    }
+    // NOTE: Do NOT throw here on total failure — BullMQ would retry forever.
+    // Receipt writing requires a valid Light Protocol proof flow (see TODO below).
+    // Notification delivery itself succeeded; on-chain receipts are best-effort.
+    //
+    // TODO: Fix receipt proof generation. The correct flow for Light Protocol V1 is:
+    //   1. Derive a unique address for each receipt: sha256(recipientHash || notificationId)
+    //   2. Call rpc.getValidityProofV0([], [{ address, tree: addressTreePubkey, queue: addressQueuePubkey }])
+    //   3. Pass the resulting proof + remaining accounts to writeReceipt CPI
+    // The configured tree (bmt1) is a V2 batch tree — check Herald program compatibility.
   }
 }
