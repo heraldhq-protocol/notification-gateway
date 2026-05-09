@@ -185,9 +185,7 @@ export class EnclaveService {
       if (decrypted) return encodeUTF8(decrypted);
     }
 
-    this.logger.warn(
-      'nacl.box.open failed — cannot decrypt blob',
-    );
+    this.logger.warn('nacl.box.open failed — cannot decrypt blob');
     throw new RoutingUnavailableException();
   }
 

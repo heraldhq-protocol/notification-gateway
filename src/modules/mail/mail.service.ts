@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SmtpProvider } from './providers/smtp.provider';
-import { ResendProvider } from './providers/resend.provider';
 import { SesProvider } from './providers/ses.provider';
-import { SendgridProvider } from './providers/sendgrid.provider';
 import type {
   IMailProvider,
   SendEmailMessage,
@@ -11,72 +9,41 @@ import type {
 } from './providers/provider.interface';
 
 /**
- * MailService — environment-aware email dispatch with automatic fallback.
+ * MailService — environment-aware email dispatch.
  *
  * Provider selection:
  *   development → SmtpProvider (Nodemailer + Mailhog)
- *   staging     → ResendProvider (Resend API)
- *   production  → SesProvider (AWS SES), fallback to SendgridProvider
+ *   production  → SesProvider (AWS SES)
  *
  * SECURITY: The 'to' field MUST NOT appear in any logs.
  */
 @Injectable()
 export class MailService {
-  private readonly primaryProvider: IMailProvider;
-  private readonly fallbackProvider: IMailProvider | null;
+  private readonly provider: IMailProvider;
   private readonly logger = new Logger(MailService.name);
 
   constructor(
     private readonly smtpProvider: SmtpProvider,
-    private readonly resendProvider: ResendProvider,
     private readonly sesProvider: SesProvider,
-    private readonly sendgridProvider: SendgridProvider,
     private readonly config: ConfigService,
   ) {
     const mailProvider = this.config.get<string>('MAIL_PROVIDER', 'smtp');
     switch (mailProvider) {
-      case 'resend':
-        this.primaryProvider = this.resendProvider;
-        this.fallbackProvider = this.sendgridProvider;
-        break;
       case 'ses':
-        this.primaryProvider = this.sesProvider;
-        this.fallbackProvider = this.resendProvider; // fallback
+        this.provider = this.sesProvider;
         break;
       case 'smtp':
       default:
-        this.primaryProvider = this.smtpProvider;
-        this.fallbackProvider = null;
+        this.provider = this.smtpProvider;
         break;
     }
   }
 
-  /**
-   * Send an email through the configured provider with automatic fallback.
-   */
   async send(message: SendEmailMessage): Promise<SendEmailResult> {
-    try {
-      return await this.primaryProvider.send(message);
-    } catch (err) {
-      this.logger.error('Primary mail provider failed', {
-        provider: this.primaryProvider.name,
-        error: (err as Error).message,
-        // NEVER log 'to' address
-      });
-
-      if (this.fallbackProvider) {
-        this.logger.warn('Falling back to secondary provider', {
-          fallback: this.fallbackProvider.name,
-        });
-        return this.fallbackProvider.send(message);
-      }
-
-      throw err;
-    }
+    return this.provider.send(message);
   }
 
-  /** Verify the primary provider connection. */
   async verifyConnection(): Promise<boolean> {
-    return this.primaryProvider.verifyConnection();
+    return this.provider.verifyConnection();
   }
 }

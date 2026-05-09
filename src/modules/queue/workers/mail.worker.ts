@@ -8,7 +8,10 @@ import { WebhookService } from '../../webhook/webhook.service';
 import { OverageMeteringService } from '../../billing/overage-metering.service';
 import { DigestService } from '../../notify/digest.service';
 import { PrismaService } from '../../../database/prisma.service';
-import { ArweaveStorageService, type NotificationPayload } from '../../../storage/arweave-storage.service';
+import {
+  ArweaveStorageService,
+  type NotificationPayload,
+} from '../../../storage/arweave-storage.service';
 import type { NotificationJobData } from '../../../common/types/notification.types';
 
 /**
@@ -193,10 +196,11 @@ export class MailWorker extends WorkerHost {
       // ── Step 3: Store notification body on Arweave ────────────
       let arweaveId: string | null = null;
       try {
-        const primaryChannel: 'email' | 'telegram' | 'sms' =
-          channels.email ? 'email'
-          : channels.telegramChatId ? 'telegram'
-          : 'sms';
+        const primaryChannel: 'email' | 'telegram' | 'sms' = channels.email
+          ? 'email'
+          : channels.telegramChatId
+            ? 'telegram'
+            : 'sms';
 
         const payload: NotificationPayload = {
           protocolId: job.data.protocolId,
@@ -208,13 +212,17 @@ export class MailWorker extends WorkerHost {
           timestamp: Date.now(),
         };
 
-        const receipt = await this.arweaveStorage.storeNotificationPayload(payload);
+        const receipt =
+          await this.arweaveStorage.storeNotificationPayload(payload);
         arweaveId = receipt.arweaveId;
       } catch (err) {
-        this.logger.warn('Arweave storage failed, continuing without permanent storage', {
-          notificationId,
-          error: (err as Error).message,
-        });
+        this.logger.warn(
+          'Arweave storage failed, continuing without permanent storage',
+          {
+            notificationId,
+            error: (err as Error).message,
+          },
+        );
       }
 
       // ── Step 4: Dispatch to all channels ──────────────────────

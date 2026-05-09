@@ -296,7 +296,7 @@ export class SandboxService {
         deliveredAt: true,
         createdAt: true,
       },
-    }) as Promise<any>;
+    });
   }
 
   /**

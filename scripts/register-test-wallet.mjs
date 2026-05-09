@@ -56,7 +56,7 @@ try {
   process.exit(0);
 }
 
-const email = 'test@herald.xyz';
+const email = 'adebayo.anuoluwa02@gmail.com';
 
 async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
@@ -78,26 +78,46 @@ async function main() {
   console.log('Encrypted email length:', encryptedEmail.length);
   console.log('Nonce length:', nonce.length);
 
-  // Build registerIdentity IX
   const userClient = new UserClient({
     rpcUrl,
     programId,
     commitment: 'confirmed',
   });
 
-  const ix = await userClient.registerIdentity({
-    owner: wallet.publicKey,
-    encryptedEmail,
-    emailHash,
-    nonce,
-    optIns: {
-      optInAll: true,
-      optInDefi: true,
-      optInGovernance: true,
-      optInMarketing: false,
-    },
-    digestMode: false,
+  // Check if identity already exists
+  const [identityPda] = findIdentityPda(wallet.publicKey, programId);
+  const readClient = new ReadClient({
+    rpcUrl,
+    programId,
+    commitment: 'confirmed',
   });
+  const existing = await readClient.fetchIdentityAccount(wallet.publicKey);
+
+  let ix;
+  if (existing) {
+    console.log('Identity exists — updating encrypted email');
+    ix = await userClient.updateIdentity({
+      owner: wallet.publicKey,
+      encryptedEmail,
+      emailHash,
+      nonce,
+    });
+  } else {
+    console.log('Registering new identity');
+    ix = await userClient.registerIdentity({
+      owner: wallet.publicKey,
+      encryptedEmail,
+      emailHash,
+      nonce,
+      optIns: {
+        optInAll: true,
+        optInDefi: true,
+        optInGovernance: true,
+        optInMarketing: false,
+      },
+      digestMode: false,
+    });
+  }
 
   // Send tx
   const tx = new Transaction().add(ix);
@@ -106,17 +126,10 @@ async function main() {
   tx.feePayer = wallet.publicKey;
   const txSig = await connection.sendTransaction(tx, [wallet]);
   await connection.confirmTransaction(txSig, 'confirmed');
-  console.log('Identity registered:', txSig);
+  console.log('Identity updated:', txSig);
 
-  // Verify
-  const [identityPda] = findIdentityPda(wallet.publicKey, programId);
   console.log('Identity PDA:', identityPda.toBase58());
 
-  const readClient = new ReadClient({
-    rpcUrl,
-    programId,
-    commitment: 'confirmed',
-  });
   const identity = await readClient.fetchIdentityAccount(wallet.publicKey);
   if (identity) {
     console.log('Identity account found!');

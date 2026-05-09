@@ -37,7 +37,7 @@ export const EnvironmentSchema = z.object({
   NITRO_ENCLAVE_SOCKET: z.string().default('/run/enclave.sock'),
 
   // ── Mail provider selection ───────────────────────────────────────
-  MAIL_PROVIDER: z.enum(['smtp', 'resend', 'ses']).default('smtp'),
+  MAIL_PROVIDER: z.enum(['smtp', 'ses']).default('smtp'),
 
   // ── Development SMTP (Nodemailer + Mailhog) ───────────────────────
   SMTP_HOST: z.string().default('localhost'),

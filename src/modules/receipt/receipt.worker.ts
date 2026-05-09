@@ -232,7 +232,9 @@ export class ReceiptWorker extends WorkerHost {
           recipientHash: new Uint8Array(recipientHashBytes),
           notificationId: new Uint8Array(notificationIdBytes),
           category: categoryInt,
-          lightRemainingAccounts: buildLightRemainingAccounts(validityProof.remainingAccounts),
+          lightRemainingAccounts: buildLightRemainingAccounts(
+            validityProof.remainingAccounts,
+          ),
         });
 
         // 5. Send Transaction

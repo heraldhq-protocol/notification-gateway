@@ -34,7 +34,7 @@ export class SubscriptionRepository {
     return this.prisma.subscription.upsert({
       where: { protocolId },
       create: data as Prisma.SubscriptionUncheckedCreateInput,
-      update: data as Prisma.SubscriptionUncheckedUpdateInput,
+      update: data,
     });
   }
 
