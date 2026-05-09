@@ -60,10 +60,28 @@ export class BounceService {
             '3+ soft bounces — identity suspension recommended',
             { walletHash: notification.walletHash.slice(0, 8) + '...' },
           );
+          await this.prisma.emailSuppression.upsert({
+            where: { walletHash: notification.walletHash },
+            update: { reason: 'soft_bounce', suppressedAt: new Date() },
+            create: {
+              walletHash: notification.walletHash,
+              reason: 'soft_bounce',
+              notificationId: notification.id,
+            },
+          });
         }
       } else {
         this.logger.warn('Hard bounce — identity suspension recommended', {
           walletHash: notification.walletHash.slice(0, 8) + '...',
+        });
+        await this.prisma.emailSuppression.upsert({
+          where: { walletHash: notification.walletHash },
+          update: { reason: 'hard_bounce', suppressedAt: new Date() },
+          create: {
+            walletHash: notification.walletHash,
+            reason: 'hard_bounce',
+            notificationId: notification.id,
+          },
         });
       }
     } else if (sesNotificationType === 'Complaint') {
@@ -73,6 +91,16 @@ export class BounceService {
           walletHash: notification.walletHash,
           bounceType: 'complaint',
           sesMessageId,
+        },
+      });
+
+      await this.prisma.emailSuppression.upsert({
+        where: { walletHash: notification.walletHash },
+        update: { reason: 'complaint', suppressedAt: new Date() },
+        create: {
+          walletHash: notification.walletHash,
+          reason: 'complaint',
+          notificationId: notification.id,
         },
       });
     }

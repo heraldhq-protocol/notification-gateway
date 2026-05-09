@@ -165,11 +165,19 @@ export class MailWorker extends WorkerHost {
       // ── Step 1: Resolve identity ──────────────────────────────
       const identity = await this.routingService.resolveIdentity(wallet);
       if (!identity) {
+        const portalUser = job.data.walletHash
+          ? await this.prisma.portal_users.findUnique({
+              where: { wallet_hash: job.data.walletHash },
+            })
+          : null;
+
         await this.prisma.notification.update({
           where: { id: notificationId },
           data: {
             status: 'opted_out',
-            errorCode: 'WALLET_NOT_REGISTERED_AT_PROCESSING',
+            errorCode: portalUser?.email_hash
+              ? 'PORTAL_FALLBACK_CHANNELS_UNAVAILABLE'
+              : 'WALLET_NOT_REGISTERED_AT_PROCESSING',
           },
         });
         return;
@@ -191,6 +199,13 @@ export class MailWorker extends WorkerHost {
           },
         });
         return;
+      }
+
+      // Clear suppression if email channel is active and decrypted
+      if (identity.channelEmail && channels.email && job.data.walletHash) {
+        this.prisma.emailSuppression
+          .deleteMany({ where: { walletHash: job.data.walletHash } })
+          .catch(() => {});
       }
 
       // ── Step 3: Store notification body on Arweave ────────────

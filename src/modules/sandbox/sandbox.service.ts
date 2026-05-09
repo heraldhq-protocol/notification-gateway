@@ -224,7 +224,7 @@ export class SandboxService {
         keyHash: hashKey,
         keyPrefix: prefix,
         environment: env,
-        scopes: ['notify:write'],
+        scopes: ['notify:write', 'notify:read'],
         isTestKey: true,
         testKeyType,
         testDailyLimit: dailyLimit,

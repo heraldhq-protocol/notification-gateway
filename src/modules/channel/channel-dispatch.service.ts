@@ -177,6 +177,23 @@ export class ChannelDispatchService {
     job: NotificationJobData,
     assets: ProtocolAsset[],
   ): Promise<ChannelDeliveryOutcome> {
+    const suppressed = job.walletHash
+      ? await this.prisma.emailSuppression.findUnique({
+          where: { walletHash: job.walletHash },
+        })
+      : null;
+    if (suppressed) {
+      this.logger.warn('Skipping email for suppressed wallet', {
+        walletHash: suppressed.walletHash.slice(0, 8) + '...',
+        reason: suppressed.reason,
+      });
+      return {
+        channel: 'email',
+        success: false,
+        error: `Email suppressed: ${suppressed.reason}`,
+      };
+    }
+
     try {
       const customDomainRecord = await this.prisma.dkimKey.findFirst({
         where: {

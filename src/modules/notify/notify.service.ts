@@ -85,8 +85,30 @@ export class NotifyService {
     }
 
     // ── 2. Wallet registration check (cached 10min) ───────────────
-    const identity = await this.routingService.resolveIdentity(dto.wallet);
-    if (!identity) {
+    let identity: IdentityAccount | null;
+    let portalUser: Record<string, any> | null = null;
+    try {
+      identity = await this.routingService.resolveIdentity(dto.wallet);
+    } catch (err) {
+      this.logger.warn('On-chain identity failed, checking portal_users', {
+        error: (err as Error).message,
+      });
+      portalUser = await this.prisma.portal_users.findUnique({
+        where: { wallet_hash: walletHash },
+      });
+      if (
+        !portalUser ||
+        !this.checkOptInFromPortalUser(portalUser, dto.category ?? 'defi')
+      ) {
+        throw new NotFoundException({
+          error: 'WALLET_NOT_REGISTERED',
+          message: 'No Herald identity found for this wallet',
+        });
+      }
+      identity = null;
+    }
+
+    if (!identity && !portalUser) {
       throw new NotFoundException({
         error: 'WALLET_NOT_REGISTERED',
         message: 'No Herald identity found for this wallet',
@@ -94,7 +116,9 @@ export class NotifyService {
     }
 
     // ── 3. Opt-in check ──────────────────────────────────────────
-    const optedIn = this.checkOptIn(identity, dto.category ?? 'defi');
+    const optedIn = portalUser
+      ? this.checkOptInFromPortalUser(portalUser, dto.category ?? 'defi')
+      : this.checkOptIn(identity!, dto.category ?? 'defi');
     if (!optedIn) {
       await this.prisma.notification.create({
         data: {
@@ -146,11 +170,12 @@ export class NotifyService {
       protocolPubkey: protocol.protocolPubkey,
       protocolName: protocol.name ?? 'Unknown Protocol',
       wallet: dto.wallet,
+      walletHash,
       subject: dto.subject,
       body: dto.body,
       category: dto.category ?? 'defi',
       writeReceipt: dto.receipt ?? true,
-      digestMode: identity.digestMode,
+      digestMode: portalUser?.digest_mode ?? identity?.digestMode ?? false,
       priority: dto.priority ?? 'normal',
       preferredChannel: dto.preferred_channel,
       channels,
@@ -371,6 +396,7 @@ export class NotifyService {
       protocolPubkey: protocol.protocolPubkey,
       protocolName: protocol.name ?? 'Unknown Protocol',
       wallet: dto.wallet,
+      walletHash,
       subject: prefixedSubject,
       body: dto.body,
       category: dto.category ?? 'defi',
@@ -505,7 +531,26 @@ export class NotifyService {
       case 'marketing':
         return identity.optInMarketing;
       case 'system':
-        return true; // system notifications bypass opt-in
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private checkOptInFromPortalUser(
+    user: Record<string, any>,
+    category: string,
+  ): boolean {
+    if (!user.opt_in_all) return false;
+    switch (category) {
+      case 'defi':
+        return user.opt_in_defi;
+      case 'governance':
+        return user.opt_in_governance;
+      case 'marketing':
+        return user.opt_in_marketing;
+      case 'system':
+        return true;
       default:
         return false;
     }

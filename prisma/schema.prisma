@@ -48,7 +48,7 @@ model ApiKey {
   keyHash             String    @unique @map("key_hash") @db.VarChar(64)
   keyPrefix           String    @map("key_prefix") @db.VarChar(20)
   environment         String    @db.VarChar(10)
-  scopes              String[]  @default(["notify:write"])
+  scopes              String[]  @default(["notify:write", "notify:read"])
   name                String?   @db.VarChar(100)
   lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz(6)
   isRevoked           Boolean   @default(false) @map("is_revoked")
@@ -88,6 +88,7 @@ model Notification {
   arweaveId         String?           @map("arweave_id") @db.VarChar(100)
   channelDeliveries ChannelDelivery[]
   emailBounces      EmailBounce[]
+  emailSuppressions EmailSuppression[]
   protocol          Protocol          @relation(fields: [protocolId], references: [id])
   webhookDeliveries WebhookDelivery[]
 
@@ -166,6 +167,18 @@ model DkimKey {
 
   @@unique([domain, selector])
   @@map("dkim_keys")
+}
+
+model EmailSuppression {
+  walletHash     String       @id @map("wallet_hash") @db.VarChar(64)
+  reason         String       @map("reason") @db.VarChar(20)
+  suppressedAt   DateTime     @default(now()) @map("suppressed_at") @db.Timestamptz(6)
+  notificationId String?      @map("notification_id") @db.Uuid
+  autoSuppressed Boolean      @default(true) @map("auto_suppressed")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  notification   Notification? @relation(fields: [notificationId], references: [id])
+
+  @@map("email_suppressions")
 }
 
 model EmailBounce {
