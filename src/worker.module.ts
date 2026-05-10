@@ -67,7 +67,8 @@ import { DigestWorker } from './modules/queue/workers/digest.worker';
           const enableTls =
             configTls !== undefined
               ? configTls
-              : redisUrl.includes('upstash.io');
+              : redisUrl.includes('cache.amazonaws.com') ||
+                redisUrl.includes('upstash.io');
           connectionOptions.host = redisUrl;
           connectionOptions.port = 6379;
           if (enableTls) {

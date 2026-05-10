@@ -96,7 +96,8 @@ import { RedisModule } from './modules/redis/redis.module';
           const enableTls =
             configTls !== undefined
               ? configTls
-              : redisUrl.includes('upstash.io');
+              : redisUrl.includes('cache.amazonaws.com') ||
+                redisUrl.includes('upstash.io');
 
           connectionOptions.host = redisUrl;
           connectionOptions.port = 6379;
