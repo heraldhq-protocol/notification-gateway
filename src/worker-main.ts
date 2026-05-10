@@ -8,10 +8,9 @@ async function bootstrap() {
   });
   app.useLogger(app.get(Logger));
 
-  process.on('SIGTERM', async () => {
+  process.on('SIGTERM', () => {
     console.log('Worker received SIGTERM — shutting down gracefully');
-    await app.close();
-    process.exit(0);
+    app.close().then(() => process.exit(0));
   });
 
   console.log('Herald Worker started — listening for BullMQ jobs');
