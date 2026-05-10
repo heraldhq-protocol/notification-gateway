@@ -34,12 +34,12 @@ export class SubscriptionGuard implements CanActivate {
 
     if (!protocol) return true; // Let AuthGuard handle unauthorized
 
+    // Dev tier (0) is free — skip Prisma query entirely
+    if (protocol.tier === 0) return true;
+
     const subscription = await this.subscriptionRepo.findByProtocolId(
       protocol.protocolId,
     );
-
-    // Dev tier (0) is free
-    if (protocol.tier === 0) return true;
 
     if (!subscription || subscription.status !== 'active') {
       throw new PaymentRequiredException({
