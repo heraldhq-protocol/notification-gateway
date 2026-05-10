@@ -1,14 +1,16 @@
 import { createHash } from 'crypto';
 import {
   Injectable,
+  Inject,
   Logger,
   NotFoundException,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
+import Redis from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import { PrismaService } from '../../database/prisma.service';
-import { RoutingService } from '../routing/routing.service';
 import { SandboxRoutingService } from '../routing/sandbox-routing.service';
 import { SandboxService } from '../sandbox/sandbox.service';
 import { QueueService } from '../queue/queue.service';
@@ -23,12 +25,9 @@ import type { NotifyDto, NotifyResponseDto } from './dto/notify.dto';
  *
  * Flow:
  *   1. Detect sandbox vs production environment
- *   2. Check idempotency key (24h TTL in DB)
- *   3. [Production] Check if wallet is registered (Solana PDA lookup, cached 10min)
- *   4. [Production] Check opt-in flags for category
- *   5. Create notification record in PostgreSQL
- *   6. Enqueue BullMQ job
- *   7. Return 202 Accepted with notification_id
+ *   2. Check idempotency key (Redis, 24h TTL)
+ *   3. Enqueue BullMQ job (wallet resolution, opt-in, DB writes all async)
+ *   4. Return 202 Accepted with notification_id
  *
  * Sandbox flow skips PDA resolution and TEE — routes to protocol's test contacts.
  * Sandbox quota is enforced per API key (100/day default) via SandboxService.
@@ -38,7 +37,7 @@ export class NotifyService {
   private readonly logger = new Logger(NotifyService.name);
 
   constructor(
-    private readonly routingService: RoutingService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly sandboxRoutingService: SandboxRoutingService,
     private readonly sandboxService: SandboxService,
     private readonly queueService: QueueService,
@@ -67,101 +66,34 @@ export class NotifyService {
     const walletHash = this.sha256(dto.wallet);
     const subjectHash = this.sha256(dto.subject);
 
-    // ── 1. Idempotency check ─────────────────────────────────────
+    // ── 1. Idempotency check (Redis, 24h TTL) ────────────────────
     if (dto.idempotencyKey) {
-      const existing = await this.prisma.notification.findUnique({
-        where: { idempotencyKey: dto.idempotencyKey },
-      });
-      if (existing) {
+      const idempKey = `idempotency:notify:${dto.idempotencyKey}`;
+      const stored = await this.redis.set(
+        idempKey,
+        JSON.stringify({ notificationId }),
+        'EX',
+        86400,
+        'NX',
+      );
+
+      if (stored !== 'OK') {
+        const existing = await this.redis.get(idempKey);
+        const duplicateId = existing
+          ? JSON.parse(existing).notificationId
+          : notificationId;
         return {
-          notification_id: existing.id,
+          notification_id: duplicateId,
           status: 'duplicate',
-          recipient_registered: true,
-          estimated_delivery_ms: 0,
-          receipt_tx: existing.receiptTx ?? null,
-          environment: 'production',
-        };
-      }
-    }
-
-    // ── 2. Wallet registration (cache-only, no RPC) ──────────────
-    const t0 = Date.now();
-    const identity = await this.routingService.resolveIdentityFromCache(
-      dto.wallet,
-    );
-    this.logger.debug(`cache lookup: ${Date.now() - t0}ms`);
-
-    let portalUser: Record<string, any> | null = null;
-    let recipientRegistered: boolean | null;
-
-    if (identity) {
-      recipientRegistered = true;
-
-      // ── 3a. Opt-in check (from on-chain identity) ────────────────
-      if (!this.checkOptIn(identity, dto.category ?? 'defi')) {
-        await this.prisma.notification.create({
-          data: {
-            id: notificationId,
-            protocolId: protocol.protocolId,
-            walletHash,
-            subjectHash,
-            status: 'opted_out',
-            category: dto.category ?? 'defi',
-            idempotencyKey: dto.idempotencyKey,
-            writeReceipt: false,
-          },
-        });
-        return {
-          notification_id: notificationId,
-          status: 'opted_out',
-          recipient_registered: true,
+          recipient_registered: null,
           estimated_delivery_ms: 0,
           receipt_tx: null,
           environment: 'production',
         };
       }
-    } else {
-      // ── 3b. Fallback to portal_users ────────────────────────────
-      const t1 = Date.now();
-      portalUser = await this.prisma.portal_users.findUnique({
-        where: { wallet_hash: walletHash },
-      });
-      this.logger.debug(`portal_users lookup: ${Date.now() - t1}ms`);
-
-      if (portalUser) {
-        recipientRegistered = true;
-
-        if (
-          !this.checkOptInFromPortalUser(portalUser, dto.category ?? 'defi')
-        ) {
-          await this.prisma.notification.create({
-            data: {
-              id: notificationId,
-              protocolId: protocol.protocolId,
-              walletHash,
-              subjectHash,
-              status: 'opted_out',
-              category: dto.category ?? 'defi',
-              idempotencyKey: dto.idempotencyKey,
-              writeReceipt: false,
-            },
-          });
-          return {
-            notification_id: notificationId,
-            status: 'opted_out',
-            recipient_registered: true,
-            estimated_delivery_ms: 0,
-            receipt_tx: null,
-            environment: 'production',
-          };
-        }
-      } else {
-        recipientRegistered = null; // unknown — worker resolves async
-      }
     }
 
-    // ── 4. Persist notification record ───────────────────────────
-    const t2 = Date.now();
+    // ── 2. Persist minimal notification record ───────────────────
     await this.prisma.notification.create({
       data: {
         id: notificationId,
@@ -174,9 +106,8 @@ export class NotifyService {
         writeReceipt: dto.receipt ?? true,
       },
     });
-    this.logger.debug(`db write: ${Date.now() - t2}ms`);
 
-    // ── 5. Enqueue async delivery job ────────────────────────────
+    // ── 3. Enqueue async delivery job ────────────────────────────
     const channels = dto.batchChannels as
       | ('email' | 'telegram' | 'sms')[]
       | undefined;
@@ -184,7 +115,6 @@ export class NotifyService {
       | ('email' | 'telegram' | 'sms')[]
       | undefined;
 
-    const t3 = Date.now();
     await this.queueService.enqueueNotification({
       notificationId,
       protocolId: protocol.protocolId,
@@ -196,7 +126,7 @@ export class NotifyService {
       body: dto.body,
       category: dto.category ?? 'defi',
       writeReceipt: dto.receipt ?? true,
-      digestMode: portalUser?.digest_mode ?? identity?.digestMode ?? false,
+      digestMode: false,
       priority: dto.priority ?? 'normal',
       preferredChannel: dto.preferred_channel,
       channels,
@@ -206,12 +136,11 @@ export class NotifyService {
       telegramTemplateId: dto.telegramTemplateId,
       templateVariables: dto.templateVariables,
     });
-    this.logger.debug(`enqueue: ${Date.now() - t3}ms`);
 
     return {
       notification_id: notificationId,
       status: 'queued',
-      recipient_registered: recipientRegistered,
+      recipient_registered: null,
       estimated_delivery_ms: 2500,
       receipt_tx: null,
       environment: 'production',
