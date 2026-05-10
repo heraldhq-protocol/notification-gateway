@@ -70,8 +70,17 @@ export class RpcManagerService {
     this.failureCount++;
     this.lastFailureAt = new Date();
 
+    const maskedUrl = this.activeConnection.rpcEndpoint.replace(/\?.*/, '/***');
+    this.logger.warn(`RPC failure #${this.failureCount}`, {
+      rpcUrl: maskedUrl,
+      failureCount: this.failureCount,
+    });
+
     if (this.failureCount > 5 && this.fallbackUrl) {
-      this.logger.error('Circuit breaker OPEN: switching to fallback RPC');
+      this.logger.error('Circuit breaker OPEN: switching to fallback RPC', {
+        from: maskedUrl,
+        to: this.fallbackUrl.replace(/\?.*/, '/***'),
+      });
       this.circuitBreakerOpen = true;
       this.activeConnection = this.createConnection(this.fallbackUrl);
       this.failureCount = 0;
