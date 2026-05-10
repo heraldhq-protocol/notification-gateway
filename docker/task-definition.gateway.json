@@ -2,8 +2,8 @@
   "family": "herald-gateway",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
+  "cpu": "1024",
+  "memory": "2048",
   "executionRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-execution-role",
   "taskRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-task-role",
   "containerDefinitions": [
