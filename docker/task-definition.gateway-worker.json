@@ -1,0 +1,65 @@
+{
+  "family": "herald-gateway-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-task-role",
+  "containerDefinitions": [
+    {
+      "name": "gateway-worker",
+      "image": "PLACEHOLDER_GATEWAY_IMAGE",
+      "essential": true,
+      "environment": [
+        { "name": "NODE_ENV",                        "value": "production" },
+        { "name": "SERVICE_TYPE",                    "value": "worker" },
+        { "name": "API_VERSION",                     "value": "v1" },
+        { "name": "SERVICE_NAME",                    "value": "herald-gateway-worker" },
+        { "name": "ENCLAVE_MODE",                    "value": "sandbox" },
+        { "name": "SECRET_ID",                       "value": "herald-gateway/staging" },
+        { "name": "NODE_TLS_REJECT_UNAUTHORIZED",    "value": "0" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:DATABASE_URL::" },
+        { "name": "REDIS_URL",                  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:REDIS_URL::" },
+        { "name": "JWT_SECRET",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:JWT_SECRET::" },
+        { "name": "SOLANA_RPC_URL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SOLANA_RPC_URL::" },
+        { "name": "HERALD_PROGRAM_ID",          "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_PROGRAM_ID::" },
+        { "name": "AWS_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:AWS_REGION::" },
+        { "name": "MAIL_PROVIDER",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:MAIL_PROVIDER::" },
+        { "name": "RESEND_API_KEY",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:RESEND_API_KEY::" },
+        { "name": "SES_FROM_ADDRESS",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_FROM_ADDRESS::" },
+        { "name": "SES_REGION",                 "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SES_REGION::" },
+        { "name": "HELIO_API_KEY",              "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_API_KEY::" },
+        { "name": "HELIO_SECRET_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_SECRET_KEY::" },
+        { "name": "HELIO_WEBHOOK_SECRET",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_WEBHOOK_SECRET::" },
+        { "name": "HELIO_TEMPLATE_GROWTH",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_GROWTH::" },
+        { "name": "HELIO_TEMPLATE_SCALE",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_SCALE::" },
+        { "name": "HELIO_TEMPLATE_ENTERPRISE",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_ENTERPRISE::" },
+        { "name": "HELIO_CHECKOUT_SUCCESS_URL", "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_CHECKOUT_SUCCESS_URL::" },
+        { "name": "HELIO_CHECKOUT_CANCEL_URL",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_CHECKOUT_CANCEL_URL::" },
+        { "name": "WEBHOOK_SIGNING_SECRET",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:WEBHOOK_SIGNING_SECRET::" },
+        { "name": "UNSUBSCRIBE_BASE_URL",       "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:UNSUBSCRIBE_BASE_URL::" },
+        { "name": "UNSUBSCRIBE_JWT_SECRET",     "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:UNSUBSCRIBE_JWT_SECRET::" },
+        { "name": "PINO_LOG_LEVEL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:PINO_LOG_LEVEL::" },
+        { "name": "HELIO_TEMPLATE_OVERCHARGE",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_OVERCHARGE::" },
+        { "name": "INTERNAL_API_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" },
+        { "name": "HERALD_AUTHORITY_SECRET",    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_SECRET::" },
+        { "name": "HELIUS_RPC_URL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIUS_RPC_URL::" },
+        { "name": "IRYS_NETWORK",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:IRYS_NETWORK::" },
+        { "name": "LIGHT_OUTPUT_TREE",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_OUTPUT_TREE::" },
+        { "name": "LIGHT_RPC_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_RPC_URL::" },
+        { "name": "HERALD_X25519_PRIV_HEX",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_X25519_PRIV_HEX::" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group":         "/ecs/herald-gateway-worker",
+          "awslogs-region":        "eu-north-1",
+          "awslogs-stream-prefix": "worker"
+        }
+      }
+    }
+  ]
+}

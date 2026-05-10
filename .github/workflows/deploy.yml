@@ -25,6 +25,7 @@ env:
   AWS_REGION:           eu-north-1
   ECS_CLUSTER:          ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE:          ${{ secrets.ECS_GATEWAY_SERVICE }}
+  ECS_WORKER_SERVICE:   ${{ secrets.ECS_WORKER_SERVICE }}
   ECR_GATEWAY_REPO:     ${{ secrets.ECR_GATEWAY_REPO_URI }}
   TASK_DEFINITION_FILE: docker/task-definition.gateway.json
 
@@ -160,3 +161,91 @@ jobs:
             --no-paginate \
             --query 'events[*].message' \
             --output text || echo "ERROR: could not read log events (check IAM logs:GetLogEvents permission)"
+
+  # ── 4. Deploy Worker (separate ECS service, no HTTP) ──────────────────────
+  deploy-worker:
+    needs: [build-push-ecr]
+    runs-on: ubuntu-latest
+    env:
+      WORKER_TASK_DEF_FILE: docker/task-definition.gateway-worker.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Render worker task definition
+        id: render-worker
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition:  ${{ env.WORKER_TASK_DEF_FILE }}
+          container-name:   gateway-worker
+          image:            ${{ env.ECR_GATEWAY_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
+
+      - name: Register and deploy worker
+        run: |
+          # Register the rendered task definition
+          aws ecs register-task-definition \
+            --cli-input-json file://"${{ steps.render-worker.outputs.task-definition }}"
+
+          # Check if service exists
+          SERVICE_STATUS=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_WORKER_SERVICE }} \
+            --query 'services[0].status' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ]; then
+            echo "Worker service exists — updating task definition and forcing new deployment"
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service ${{ env.ECS_WORKER_SERVICE }} \
+              --task-definition herald-gateway-worker \
+              --force-new-deployment
+          else
+            echo "Worker service not found — creating new service"
+            NETWORK_CONFIG=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.ECS_SERVICE }} \
+              --query 'services[0].networkConfiguration' \
+              --output json)
+            aws ecs create-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service-name ${{ env.ECS_WORKER_SERVICE }} \
+              --task-definition herald-gateway-worker \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "$NETWORK_CONFIG" \
+              --scheduling-strategy REPLICA
+          fi
+
+      - name: Tail CloudWatch logs (always — catches startup errors)
+        if: always()
+        run: |
+          LOG_GROUP="/ecs/herald-gateway-worker"
+          echo "=== Recent container logs from $LOG_GROUP ==="
+          STREAM=$(aws logs describe-log-streams \
+            --log-group-name "$LOG_GROUP" \
+            --order-by LastEventTime \
+            --descending \
+            --limit 1 \
+            --no-paginate \
+            --query 'logStreams[0].logStreamName' \
+            --output text) || { echo "ERROR: could not list log streams"; exit 0; }
+          if [ -z "$STREAM" ] || [ "$STREAM" = "None" ]; then
+            echo "No log streams found in $LOG_GROUP"
+            exit 0
+          fi
+          echo "Log stream: $STREAM"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$STREAM" \
+            --start-time $(date -d '15 minutes ago' +%s000) \
+            --limit 200 \
+            --no-paginate \
+            --query 'events[*].message' \
+            --output text || echo "ERROR: could not read log events"

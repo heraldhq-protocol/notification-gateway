@@ -1,26 +1,16 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { ScheduleModule } from '@nestjs/schedule';
 import { QueueNames } from './queue.constants';
 import { QueueService } from './queue.service';
-import { MailWorker } from './workers/mail.worker';
-import { DigestWorker } from './workers/digest.worker';
 import { DigestService } from '../notify/digest.service';
-import { RoutingModule } from '../routing/routing.module';
-import { MailModule } from '../mail/mail.module';
-import { TemplateModule } from '../template/template.module';
-import { ChannelModule } from '../channel/channel.module';
-import { WebhookModule } from '../webhook/webhook.module';
-import { BillingModule } from '../billing/billing.module';
-import { ArweaveStorageModule } from '../../storage/arweave-storage.module';
 
 /**
- * QueueModule — registers all BullMQ queues and their workers.
+ * QueueModule — registers BullMQ queues and provides queuing services.
  *
- * DigestService is co-located here (not in NotifyModule) to avoid
- * a circular dependency: NotifyModule → QueueModule → NotifyModule.
- * DigestService is fundamentally a queue concern — it buffers
- * notifications and flushes them via BullMQ.
+ * WARNING: Workers (MailWorker, DigestWorker) moved to WorkerModule
+ * (worker.service) to eliminate event loop contention with the HTTP server.
+ * They are NOT provided here — only QueueService (enqueue) and
+ * DigestService (buffer + flush) remain in the web server's DI.
  */
 @Module({
   imports: [
@@ -30,16 +20,8 @@ import { ArweaveStorageModule } from '../../storage/arweave-storage.module';
       { name: QueueNames.BOUNCE },
       { name: QueueNames.DIGEST },
     ),
-    ScheduleModule.forRoot(),
-    RoutingModule,
-    MailModule,
-    TemplateModule,
-    ChannelModule,
-    WebhookModule,
-    BillingModule,
-    ArweaveStorageModule,
   ],
-  providers: [QueueService, MailWorker, DigestWorker, DigestService],
+  providers: [QueueService, DigestService],
   exports: [QueueService, DigestService],
 })
 export class QueueModule {}
