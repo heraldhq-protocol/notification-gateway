@@ -50,7 +50,6 @@
         { "name": "INTERNAL_API_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" },
         { "name": "HERALD_AUTHORITY_SECRET",    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_SECRET::" },
         { "name": "HELIUS_RPC_URL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIUS_RPC_URL::" },
-        { "name": "SOLANA_FALLBACK_RPC_URL",    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:SOLANA_FALLBACK_RPC_URL::" },
         { "name": "IRYS_NETWORK",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:IRYS_NETWORK::" },
         { "name": "LIGHT_OUTPUT_TREE",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_OUTPUT_TREE::" },
         { "name": "LIGHT_RPC_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_RPC_URL::" },
