@@ -4,7 +4,10 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.module';
 import { SubscriptionRepository } from '../repositories/subscription.repository';
 import { HelioService } from '../helio/helio.service';
 import { TIER_SEND_LIMITS } from '../billing.service';
@@ -23,9 +26,13 @@ export class QuotaExceededException extends HttpException {
 
 @Injectable()
 export class SubscriptionGuard implements CanActivate {
+  private static readonly CACHE_TTL = 30;
+  private static readonly CACHE_PREFIX = 'sub:';
+
   constructor(
     private readonly subscriptionRepo: SubscriptionRepository,
     private readonly helioService: HelioService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -37,9 +44,35 @@ export class SubscriptionGuard implements CanActivate {
     // Dev tier (0) is free — skip Prisma query entirely
     if (protocol.tier === 0) return true;
 
-    const subscription = await this.subscriptionRepo.findByProtocolId(
-      protocol.protocolId,
-    );
+    // Cache-first: Redis hit avoids Prisma pool wait
+    const cacheKey = `${SubscriptionGuard.CACHE_PREFIX}${protocol.protocolId}`;
+    let subscription: import('../../../../prisma/generated/prisma/index').Subscription | null = null;
+
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        subscription = JSON.parse(cached, (_k, v) =>
+          typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)
+            ? new Date(v)
+            : v,
+        ) as typeof subscription;
+      }
+    } catch {
+      // Cache miss → fall through to Prisma
+    }
+
+    if (!subscription) {
+      subscription = await this.subscriptionRepo.findByProtocolId(
+        protocol.protocolId,
+      );
+      if (subscription) {
+        this.redis
+          .setex(cacheKey, SubscriptionGuard.CACHE_TTL, JSON.stringify(subscription, (_k, v) =>
+            typeof v === 'bigint' ? v.toString() : v,
+          ))
+          .catch(() => {});
+      }
+    }
 
     if (!subscription || subscription.status !== 'active') {
       throw new PaymentRequiredException({
