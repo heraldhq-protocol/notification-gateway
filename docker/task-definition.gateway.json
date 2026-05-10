@@ -48,7 +48,8 @@
         { "name": "PINO_LOG_LEVEL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:PINO_LOG_LEVEL::" },
         { "name": "HELIO_TEMPLATE_OVERCHARGE",  "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIO_TEMPLATE_OVERCHARGE::" },
         { "name": "INTERNAL_API_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:INTERNAL_API_KEY::" },
-        { "name": "HERALD_AUTHORITY_SECRET",    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_SECRET::" }
+        { "name": "HERALD_AUTHORITY_SECRET",    "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_AUTHORITY_SECRET::" },
+        { "name": "HELIUS_RPC_URL",             "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HELIUS_RPC_URL::" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health/live || exit 1"],
