@@ -10,7 +10,7 @@
 #
 # Required GitHub Secrets:
 #   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-#   ECR_GATEWAY_REPO_URI, ECR_ENCLAVE_REPO_URI
+#   ECR_GATEWAY_REPO_URI
 #   ECS_CLUSTER, ECS_GATEWAY_SERVICE
 # ─────────────────────────────────────────────────────────────────────
 
@@ -26,7 +26,6 @@ env:
   ECS_CLUSTER:          ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE:          ${{ secrets.ECS_GATEWAY_SERVICE }}
   ECR_GATEWAY_REPO:     ${{ secrets.ECR_GATEWAY_REPO_URI }}
-  ECR_ENCLAVE_REPO:     ${{ secrets.ECR_ENCLAVE_REPO_URI }}
   TASK_DEFINITION_FILE: docker/task-definition.gateway.json
 
 jobs:
@@ -100,16 +99,7 @@ jobs:
           docker push "${{ env.ECR_GATEWAY_REPO }}" --all-tags
           echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push mock-enclave image
-        run: |
-          IMAGE="${{ env.ECR_ENCLAVE_REPO }}:${{ github.sha }}"
-          docker build -f docker/Dockerfile.enclave \
-            -t "$IMAGE" \
-            -t "${{ env.ECR_ENCLAVE_REPO }}:latest" \
-            .
-          docker push "${{ env.ECR_ENCLAVE_REPO }}" --all-tags
-
-  # ── 3. Deploy to ECS ─────────────────────────────────────────────────
+      # ── 3. Deploy to ECS ─────────────────────────────────────────────────
   deploy-ecs:
     needs: [build-push-ecr]
     runs-on: ubuntu-latest
@@ -131,19 +121,11 @@ jobs:
           container-name:   gateway
           image:            ${{ env.ECR_GATEWAY_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
 
-      - name: Render task definition — mock-enclave container
-        id: render-enclave
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition:  ${{ steps.render-gateway.outputs.task-definition }}
-          container-name:   mock-enclave
-          image:            ${{ env.ECR_ENCLAVE_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
-
       - name: Deploy to ECS and wait for stability
         id: deploy
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition:            ${{ steps.render-enclave.outputs.task-definition }}
+          task-definition:            ${{ steps.render-gateway.outputs.task-definition }}
           service:                    ${{ env.ECS_SERVICE }}
           cluster:                    ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
