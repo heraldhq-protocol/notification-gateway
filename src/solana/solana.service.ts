@@ -220,9 +220,9 @@ export class SolanaService {
           clearTimeout(timer);
           resolve(val);
         },
-        (err) => {
+        (err: unknown) => {
           clearTimeout(timer);
-          reject(err);
+          reject(err instanceof Error ? err : new Error(String(err)));
         },
       );
     });
