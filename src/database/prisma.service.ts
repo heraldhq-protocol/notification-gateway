@@ -50,6 +50,9 @@ export class PrismaService
 
     const pool = new Pool({
       connectionString,
+      max: 25,
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 30_000,
       ssl: isLocal
         ? false
         : {
