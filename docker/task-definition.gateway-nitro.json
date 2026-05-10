@@ -67,10 +67,10 @@
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health/live || exit 1"],
-        "interval": 30,
+        "interval": 10,
         "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
+        "retries": 2,
+        "startPeriod": 300
       },
       "logConfiguration": {
         "logDriver": "awslogs",

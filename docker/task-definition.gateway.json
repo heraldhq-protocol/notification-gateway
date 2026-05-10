@@ -6,11 +6,6 @@
   "memory": "1024",
   "executionRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-execution-role",
   "taskRoleArn": "arn:aws:iam::120822896955:role/herald-ecs-task-role",
-  "volumes": [
-    {
-      "name": "enclave-socket"
-    }
-  ],
   "containerDefinitions": [
     {
       "name": "gateway",
@@ -18,9 +13,6 @@
       "essential": true,
       "portMappings": [
         { "containerPort": 3000, "protocol": "tcp" }
-      ],
-      "mountPoints": [
-        { "sourceVolume": "enclave-socket", "containerPath": "/run", "readOnly": false }
       ],
       "environment": [
         { "name": "NODE_ENV",                        "value": "production" },
@@ -60,14 +52,11 @@
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health/live || exit 1"],
-        "interval": 30,
+        "interval": 10,
         "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
+        "retries": 2,
+        "startPeriod": 300
       },
-      "dependsOn": [
-        { "containerName": "mock-enclave", "condition": "HEALTHY" }
-      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
@@ -76,32 +65,5 @@
           "awslogs-stream-prefix": "gateway"
         }
       }
-    },
-    {
-      "name": "mock-enclave",
-      "image": "PLACEHOLDER_ENCLAVE_IMAGE",
-      "essential": true,
-      "mountPoints": [
-        { "sourceVolume": "enclave-socket", "containerPath": "/run", "readOnly": false }
-      ],
-      "environment": [
-        { "name": "SOCKET_PATH", "value": "/run/enclave.sock" }
-      ],
-      "healthCheck": {
-        "command": ["CMD-SHELL", "test -S /run/enclave.sock || exit 1"],
-        "interval": 10,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 10
-      },
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group":         "/ecs/herald-gateway",
-          "awslogs-region":        "eu-north-1",
-          "awslogs-stream-prefix": "mock-enclave"
-        }
-      }
-    }
   ]
 }
