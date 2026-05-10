@@ -63,7 +63,13 @@ import { RedisModule } from './modules/redis/redis.module';
         redisUrl = redisUrl.split('#')[0].trim();
 
         const connectionOptions: any = {
-          maxRetriesPerRequest: null, // Required for BullMQ
+          maxRetriesPerRequest: null, // Required for BullMQ — commands wait in offline queue
+          connectTimeout: 10_000, // 10s TCP connect timeout; fail fast, don't hang
+          retryStrategy: (times: number) => {
+            // Keep retrying with capped exponential backoff — never return null
+            // so ioredis keeps the connection alive and BullMQ stays operational.
+            return Math.min(times * 200, 10_000);
+          },
         };
 
         // Case 1: Full Redis URL (Upstash, Heroku, etc.)

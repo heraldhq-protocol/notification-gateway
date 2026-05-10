@@ -25,6 +25,7 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
           return new Redis(redisUrl, {
             maxRetriesPerRequest: null,
             enableReadyCheck: false,
+            connectTimeout: 10_000,
           });
         }
 
@@ -56,6 +57,7 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
           ...(enableTls && { tls: { rejectUnauthorized: false } }),
           maxRetriesPerRequest: null,
           enableReadyCheck: false,
+          connectTimeout: 10_000,
         };
 
         console.log(

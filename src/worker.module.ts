@@ -40,7 +40,11 @@ import { DigestWorker } from './modules/queue/workers/digest.worker';
         );
         redisUrl = redisUrl.split('#')[0].trim();
         const connectionOptions: any = {
-          maxRetriesPerRequest: null,
+          maxRetriesPerRequest: null, // Required for BullMQ — commands wait in offline queue
+          connectTimeout: 10_000, // 10s TCP connect timeout; fail fast, don't hang
+          retryStrategy: (times: number) => {
+            return Math.min(times * 200, 10_000);
+          },
         };
         if (
           redisUrl.startsWith('redis://') ||

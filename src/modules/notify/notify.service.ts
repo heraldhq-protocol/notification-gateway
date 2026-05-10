@@ -115,27 +115,57 @@ export class NotifyService {
       | ('email' | 'telegram' | 'sms')[]
       | undefined;
 
-    await this.queueService.enqueueNotification({
-      notificationId,
-      protocolId: protocol.protocolId,
-      protocolPubkey: protocol.protocolPubkey,
-      protocolName: protocol.name ?? 'Unknown Protocol',
-      wallet: dto.wallet,
-      walletHash,
-      subject: dto.subject,
-      body: dto.body,
-      category: dto.category ?? 'defi',
-      writeReceipt: dto.receipt ?? true,
-      digestMode: false,
-      priority: dto.priority ?? 'normal',
-      preferredChannel: dto.preferred_channel,
-      channels,
-      excludedChannels,
-      tier: protocol.tier,
-      templateId: dto.templateId,
-      telegramTemplateId: dto.telegramTemplateId,
-      templateVariables: dto.templateVariables,
-    });
+    try {
+      await this.queueService.enqueueNotification({
+        notificationId,
+        protocolId: protocol.protocolId,
+        protocolPubkey: protocol.protocolPubkey,
+        protocolName: protocol.name ?? 'Unknown Protocol',
+        wallet: dto.wallet,
+        walletHash,
+        subject: dto.subject,
+        body: dto.body,
+        category: dto.category ?? 'defi',
+        writeReceipt: dto.receipt ?? true,
+        digestMode: false,
+        priority: dto.priority ?? 'normal',
+        preferredChannel: dto.preferred_channel,
+        channels,
+        excludedChannels,
+        tier: protocol.tier,
+        templateId: dto.templateId,
+        telegramTemplateId: dto.telegramTemplateId,
+        templateVariables: dto.templateVariables,
+      });
+    } catch (error) {
+      this.logger.error(
+        { notificationId, error: (error as Error).message },
+        'Failed to enqueue notification — marking as failed',
+      );
+
+      await this.prisma.notification
+        .update({
+          where: { id: notificationId },
+          data: { status: 'failed', errorCode: 'ENQUEUE_FAILED' },
+        })
+        .catch(() => {});
+
+      if (dto.idempotencyKey) {
+        await this.redis
+          .del(`idempotency:notify:${dto.idempotencyKey}`)
+          .catch(() => {});
+      }
+
+      return {
+        notification_id: notificationId,
+        status: 'failed',
+        error_code: 'ENQUEUE_FAILED',
+        recipient_registered: null,
+        estimated_delivery_ms: 0,
+        receipt_tx: null,
+        environment: 'production',
+      };
+    }
 
     return {
       notification_id: notificationId,
@@ -341,29 +371,64 @@ export class NotifyService {
       | ('email' | 'telegram' | 'sms')[]
       | undefined;
 
-    await this.queueService.enqueueNotification({
-      notificationId,
-      protocolId: protocol.protocolId,
-      protocolPubkey: protocol.protocolPubkey,
-      protocolName: protocol.name ?? 'Unknown Protocol',
-      wallet: dto.wallet,
-      walletHash,
-      subject: prefixedSubject,
-      body: dto.body,
-      category: dto.category ?? 'defi',
-      writeReceipt: false,
-      digestMode: false,
-      priority: dto.priority ?? 'normal',
-      preferredChannel: dto.preferred_channel,
-      channels,
-      excludedChannels,
-      isSandbox: true,
-      testContact,
-      tier: protocol.tier,
-      templateId: dto.templateId,
-      telegramTemplateId: dto.telegramTemplateId,
-      templateVariables: dto.templateVariables,
-    });
+    try {
+      await this.queueService.enqueueNotification({
+        notificationId,
+        protocolId: protocol.protocolId,
+        protocolPubkey: protocol.protocolPubkey,
+        protocolName: protocol.name ?? 'Unknown Protocol',
+        wallet: dto.wallet,
+        walletHash,
+        subject: prefixedSubject,
+        body: dto.body,
+        category: dto.category ?? 'defi',
+        writeReceipt: false,
+        digestMode: false,
+        priority: dto.priority ?? 'normal',
+        preferredChannel: dto.preferred_channel,
+        channels,
+        excludedChannels,
+        isSandbox: true,
+        testContact,
+        tier: protocol.tier,
+        templateId: dto.templateId,
+        telegramTemplateId: dto.telegramTemplateId,
+        templateVariables: dto.templateVariables,
+      });
+    } catch (error) {
+      this.logger.error(
+        { notificationId, error: (error as Error).message },
+        'Failed to enqueue sandbox notification — marking as failed',
+      );
+
+      await this.prisma.notification
+        .update({
+          where: { id: notificationId },
+          data: { status: 'failed', errorCode: 'ENQUEUE_FAILED' },
+        })
+        .catch(() => {});
+
+      if (dto.idempotencyKey) {
+        await this.redis
+          .del(`idempotency:notify:${dto.idempotencyKey}`)
+          .catch(() => {});
+      }
+
+      return {
+        notification_id: notificationId,
+        status: 'failed',
+        error_code: 'ENQUEUE_FAILED',
+        recipient_registered: recipientRegisteredOnDevnet,
+        estimated_delivery_ms: 0,
+        receipt_tx: null,
+        environment: 'sandbox',
+        sandbox_mode: true,
+        sandbox_notes: [
+          'Failed to enqueue notification for delivery.',
+          'Service temporarily unavailable — retry later.',
+        ],
+      };
+    }
 
     // ── 7. Increment daily usage counter (Redis, auto-resets at midnight UTC) ─
     await this.sandboxService.incrementUsage(protocol.apiKeyId);
