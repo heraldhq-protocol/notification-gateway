@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   PublicKey,
+  Connection,
   Keypair,
   Transaction,
   TransactionInstruction,
@@ -25,15 +26,31 @@ export class SolanaService {
   private readClient: ReadClient;
   private readonly logger = new Logger(SolanaService.name);
 
+  private static readonly RPC_TIMEOUT_MS = 10_000;
+
   constructor(
     private readonly rpcManager: RpcManagerService,
     private readonly config: ConfigService,
   ) {
+    const rpcUrl = this.rpcManager.getConnection().rpcEndpoint;
     this.readClient = new ReadClient({
-      rpcUrl: this.rpcManager.getConnection().rpcEndpoint,
+      rpcUrl,
       programId: this.config.get<string>('HERALD_PROGRAM_ID'),
       commitment: 'confirmed',
     });
+    // Patch the Anchor provider's connection to use a fetch with timeout.
+    // ReadClient does not expose a `fetch` option, so we replace the internal
+    // Connection after construction to prevent hung RPC calls (NF-001).
+    const timedConnection = new Connection(rpcUrl, {
+      commitment: 'confirmed',
+      fetch: (input, init) =>
+        fetch(input as RequestInfo, {
+          ...init,
+          signal: AbortSignal.timeout(SolanaService.RPC_TIMEOUT_MS),
+        }),
+    });
+    (this.readClient as any).connection = timedConnection;
+    (this.readClient as any).program.provider.connection = timedConnection;
   }
 
   /**

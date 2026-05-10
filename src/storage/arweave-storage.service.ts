@@ -64,7 +64,15 @@ export class ArweaveStorageService implements OnModuleInit {
 
     await this.ensureFunded(data.length);
 
-    const receipt = await this.irys.upload(data, { tags });
+    const receipt = await Promise.race([
+      this.irys.upload(data, { tags }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Arweave upload timed out after 30s')),
+          30_000,
+        ),
+      ),
+    ]);
 
     this.logger.log(`Stored notification body: ${receipt.id}`);
 

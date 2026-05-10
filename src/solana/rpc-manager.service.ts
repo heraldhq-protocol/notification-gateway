@@ -23,17 +23,28 @@ export class RpcManagerService {
   private failureCount = 0;
   private lastFailureAt: Date | null = null;
 
+  private static readonly RPC_TIMEOUT_MS = 10_000;
+
   private readonly primaryUrl: string;
   private readonly fallbackUrl: string | undefined;
   private readonly logger = new Logger(RpcManagerService.name);
+
+  private createConnection(url: string): Connection {
+    return new Connection(url, {
+      commitment: 'confirmed',
+      fetch: (input, init) =>
+        fetch(input as RequestInfo, {
+          ...init,
+          signal: AbortSignal.timeout(RpcManagerService.RPC_TIMEOUT_MS),
+        }),
+    });
+  }
 
   constructor(private readonly config: ConfigService) {
     this.primaryUrl = this.config.getOrThrow<string>('SOLANA_RPC_URL');
     this.fallbackUrl = this.config.get<string>('SOLANA_FALLBACK_RPC_URL');
 
-    this.activeConnection = new Connection(this.primaryUrl, {
-      commitment: 'confirmed',
-    });
+    this.activeConnection = this.createConnection(this.primaryUrl);
   }
 
   /** Get the currently active Solana RPC connection. */
@@ -48,9 +59,7 @@ export class RpcManagerService {
       this.logger.log('Circuit breaker: attempting recovery to primary RPC');
       this.circuitBreakerOpen = false;
       this.failureCount = 0;
-      this.activeConnection = new Connection(this.primaryUrl, {
-        commitment: 'confirmed',
-      });
+      this.activeConnection = this.createConnection(this.primaryUrl);
     }
 
     return this.activeConnection;
@@ -64,9 +73,7 @@ export class RpcManagerService {
     if (this.failureCount > 5 && this.fallbackUrl) {
       this.logger.error('Circuit breaker OPEN: switching to fallback RPC');
       this.circuitBreakerOpen = true;
-      this.activeConnection = new Connection(this.fallbackUrl, {
-        commitment: 'confirmed',
-      });
+      this.activeConnection = this.createConnection(this.fallbackUrl);
       this.failureCount = 0;
     }
   }

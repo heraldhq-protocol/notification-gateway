@@ -29,6 +29,7 @@ export class SesProvider implements IMailProvider {
   ) {
     this.client = new SESClient({
       region: config.get('AWS_REGION', 'us-east-1'),
+      maxAttempts: 3,
     });
   }
 
