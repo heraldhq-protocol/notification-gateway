@@ -84,65 +84,84 @@ export class NotifyService {
       }
     }
 
-    // ── 2. Wallet registration check (cached 10min) ───────────────
-    let identity: IdentityAccount | null;
+    // ── 2. Wallet registration (cache-only, no RPC) ──────────────
+    const t0 = Date.now();
+    const identity = await this.routingService.resolveIdentityFromCache(
+      dto.wallet,
+    );
+    this.logger.debug(`cache lookup: ${Date.now() - t0}ms`);
+
     let portalUser: Record<string, any> | null = null;
-    try {
-      identity = await this.routingService.resolveIdentity(dto.wallet);
-    } catch (err) {
-      this.logger.warn('On-chain identity failed, checking portal_users', {
-        error: (err as Error).message,
-      });
+    let recipientRegistered: boolean | null;
+
+    if (identity) {
+      recipientRegistered = true;
+
+      // ── 3a. Opt-in check (from on-chain identity) ────────────────
+      if (!this.checkOptIn(identity, dto.category ?? 'defi')) {
+        await this.prisma.notification.create({
+          data: {
+            id: notificationId,
+            protocolId: protocol.protocolId,
+            walletHash,
+            subjectHash,
+            status: 'opted_out',
+            category: dto.category ?? 'defi',
+            idempotencyKey: dto.idempotencyKey,
+            writeReceipt: false,
+          },
+        });
+        return {
+          notification_id: notificationId,
+          status: 'opted_out',
+          recipient_registered: true,
+          estimated_delivery_ms: 0,
+          receipt_tx: null,
+          environment: 'production',
+        };
+      }
+    } else {
+      // ── 3b. Fallback to portal_users ────────────────────────────
+      const t1 = Date.now();
       portalUser = await this.prisma.portal_users.findUnique({
         where: { wallet_hash: walletHash },
       });
-      if (
-        !portalUser ||
-        !this.checkOptInFromPortalUser(portalUser, dto.category ?? 'defi')
-      ) {
-        throw new NotFoundException({
-          error: 'WALLET_NOT_REGISTERED',
-          message: 'No Herald identity found for this wallet',
-        });
+      this.logger.debug(`portal_users lookup: ${Date.now() - t1}ms`);
+
+      if (portalUser) {
+        recipientRegistered = true;
+
+        if (
+          !this.checkOptInFromPortalUser(portalUser, dto.category ?? 'defi')
+        ) {
+          await this.prisma.notification.create({
+            data: {
+              id: notificationId,
+              protocolId: protocol.protocolId,
+              walletHash,
+              subjectHash,
+              status: 'opted_out',
+              category: dto.category ?? 'defi',
+              idempotencyKey: dto.idempotencyKey,
+              writeReceipt: false,
+            },
+          });
+          return {
+            notification_id: notificationId,
+            status: 'opted_out',
+            recipient_registered: true,
+            estimated_delivery_ms: 0,
+            receipt_tx: null,
+            environment: 'production',
+          };
+        }
+      } else {
+        recipientRegistered = null; // unknown — worker resolves async
       }
-      identity = null;
-    }
-
-    if (!identity && !portalUser) {
-      throw new NotFoundException({
-        error: 'WALLET_NOT_REGISTERED',
-        message: 'No Herald identity found for this wallet',
-      });
-    }
-
-    // ── 3. Opt-in check ──────────────────────────────────────────
-    const optedIn = portalUser
-      ? this.checkOptInFromPortalUser(portalUser, dto.category ?? 'defi')
-      : this.checkOptIn(identity!, dto.category ?? 'defi');
-    if (!optedIn) {
-      await this.prisma.notification.create({
-        data: {
-          id: notificationId,
-          protocolId: protocol.protocolId,
-          walletHash,
-          subjectHash,
-          status: 'opted_out',
-          category: dto.category ?? 'defi',
-          idempotencyKey: dto.idempotencyKey,
-          writeReceipt: false,
-        },
-      });
-      return {
-        notification_id: notificationId,
-        status: 'opted_out',
-        recipient_registered: true,
-        estimated_delivery_ms: 0,
-        receipt_tx: null,
-        environment: 'production',
-      };
     }
 
     // ── 4. Persist notification record ───────────────────────────
+    const t2 = Date.now();
     await this.prisma.notification.create({
       data: {
         id: notificationId,
@@ -155,6 +174,7 @@ export class NotifyService {
         writeReceipt: dto.receipt ?? true,
       },
     });
+    this.logger.debug(`db write: ${Date.now() - t2}ms`);
 
     // ── 5. Enqueue async delivery job ────────────────────────────
     const channels = dto.batchChannels as
@@ -164,6 +184,7 @@ export class NotifyService {
       | ('email' | 'telegram' | 'sms')[]
       | undefined;
 
+    const t3 = Date.now();
     await this.queueService.enqueueNotification({
       notificationId,
       protocolId: protocol.protocolId,
@@ -185,11 +206,12 @@ export class NotifyService {
       telegramTemplateId: dto.telegramTemplateId,
       templateVariables: dto.templateVariables,
     });
+    this.logger.debug(`enqueue: ${Date.now() - t3}ms`);
 
     return {
       notification_id: notificationId,
       status: 'queued',
-      recipient_registered: true,
+      recipient_registered: recipientRegistered,
       estimated_delivery_ms: 2500,
       receipt_tx: null,
       environment: 'production',

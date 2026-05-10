@@ -62,7 +62,8 @@ export function IsSolanaPublicKey(validationOptions?: ValidationOptions) {
       target: object.constructor,
       propertyName: propertyName,
       options: {
-        message: '$property must be a valid Solana public key (base58, 32–44 chars)',
+        message:
+          '$property must be a valid Solana public key (base58, 32–44 chars)',
         ...validationOptions,
       },
       validator: {
@@ -297,10 +298,14 @@ export class NotifyResponseDto {
   status: 'queued' | 'opted_out' | 'duplicate' | 'failed';
 
   @ApiProperty({
-    description: 'Whether the recipient wallet is registered with Herald',
+    description:
+      'Whether the recipient wallet is registered with Herald. ' +
+      '`null` means the registration status is unknown (cache miss) — ' +
+      'Herald will resolve it asynchronously and update the notification status.',
     example: true,
+    nullable: true,
   })
-  recipient_registered: boolean;
+  recipient_registered: boolean | null;
 
   @ApiProperty({
     description: 'Estimated delivery time in milliseconds from now',

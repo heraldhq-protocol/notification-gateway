@@ -73,6 +73,25 @@ export class RoutingService {
   }
 
   /**
+   * Cache-only identity resolution — never hits Solana RPC.
+   * Returns null on cache miss or if wallet is known not registered.
+   * Used in the synchronous /v1/notify path to avoid blocking on RPC.
+   */
+  async resolveIdentityFromCache(
+    walletPubkey: string,
+  ): Promise<IdentityAccount | null> {
+    const cacheKey = `pda:identity:${walletPubkey}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached === 'NOT_REGISTERED') return null;
+      if (cached) return this.deserializeCached(JSON.parse(cached));
+    } catch {
+      // cache miss or read failure
+    }
+    return null;
+  }
+
+  /**
    * Decrypt the encrypted email via TEE enclave (legacy single-channel).
    * Returns plaintext email IN MEMORY ONLY.
    *

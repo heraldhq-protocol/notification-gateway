@@ -25,8 +25,6 @@ export class SolanaService {
   private readClient: ReadClient;
   private readonly logger = new Logger(SolanaService.name);
 
-  private static readonly RPC_TIMEOUT_MS = 10_000;
-
   constructor(
     private readonly rpcManager: RpcManagerService,
     private readonly config: ConfigService,
@@ -42,20 +40,14 @@ export class SolanaService {
    * Fetch a Herald IdentityAccount from the on-chain registry.
    * Returns null if the wallet has no identity PDA.
    *
-   * Wraps the SDK call in a timeout to prevent hung requests
-   * when the RPC endpoint is unreachable (NF-001, NF-008).
+   * Timeout enforced by RpcManagerService's AbortSignal on the fetch call.
    */
   async fetchIdentityAccount(
     walletPubkey: string,
   ): Promise<IdentityAccount | null> {
     try {
-      // SDK's ReadClient uses @solana/web3.js Connection internally.
-      // We cannot control its fetch config, so we enforce a timeout
-      // via Promise.race as a safety net.
-      const identity = await this.withTimeout(
-        this.readClient.fetchIdentityAccount(new PublicKey(walletPubkey)),
-        SolanaService.RPC_TIMEOUT_MS,
-        'fetchIdentityAccount',
+      const identity = await this.readClient.fetchIdentityAccount(
+        new PublicKey(walletPubkey),
       );
       this.rpcManager.recordSuccess();
 
@@ -133,11 +125,8 @@ export class SolanaService {
     signers: Keypair[],
   ): Promise<string> {
     const connection = this.rpcManager.getConnection();
-    const { blockhash, lastValidBlockHeight } = await this.withTimeout(
-      connection.getLatestBlockhash('confirmed'),
-      SolanaService.RPC_TIMEOUT_MS,
-      'getLatestBlockhash',
-    );
+    const { blockhash, lastValidBlockHeight } =
+      await connection.getLatestBlockhash('confirmed');
     const tx = new Transaction({
       feePayer: signers[0].publicKey,
       blockhash,
@@ -166,25 +155,19 @@ export class SolanaService {
         194, 90, 181, 160, 182, 206, 116, 158,
       ]);
 
-      const accounts = await this.withTimeout(
-        connection.getProgramAccounts(programId, {
-          commitment: 'confirmed',
-          filters: [
-            {
-              memcmp: {
-                offset: 0,
-                bytes: discriminator.toString('base64'),
-                encoding: 'base64',
-              },
+      const accounts = await connection.getProgramAccounts(programId, {
+        commitment: 'confirmed',
+        filters: [
+          {
+            memcmp: {
+              offset: 0,
+              bytes: discriminator.toString('base64'),
+              encoding: 'base64',
             },
-          ],
-          // Only fetch the owner field (offset 8, size 32) + discriminator
-          // But getProgramAccounts typically returns full data or just pubkey
-          dataSlice: { offset: 8, length: 32 },
-        }),
-        SolanaService.RPC_TIMEOUT_MS,
-        'getProgramAccounts',
-      );
+          },
+        ],
+        dataSlice: { offset: 8, length: 32 },
+      });
 
       this.rpcManager.recordSuccess();
 
@@ -197,34 +180,5 @@ export class SolanaService {
       });
       throw new RegistryUnavailableException();
     }
-  }
-
-  /**
-   * Enforce a timeout on any promise. If the promise does not settle within
-   * `ms` milliseconds, rejects with a descriptive TimeoutError.
-   *
-   * Used as a safety net when calling external systems (Solana RPC, etc.)
-   * that may hang indefinitely (NF-001, NF-008).
-   */
-  private withTimeout<T>(
-    promise: Promise<T>,
-    ms: number,
-    label: string,
-  ): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`[${label}] RPC timed out after ${ms}ms`));
-      }, ms);
-      promise.then(
-        (val) => {
-          clearTimeout(timer);
-          resolve(val);
-        },
-        (err: unknown) => {
-          clearTimeout(timer);
-          reject(err instanceof Error ? err : new Error(String(err)));
-        },
-      );
-    });
   }
 }
