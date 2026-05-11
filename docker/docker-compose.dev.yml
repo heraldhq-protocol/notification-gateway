@@ -37,6 +37,7 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=development
+      - TSC_WATCHFILE=DynamicPriorityPolling
       - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public
       - REDIS_URL=redis://redis:6379
     env_file:

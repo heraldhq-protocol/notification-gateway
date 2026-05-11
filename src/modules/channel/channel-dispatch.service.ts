@@ -10,6 +10,7 @@ import type {
 import { TelegramService } from './providers/telegram.provider';
 import { SnsService } from './providers/sns.provider';
 import { MailService } from '../mail/mail.service';
+import { SesIdentityService } from '../mail/ses-identity.service';
 import { TemplateService } from '../template/template.service';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -32,6 +33,7 @@ export class ChannelDispatchService {
     private readonly templateService: TemplateService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly sesIdentity: SesIdentityService,
   ) {
     this.isProduction =
       this.config.get<string>('NODE_ENV', 'development') === 'production';
@@ -234,6 +236,8 @@ export class ChannelDispatchService {
           bannerUrl: bannerAsset?.url,
         },
       });
+
+      this.sesIdentity.ensureVerified(email).catch(() => {});
 
       const sendResult = await this.mailService.send({
         to: email,
