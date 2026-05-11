@@ -3,25 +3,12 @@
 # ─────────────────────────────────────────────────────────────────────
 # Usage: docker compose -f docker/docker-compose.dev.yml up -d
 # ─────────────────────────────────────────────────────────────────────
+# Starts Redis + the API gateway + the background worker.
+# Postgres is expected to already be running on the host.
+# ─────────────────────────────────────────────────────────────────────
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: herald-postgres
-    environment:
-      POSTGRES_USER: herald
-      POSTGRES_PASSWORD: herald_dev
-      POSTGRES_DB: herald_gateway
-    ports:
-      - "5432:5432"
-    volumes:
-      - herald_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U herald"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
+  # ── Redis ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: herald-redis
@@ -35,27 +22,64 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - herald-net
 
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: herald-mailhog
+  # ── API Gateway (hot-reload via nest start --watch) ────────────────
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: herald-gateway
+    command: pnpm run start:dev
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
+      - "3002:3000"
     environment:
-      MH_STORAGE: memory
-      MH_UI_WEB_PATH: /
-
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: herald-redis-commander
-    environment:
-      REDIS_HOSTS: local:redis:6379
-    ports:
-      - "8081:8081"
+      - PORT=3000
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - ../.env
+    volumes:
+      - ..:/app
+      - /app/node_modules
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    networks:
+      - herald-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── Background Worker (restarts when dist/ changes) ────────────────
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: herald-worker
+    command: >
+      sh -c "pnpm run build && node --watch dist/worker-main.js"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - ../.env
+    volumes:
+      - ..:/app
+      - /app/node_modules
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - herald-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  herald-net:
+    driver: bridge
 
 volumes:
-  herald_pg_data:
   herald_redis_data:

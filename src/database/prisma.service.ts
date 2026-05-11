@@ -36,7 +36,8 @@ export class PrismaService
       );
     } else if (
       !connectionString.includes('localhost') &&
-      !connectionString.includes('127.0.0.1')
+      !connectionString.includes('127.0.0.1') &&
+      !connectionString.includes('host.docker.internal')
     ) {
       const separator = connectionString.includes('?') ? '&' : '?';
       connectionString += `${separator}sslmode=no-verify`;
@@ -46,7 +47,8 @@ export class PrismaService
     // skip certificate verification to handle AWS self-signed/internal certs.
     const isLocal =
       connectionString.includes('localhost') ||
-      connectionString.includes('127.0.0.1');
+      connectionString.includes('127.0.0.1') ||
+      connectionString.includes('host.docker.internal');
 
     const pool = new Pool({
       connectionString,
