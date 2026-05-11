@@ -41,6 +41,8 @@ export class SandboxService {
 
   private static readonly DAILY_KEY = 'sandbox:daily:';
   private static readonly IP_DAILY_KEY = 'sandbox:ip_daily:';
+  private static readonly PLAYGROUND_DAILY_KEY = 'sandbox:playground:';
+  private static readonly PLAYGROUND_DAILY_LIMIT = 25;
 
   private readonly logger = new Logger(SandboxService.name);
 
@@ -298,6 +300,44 @@ export class SandboxService {
       },
     });
   }
+
+  // ── Playground (dashboard sandbox send) ─────────────────────────────────
+
+  async checkPlaygroundLimit(apiKeyId: string): Promise<{
+    allowed: boolean;
+    remaining: number;
+    dailyLimit: number;
+  }> {
+    const today = await this.getPlaygroundTodayCount(apiKeyId);
+    const remaining = Math.max(
+      0,
+      SandboxService.PLAYGROUND_DAILY_LIMIT - today,
+    );
+    return {
+      allowed: remaining > 0,
+      remaining,
+      dailyLimit: SandboxService.PLAYGROUND_DAILY_LIMIT,
+    };
+  }
+
+  async incrementPlaygroundUsage(apiKeyId: string): Promise<void> {
+    const key = `${SandboxService.PLAYGROUND_DAILY_KEY}${apiKeyId}`;
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    const ttl = Math.ceil((midnight.getTime() - now.getTime()) / 1000);
+
+    await this.redis.incr(key);
+    await this.redis.expire(key, ttl);
+  }
+
+  private async getPlaygroundTodayCount(apiKeyId: string): Promise<number> {
+    const key = `${SandboxService.PLAYGROUND_DAILY_KEY}${apiKeyId}`;
+    const count = await this.redis.get(key);
+    return count ? parseInt(count, 10) : 0;
+  }
+
+  // ── Cleanup ─────────────────────────────────────────────────────────────
 
   /**
    * Runs nightly at 02:00 UTC — deletes sandbox receipts older than 25h.
