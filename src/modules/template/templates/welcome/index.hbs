@@ -70,45 +70,54 @@
 <body>
   <span class="preheader">{{protocolName}} — {{subject}}</span>
   <div class="wrap"><div class="container">
-    
-      <table width="100%" cellpadding="0" cellspacing="0" style="padding:8px 4px 0;">
-      <tr>
-        <td style="vertical-align:middle;">
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;padding-right:12px;line-height:0;"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;"></td>
-            <td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.01em;color:#0F172A;">{{protocolName}}</td>
-          </tr></table>
-        </td>
-        <td align="right" style="vertical-align:middle;font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:#64748B;font-weight:700;white-space:nowrap;">{{categoryLabel category}}</td>
-      </tr>
-    </table>
+    <div class="header" style="padding-bottom:20px;">
+      <div class="brand"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;"><span class="brand-name">Herald</span></div>
+      <span class="protocol-tag">{{categoryLabel category}}</span>
+    </div>
+    <div style="position:relative;border-radius:8px 8px 0 0;overflow:hidden;height:200px;background:#040C18;background-image:radial-gradient(ellipse 80% 60% at 30% 110%, rgba(0,200,150,0.38) 0%, transparent 65%),radial-gradient(ellipse 60% 50% at 90% 0%, rgba(91,53,213,0.28) 0%, transparent 65%),linear-gradient(180deg,#040C18 0%,#060D18 100%);border:1px solid #E2E8F0;border-bottom:0;">
+      <div style="position:absolute;inset:0;opacity:0.4;background-image:radial-gradient(circle,rgba(0,200,150,0.4) 1px,transparent 1.5px);background-size:24px 24px;"></div>
+      <div style="position:absolute;left:36px;bottom:32px;display:flex;align-items:center;gap:16px;">
+        <div style="line-height:0;filter:drop-shadow(0 0 24px rgba(0,200,150,0.55));"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="52" height="52" style="display:block;border-radius:12px;"></div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.18em;color:rgba(255,255,255,0.55);font-weight:600;margin-bottom:4px;">Herald Protocol</div>
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#F8FAFC;letter-spacing:-0.01em;">Encrypted on-chain · Decrypted in a TEE</div>
+        </div>
+      </div>
+    </div>
     <div style="height:20px;line-height:20px;font-size:20px;">&nbsp;</div>
-    <div class="card">
-      <div class="eyebrow"><span class="dot"></span>{{categoryLabel category}}</div>
-      <h1 class="headline">{{subject}}</h1>
-      <div class="body-text">
-        {{{markdown body}}}
+    <div class="card" style="border-radius:0 0 8px 8px;border-top:0;">
+      <h1 class="headline" style="font-size:30px;">Welcome to Herald, Alex.</h1>
+      <p class="body-text">You're now part of the privacy-preserving notification layer for Solana DeFi. Send email, SMS and Telegram to your users — without ever touching a single contact address.</p>
+      <p class="body-text">Your first API key is ready. Encryption happens on-chain. Decryption happens inside a TEE. We never see who your notifications are for.</p>
+      <div style="margin-top:24px;padding:18px 20px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span class="meta-key">Sandbox API Key</span>
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:#00C896;font-weight:700;">● Live</span>
+        </div>
+        <div class="mono" style="font-size:13px;color:#00C896;word-break:break-all;line-height:1.5;">hp_test_4nQc7vL2bMxR9pK1zE8gT3fY6sH0jW</div>
       </div>
       {{#if actionUrl}}
       <div class="cta-wrap"><a class="cta" href="{{actionUrl}}">{{actionLabel}}</a></div>
       {{/if}}
-      {{#if txHash}}
-      <div class="tx-block">
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
-          <tr>
-            <td style="font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:#64748B;font-weight:700;">Transaction</td>
-            <td align="right" style="font-size:10px;color:#64748B;font-family:'JetBrains Mono',monospace;font-weight:500;letter-spacing:0;white-space:nowrap;">Solana mainnet</td>
-          </tr>
-        </table>
-        <div class="tx-hash">{{txHash}}</div>
+      <hr class="divider">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <a href="#" style="display:block;padding:16px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;text-decoration:none;">
+          <div class="meta-key" style="margin-bottom:6px;">Step 01</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#0F172A;letter-spacing:-0.01em;margin-bottom:4px;">Send your first notification</div>
+          <div style="font-size:12px;color:#64748B;">curl one endpoint · 5 min</div>
+        </a>
+        <a href="#" style="display:block;padding:16px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;text-decoration:none;">
+          <div class="meta-key" style="margin-bottom:6px;">Step 02</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#0F172A;letter-spacing:-0.01em;margin-bottom:4px;">Verify delivery receipts</div>
+          <div style="font-size:12px;color:#64748B;">ZK proofs · webhook</div>
+        </a>
       </div>
-      {{/if}}
     </div>
     
       <div class="footer">
-        <p class="footer-meta"><span class="meta-key" style="display:block;margin-bottom:6px;">Delivered to</span><span class="footer-wallet">{{walletAddress}}</span></p>
-        <p class="footer-meta" style="margin-top:14px;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">{{protocolName}}</strong> does not have access to your email address.</p>
         
+        
+        <p class="footer-meta">You're receiving this because you signed up for a Herald Dashboard account.</p><p class="footer-meta" style="margin-top:14px;font-size:11px;">Herald Protocol · encrypted on-chain · decrypted in a TEE · open-source</p>
         <hr class="footer-divider">
         <table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">
           <tr>

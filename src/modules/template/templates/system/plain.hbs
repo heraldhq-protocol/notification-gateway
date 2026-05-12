@@ -1,28 +1,23 @@
-HERALD NOTIFICATION INFRASTRUCTURE ================================ Source
-Protocol:
-{{protocolName}}
-Subject:
+{{protocolName}} — {{categoryLabel}}
+================================================================
 {{subject}}
-
---------------------------------
+----------------------------------------------------------------
 
 {{body}}
 
 {{#if txHash}}
-  Transaction Reference:
-  {{txHash}}
+Transaction Reference:
+{{txHash}}
 {{/if}}
 
 {{#if actionUrl}}
-  Action Required:
-  {{actionUrl}}
+Action Required:
+{{actionUrl}}
 {{/if}}
 
--------------------------------- Zero-PII delivery protocol •
-{{protocolName}}
-cannot access recipient identity • Relayed by Herald Network
--------------------------------- Delivered via Herald API |
-https://useherald.xyz Unsubscribe:
-{{unsubscribeUrl}}
-Recipient:
-{{recipientAddress}}
+----------------------------------------------------------------
+Delivered securely by Herald Protocol. 
+{{protocolName}} does not have access to your email address.
+----------------------------------------------------------------
+Delivered to: {{walletAddress}}
+Unsubscribe: {{unsubscribeUrl}}

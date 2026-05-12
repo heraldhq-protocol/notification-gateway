@@ -70,21 +70,13 @@
 <body>
   <span class="preheader">{{protocolName}} — {{subject}}</span>
   <div class="wrap"><div class="container">
-    
-      <table width="100%" cellpadding="0" cellspacing="0" style="padding:8px 4px 0;">
-      <tr>
-        <td style="vertical-align:middle;">
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;padding-right:12px;line-height:0;"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;"></td>
-            <td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.01em;color:#0F172A;">{{protocolName}}</td>
-          </tr></table>
-        </td>
-        <td align="right" style="vertical-align:middle;font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:#64748B;font-weight:700;white-space:nowrap;">{{categoryLabel category}}</td>
-      </tr>
-    </table>
+    <div class="header">
+      <div class="brand"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;"><span class="brand-name">Herald</span></div>
+      <span class="protocol-tag">{{categoryLabel category}}</span>
+    </div>
     <div style="height:20px;line-height:20px;font-size:20px;">&nbsp;</div>
     <div class="card">
-      <div class="eyebrow"><span class="dot"></span>{{categoryLabel category}}</div>
+      <div class="eyebrow" style="color:#F59E0B;"><span class="dot" style="background:#F59E0B;"></span>Usage Threshold · 90%</div>
       <h1 class="headline">{{subject}}</h1>
       <div class="body-text">
         {{{markdown body}}}
@@ -92,23 +84,12 @@
       {{#if actionUrl}}
       <div class="cta-wrap"><a class="cta" href="{{actionUrl}}">{{actionLabel}}</a></div>
       {{/if}}
-      {{#if txHash}}
-      <div class="tx-block">
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
-          <tr>
-            <td style="font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:#64748B;font-weight:700;">Transaction</td>
-            <td align="right" style="font-size:10px;color:#64748B;font-family:'JetBrains Mono',monospace;font-weight:500;letter-spacing:0;white-space:nowrap;">Solana mainnet</td>
-          </tr>
-        </table>
-        <div class="tx-hash">{{txHash}}</div>
       </div>
-      {{/if}}
-    </div>
     
       <div class="footer">
-        <p class="footer-meta"><span class="meta-key" style="display:block;margin-bottom:6px;">Delivered to</span><span class="footer-wallet">{{walletAddress}}</span></p>
-        <p class="footer-meta" style="margin-top:14px;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">{{protocolName}}</strong> does not have access to your email address.</p>
         
+        
+        <p class="footer-meta">This alert was sent because your usage crossed the 90% threshold. Adjust thresholds in <a href="#" style="color:#00C896;text-decoration:none;">notification settings</a>.</p>
         <hr class="footer-divider">
         <table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">
           <tr>

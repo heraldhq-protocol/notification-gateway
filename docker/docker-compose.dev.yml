@@ -1,6 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────
 # Herald Notification Gateway — Local Development Stack
 # ─────────────────────────────────────────────────────────────────────
+name: herald-gateway-dev
 # Usage: docker compose -f docker/docker-compose.dev.yml up -d
 # ─────────────────────────────────────────────────────────────────────
 # Starts Redis + the API gateway + the background worker.
@@ -23,7 +24,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - herald-net
+      - herald-gateway-dev-net
 
   # ── API Gateway (hot-reload via nest start --watch) ────────────────
   gateway:
@@ -49,7 +50,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - herald-net
+      - herald-gateway-dev-net
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -74,12 +75,12 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - herald-net
+      - herald-gateway-dev-net
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
 networks:
-  herald-net:
+  herald-gateway-dev-net:
     driver: bridge
 
 volumes:

@@ -223,10 +223,10 @@ export class ChannelDispatchService {
         template: templateName,
         variables: {
           protocolName: job.protocolName,
-          subject: formattedSubject,
+          subject: job.subject,
           body: job.body,
           category: job.category,
-          recipientAddress: job.wallet,
+          walletAddress: job.wallet,
           unsubscribeUrl: this.generateSignedUnsubscribeUrl(
             job.walletHash || '',
             job.category,

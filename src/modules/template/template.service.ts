@@ -14,7 +14,7 @@ import { MjmlCompilerService } from './mjml-compiler.service';
 import { XssSanitizer } from './utils/xss-sanitizer';
 
 const HERALD_LOGO_URL =
-  'https://ucshdejvxzanuxlxrano.supabase.co/storage/v1/object/public/herald-public-asset/herald-logo.png';
+  'https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg';
 
 export interface RenderParams {
   template: string;
@@ -224,6 +224,12 @@ export class TemplateService {
             : tier === 3
               ? 'enterprise'
               : 'none';
+
+    // System templates already include their own footer (Herald logo + unsubscribe).
+    // Only inject when the template doesn't have one to avoid a duplicate footer.
+    if (html.includes('footer-brand')) {
+      return html;
+    }
 
     const footer = footers[footerKey];
     return html.includes('</body>')
