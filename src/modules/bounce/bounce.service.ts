@@ -132,7 +132,7 @@ export class BounceService {
       if (bounceType === 'soft') {
         const latestHardBounce = await this.prisma.emailBounce.findFirst({
           where: { walletHash: notification.walletHash, bounceType: { in: ['hard', 'complaint'] } },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { bouncedAt: 'desc' },
         });
 
         const latestDelivery = await this.prisma.emailDelivery.findFirst({
@@ -141,7 +141,7 @@ export class BounceService {
         });
 
         const resetTimes = [
-          latestHardBounce?.createdAt,
+          latestHardBounce?.bouncedAt,
           latestDelivery?.deliveredAt,
         ].filter((d): d is Date => d !== undefined);
 
@@ -153,7 +153,7 @@ export class BounceService {
           where: {
             walletHash: notification.walletHash,
             bounceType: 'soft',
-            createdAt: { gt: cutoff },
+            bouncedAt: { gt: cutoff },
           },
         });
 
