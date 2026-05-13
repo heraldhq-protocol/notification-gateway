@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SmtpProvider } from './providers/smtp.provider';
 import { SesProvider } from './providers/ses.provider';
+import { ResendProvider } from './providers/resend.provider';
 import type {
   IMailProvider,
   SendEmailMessage,
@@ -13,7 +14,9 @@ import type {
  *
  * Provider selection:
  *   development → SmtpProvider (Nodemailer + Mailhog)
- *   production  → SesProvider (AWS SES)
+ *   staging     → ResendProvider (Resend API)
+ *   production  → ResendProvider until SES gains production access,
+ *                  then switch to SesProvider
  *
  * SECURITY: The 'to' field MUST NOT appear in any logs.
  */
@@ -25,12 +28,16 @@ export class MailService {
   constructor(
     private readonly smtpProvider: SmtpProvider,
     private readonly sesProvider: SesProvider,
+    private readonly resendProvider: ResendProvider,
     private readonly config: ConfigService,
   ) {
     const mailProvider = this.config.get<string>('MAIL_PROVIDER', 'smtp');
     switch (mailProvider) {
       case 'ses':
         this.provider = this.sesProvider;
+        break;
+      case 'resend':
+        this.provider = this.resendProvider;
         break;
       case 'smtp':
       default:

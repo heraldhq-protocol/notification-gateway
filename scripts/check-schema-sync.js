@@ -19,7 +19,7 @@ const SHARED_MODELS = [
   'Protocol', 'ApiKey', 'Notification', 'NotificationTemplate',
   'NotificationTemplateVersion', 'Subscription', 'Webhook', 'WebhookDelivery',
   'Payment', 'ProtocolAsset', 'DigestQueue', 'DkimKey', 'EmailBounce',
-  'HelioWebhookEvent',
+  'EmailSuppression', 'EmailDelivery', 'HelioWebhookEvent',
 ];
 
 function extractModels(schemaText) {

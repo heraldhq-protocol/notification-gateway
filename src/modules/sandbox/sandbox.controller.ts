@@ -40,10 +40,11 @@ export class SandboxController {
   @HttpCode(HttpStatus.ACCEPTED)
   @RequiredScopes('notify:write')
   @ApiOperation({
-    summary: 'Send a playground test notification to your configured test contacts',
+    summary:
+      'Send a playground test notification to your configured test contacts',
     description:
       'Requires a sandbox (hrld_test_) API key. Delivers directly to the ' +
-      'protocol\'s test_email, test_telegram_id, and test_phone from Settings. ' +
+      "protocol's test_email, test_telegram_id, and test_phone from Settings. " +
       'No wallet address is needed. Limited to 25 sends per day.',
   })
   @ApiResponse({

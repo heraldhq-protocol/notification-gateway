@@ -1,7 +1,8 @@
 /**
  * IMailProvider — contract for all email providers.
  *
- * Implementations: SmtpProvider (dev), SesProvider (production)
+ * Implementations: SmtpProvider (dev), ResendProvider (staging/production),
+ *                  SesProvider (production when AWS SES approved)
  *
  * SECURITY: The `to` field MUST NEVER be logged.
  */
@@ -23,5 +24,5 @@ export interface SendEmailMessage {
 
 export interface SendEmailResult {
   messageId: string;
-  provider: 'ses' | 'smtp';
+  provider: 'ses' | 'smtp' | 'resend';
 }

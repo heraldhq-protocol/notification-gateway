@@ -106,10 +106,19 @@ export class MailWorker extends WorkerHost {
         },
       );
 
+      const sandboxEmailOutcome = result.outcomes.find(
+        (o) => o.channel === 'email' && o.success,
+      );
+
       if (result.successCount > 0) {
         await this.prisma.notification.update({
           where: { id: notificationId },
-          data: { status: 'delivered', deliveredAt: new Date() },
+          data: {
+            status: 'delivered',
+            deliveredAt: new Date(),
+            sesMessageId: sandboxEmailOutcome?.messageId ?? null,
+            emailProvider: sandboxEmailOutcome?.provider ?? null,
+          },
         });
       } else {
         await this.prisma.notification.update({
@@ -243,14 +252,25 @@ export class MailWorker extends WorkerHost {
       // ── Step 4: Dispatch to all channels ──────────────────────
       const result = await this.channelDispatch.dispatch(channels, job.data);
 
-      // ── Step 4: Update notification record ─────────────────────
+      // ── Extract SES messageId from successful email delivery ──
+      const emailOutcome = result.outcomes.find(
+        (o) => o.channel === 'email' && o.success,
+      );
+
+      // ── Step 5: Update notification record ─────────────────────
       let finalStatus: string;
 
       if (result.allDelivered) {
         finalStatus = 'delivered';
         await this.prisma.notification.update({
           where: { id: notificationId },
-          data: { status: 'delivered', deliveredAt: new Date(), arweaveId },
+          data: {
+            status: 'delivered',
+            deliveredAt: new Date(),
+            arweaveId,
+            sesMessageId: emailOutcome?.messageId ?? null,
+            emailProvider: emailOutcome?.provider ?? null,
+          },
         });
       } else if (result.successCount > 0) {
         finalStatus = 'partial';
@@ -260,6 +280,8 @@ export class MailWorker extends WorkerHost {
             status: 'partial',
             deliveredAt: new Date(),
             arweaveId,
+            sesMessageId: emailOutcome?.messageId ?? null,
+            emailProvider: emailOutcome?.provider ?? null,
             errorCode: `PARTIAL_${result.successCount}/${result.totalChannels}`,
           },
         });

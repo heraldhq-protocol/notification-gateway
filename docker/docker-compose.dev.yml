@@ -32,14 +32,16 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.dev
     container_name: herald-gateway
-    command: pnpm run start:dev
+    entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
+    command: ["gateway"]
     ports:
       - "3002:3000"
     environment:
       - PORT=3000
       - NODE_ENV=development
+      - CI=true
       - TSC_WATCHFILE=DynamicPriorityPolling
-      - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public
+      - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public&sslmode=disable
       - REDIS_URL=redis://redis:6379
     env_file:
       - ../.env
@@ -60,11 +62,13 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.dev
     container_name: herald-worker
-    command: >
-      sh -c "pnpm run build && node --watch dist/worker-main.js"
+    entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
+    command: ["worker"]
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public
+      - CI=true
+      - SERVICE_TYPE=worker
+      - DATABASE_URL=postgresql://postgres:admin@host.docker.internal:5432/herald_gateway?schema=public&sslmode=disable
       - REDIS_URL=redis://redis:6379
     env_file:
       - ../.env

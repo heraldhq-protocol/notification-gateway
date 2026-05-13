@@ -29,9 +29,10 @@ export class PrismaService
 
     // RDS/AWS Secrets Manager sometimes appends sslmode=verify-full which
     // overrides our driver-level rejectUnauthorized: false.
+    // Only override strict SSL modes — leave sslmode=disable untouched.
     if (connectionString.includes('sslmode=')) {
       connectionString = connectionString.replace(
-        /sslmode=[^&]*/,
+        /sslmode=(verify-full|verify-ca|require)/,
         'sslmode=no-verify',
       );
     } else if (
@@ -43,19 +44,21 @@ export class PrismaService
       connectionString += `${separator}sslmode=no-verify`;
     }
 
-    // Disable SSL for local development. RDS/Production will use SSL but
-    // skip certificate verification to handle AWS self-signed/internal certs.
+    // Disable SSL for local development or when explicitly set to disable.
+    // RDS/Production will use SSL but skip certificate verification
+    // to handle AWS self-signed/internal certs.
     const isLocal =
       connectionString.includes('localhost') ||
       connectionString.includes('127.0.0.1') ||
       connectionString.includes('host.docker.internal');
+    const sslDisabled = connectionString.includes('sslmode=disable');
 
     const pool = new Pool({
       connectionString,
       max: 25,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 30_000,
-      ssl: isLocal
+      ssl: isLocal || sslDisabled
         ? false
         : {
             rejectUnauthorized: false,

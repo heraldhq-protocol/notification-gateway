@@ -68,7 +68,8 @@ export class SandboxSendDto {
     description:
       'Notification body (markdown supported). ' +
       'Max 10,000 characters for email, 4,096 for Telegram, and 1,600 for SMS.',
-    example: '**Test notification**\n\nThis is a playground test sent to your configured test contacts.',
+    example:
+      '**Test notification**\n\nThis is a playground test sent to your configured test contacts.',
     maxLength: 10000,
   })
   @IsString()

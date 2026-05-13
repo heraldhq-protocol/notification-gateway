@@ -37,7 +37,7 @@ export const EnvironmentSchema = z.object({
   NITRO_ENCLAVE_SOCKET: z.string().default('/run/enclave.sock'),
 
   // ── Mail provider selection ───────────────────────────────────────
-  MAIL_PROVIDER: z.enum(['smtp', 'ses']).default('smtp'),
+  MAIL_PROVIDER: z.enum(['smtp', 'ses', 'resend']).default('smtp'),
 
   // ── Development SMTP (Nodemailer + Mailhog) ───────────────────────
   SMTP_HOST: z.string().default('localhost'),
@@ -115,6 +115,9 @@ export const EnvironmentSchema = z.object({
 
   // ── Internal Service Auth ────────────────────────────────────────
   INTERNAL_API_KEY: z.string().min(32).optional(),
+
+  // ── SES Event Notifications (SQS) ────────────────────────────────
+  SQS_SES_QUEUE_URL: z.string().optional(),
 
   // ── Monitoring ────────────────────────────────────────────────────
   PINO_LOG_LEVEL: z

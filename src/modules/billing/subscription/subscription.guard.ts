@@ -46,7 +46,9 @@ export class SubscriptionGuard implements CanActivate {
 
     // Cache-first: Redis hit avoids Prisma pool wait
     const cacheKey = `${SubscriptionGuard.CACHE_PREFIX}${protocol.protocolId}`;
-    let subscription: import('../../../../prisma/generated/prisma/index').Subscription | null = null;
+    let subscription:
+      | import('../../../../prisma/generated/prisma/index').Subscription
+      | null = null;
 
     try {
       const cached = await this.redis.get(cacheKey);
@@ -67,9 +69,13 @@ export class SubscriptionGuard implements CanActivate {
       );
       if (subscription) {
         this.redis
-          .setex(cacheKey, SubscriptionGuard.CACHE_TTL, JSON.stringify(subscription, (_k, v) =>
-            typeof v === 'bigint' ? v.toString() : v,
-          ))
+          .setex(
+            cacheKey,
+            SubscriptionGuard.CACHE_TTL,
+            JSON.stringify(subscription, (_k, v) =>
+              typeof v === 'bigint' ? v.toString() : v,
+            ),
+          )
           .catch(() => {});
       }
     }

@@ -37,7 +37,10 @@ export class QueueService {
     return Promise.race([
       promise,
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`BullMQ enqueue timed out after ${ms}ms`)), ms),
+        setTimeout(
+          () => reject(new Error(`BullMQ enqueue timed out after ${ms}ms`)),
+          ms,
+        ),
       ),
     ]);
   }

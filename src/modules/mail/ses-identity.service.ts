@@ -1,9 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  SESClient,
-  VerifyEmailIdentityCommand,
-} from '@aws-sdk/client-ses';
+import { SESClient, VerifyEmailIdentityCommand } from '@aws-sdk/client-ses';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.module';
 
@@ -22,10 +19,9 @@ export class SesIdentityService {
     private readonly config: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
-    this.enabled = this.config.get<boolean>(
-      'SES_AUTO_VERIFY_IDENTITIES',
-      false,
-    ) && this.config.get('MAIL_PROVIDER') === 'ses';
+    this.enabled =
+      this.config.get<boolean>('SES_AUTO_VERIFY_IDENTITIES', false) &&
+      this.config.get('MAIL_PROVIDER') === 'ses';
 
     this.client = new SESClient({
       region: this.config.get('AWS_REGION', 'us-east-1'),

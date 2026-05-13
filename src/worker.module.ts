@@ -16,6 +16,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { ArweaveStorageModule } from './storage/arweave-storage.module';
 import { BounceModule } from './modules/bounce/bounce.module';
+import { SqsModule } from './modules/sqs/sqs.module';
 import { ReceiptModule } from './modules/receipt/receipt.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
 
@@ -104,6 +105,7 @@ import { DigestWorker } from './modules/queue/workers/digest.worker';
     BillingModule,
     ArweaveStorageModule,
     BounceModule,
+    SqsModule,
     ReceiptModule,
     SandboxModule,
   ],
