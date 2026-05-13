@@ -197,12 +197,12 @@ model EmailBounce {
 
 model EmailDelivery {
   id             String       @id @default(uuid()) @db.Uuid
-  notificationId String?      @map("notification_id") @db.Uuid
+  notificationId String      @map("notification_id") @db.Uuid
   sesMessageId   String?      @map("ses_message_id") @db.VarChar(100)
   smtpResponse   String?      @map("smtp_response")
   processingTime Int?         @map("processing_time_ms")
   deliveredAt    DateTime     @default(now()) @map("delivered_at") @db.Timestamptz(6)
-  notification   Notification? @relation(fields: [notificationId], references: [id])
+  notification   Notification @relation(fields: [notificationId], references: [id])
 
   @@index([sesMessageId], map: "idx_email_delivery_ses_id")
   @@map("email_deliveries")

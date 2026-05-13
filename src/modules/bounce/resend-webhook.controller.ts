@@ -5,8 +5,13 @@ import {
   Logger,
   HttpCode,
   HttpStatus,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { Webhook } from 'svix';
 import { BounceService } from './bounce.service';
 
 /**
@@ -24,12 +29,33 @@ import { BounceService } from './bounce.service';
 export class ResendWebhookController {
   private readonly logger = new Logger(ResendWebhookController.name);
 
-  constructor(private readonly bounceService: BounceService) {}
+  constructor(
+    private readonly bounceService: BounceService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('resend')
   @HttpCode(HttpStatus.OK)
   @ApiExcludeEndpoint()
-  async handleResendEvent(@Body() body: Record<string, unknown>) {
+  async handleResendEvent(
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    const secret = this.configService.get<string>('RESEND_WEBHOOK_SECRET');
+    if (secret) {
+      try {
+        const wh = new Webhook(secret);
+        wh.verify(JSON.stringify(body), {
+          'svix-id': req.headers['svix-id'] as string,
+          'svix-timestamp': req.headers['svix-timestamp'] as string,
+          'svix-signature': req.headers['svix-signature'] as string,
+        });
+      } catch {
+        this.logger.warn('Resend webhook signature verification failed');
+        throw new UnauthorizedException('Invalid webhook signature');
+      }
+    }
+
     const eventType = body.type as string | undefined;
     const eventData = body.data as Record<string, unknown> | undefined;
 

@@ -130,10 +130,30 @@ export class BounceService {
       });
 
       if (bounceType === 'soft') {
+        const latestHardBounce = await this.prisma.emailBounce.findFirst({
+          where: { walletHash: notification.walletHash, bounceType: { in: ['hard', 'complaint'] } },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        const latestDelivery = await this.prisma.emailDelivery.findFirst({
+          where: { notification: { walletHash: notification.walletHash } },
+          orderBy: { deliveredAt: 'desc' },
+        });
+
+        const resetTimes = [
+          latestHardBounce?.createdAt,
+          latestDelivery?.deliveredAt,
+        ].filter((d): d is Date => d !== undefined);
+
+        const cutoff = resetTimes.length > 0
+          ? resetTimes.reduce((max, d) => d > max ? d : max)
+          : new Date(0);
+
         const consecutiveSofts = await this.prisma.emailBounce.count({
           where: {
             walletHash: notification.walletHash,
             bounceType: 'soft',
+            createdAt: { gt: cutoff },
           },
         });
 

@@ -212,9 +212,16 @@ export class MailWorker extends WorkerHost {
 
       // Clear suppression if email channel is active and decrypted
       if (identity.channelEmail && channels.email && job.data.walletHash) {
-        this.prisma.emailSuppression
-          .deleteMany({ where: { walletHash: job.data.walletHash } })
-          .catch(() => {});
+        try {
+          await this.prisma.emailSuppression.deleteMany({
+            where: { walletHash: job.data.walletHash },
+          });
+        } catch (err) {
+          this.logger.warn('Failed to clear email suppression', {
+            walletHash: (job.data.walletHash as string).slice(0, 8) + '...',
+            error: (err as Error).message,
+          });
+        }
       }
 
       // ── Step 3: Store notification body on Arweave ────────────

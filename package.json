@@ -86,6 +86,7 @@
     "resend": "^3.5.0",
     "rxjs": "^7.8.1",
     "sanitize-html": "^2.17.2",
+    "svix": "^1.93.0",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
     "ulid": "^2.4.0",
