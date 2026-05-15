@@ -3,6 +3,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { QueueNames } from '../queue.constants';
 import { RoutingService } from '../../routing/routing.service';
+import { EnclaveService } from '../../routing/enclave.service';
 import { ChannelDispatchService } from '../../channel/channel-dispatch.service';
 import { WebhookService } from '../../webhook/webhook.service';
 import { OverageMeteringService } from '../../billing/overage-metering.service';
@@ -44,6 +45,7 @@ export class MailWorker extends WorkerHost {
 
   constructor(
     private readonly routingService: RoutingService,
+    private readonly enclaveService: EnclaveService,
     private readonly channelDispatch: ChannelDispatchService,
     private readonly webhookService: WebhookService,
     private readonly overageMetering: OverageMeteringService,
@@ -264,6 +266,36 @@ export class MailWorker extends WorkerHost {
         (o) => o.channel === 'email' && o.success,
       );
 
+      // ── Encrypt notification body for portal viewing ──────────
+      // Uses E2EE: NaCl box with user's X25519 notification key.
+      // Only possible if user registered a notification key.
+      let ciphertext: string | null = null;
+      let nonce: string | null = null;
+      try {
+        const userPubkey = identity.senderX25519Pubkey;
+        if (userPubkey && userPubkey.length === 32) {
+          const actionUrl =
+            job.data.templateVariables?.action_url;
+          const encrypted = this.enclaveService.encryptForUser(
+            Buffer.from(userPubkey).toString('hex'),
+            {
+              subject: job.data.subject,
+              message: job.data.body,
+              ...(actionUrl ? { actionUrl } : {}),
+            },
+          );
+          if (encrypted) {
+            ciphertext = encrypted.ciphertext;
+            nonce = encrypted.nonce;
+          }
+        }
+      } catch (err) {
+        this.logger.warn(
+          'Failed to encrypt notification body for portal',
+          { notificationId, error: (err as Error).message },
+        );
+      }
+
       // ── Step 5: Update notification record ─────────────────────
       let finalStatus: string;
 
@@ -277,6 +309,8 @@ export class MailWorker extends WorkerHost {
             arweaveId,
             sesMessageId: emailOutcome?.messageId ?? null,
             emailProvider: emailOutcome?.provider ?? null,
+            ciphertext,
+            nonce,
           },
         });
       } else if (result.successCount > 0) {
@@ -290,6 +324,8 @@ export class MailWorker extends WorkerHost {
             sesMessageId: emailOutcome?.messageId ?? null,
             emailProvider: emailOutcome?.provider ?? null,
             errorCode: `PARTIAL_${result.successCount}/${result.totalChannels}`,
+            ciphertext,
+            nonce,
           },
         });
       } else {

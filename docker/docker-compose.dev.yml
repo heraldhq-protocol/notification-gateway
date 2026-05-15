@@ -31,6 +31,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
+      network: host
     container_name: herald-gateway
     entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
     command: ["gateway"]
@@ -61,6 +62,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
+      network: host
     container_name: herald-worker
     entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
     command: ["worker"]

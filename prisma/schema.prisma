@@ -86,6 +86,8 @@ model Notification {
   errorCode         String?           @map("error_code") @db.VarChar(80)
   retryCount        Int               @default(0) @map("retry_count") @db.SmallInt
   arweaveId         String?           @map("arweave_id") @db.VarChar(100)
+  ciphertext        String?           @map("ciphertext") @db.Text
+  nonce             String?           @map("nonce") @db.VarChar(48)
   channelDeliveries ChannelDelivery[]
   emailBounces      EmailBounce[]
   emailDeliveries   EmailDelivery[]

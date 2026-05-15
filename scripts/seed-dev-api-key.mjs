@@ -13,13 +13,13 @@ const protocolId = protocolResult.rows[0].id;
 
 const random = randomBytes(32);
 const suffix = bs58.encode(Buffer.from(random));
-const plainText = `hrld_dev_${suffix}`;
+const plainText = `hrld_test_${suffix}`;
 const keyHash = createHash('sha256').update(plainText).digest('hex');
 const keyPrefix = plainText.substring(0, 8);
 
 await pool.query(
   `INSERT INTO api_keys (id, protocol_id, key_hash, key_prefix, environment, scopes, name, is_test_key)
-   VALUES (gen_random_uuid(), $1, $2, $3, 'development', ARRAY['notify:write'], 'Dev E2E Key', false)
+    VALUES (gen_random_uuid(), $1, $2, $3, 'dev', ARRAY['notify:write'], 'Dev E2E Key', false)
    ON CONFLICT (key_hash) DO NOTHING`,
   [protocolId, keyHash, keyPrefix],
 );

@@ -1,12 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nacl from 'tweetnacl';
-import { encodeUTF8 } from 'tweetnacl-util';
+import { encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import { RoutingUnavailableException } from '../../common/exceptions/herald.exception';
 import type {
   DecryptedChannels,
   IdentityAccount,
 } from '../../common/types/notification.types';
+
+export interface EncryptedPayload {
+  ciphertext: string; // hex-encoded NaCl box ciphertext
+  nonce: string;      // hex-encoded 24-byte nonce
+  gatewayPubkey: string; // hex-encoded gateway X25519 public key
+}
 
 export interface DecryptParams {
   encryptedEmail: Uint8Array;
@@ -87,6 +93,59 @@ export class EnclaveService {
   /** Whether direct in-process decryption is available. */
   private isDirectMode(): boolean {
     return this.directPrivKey !== null;
+  }
+
+  /** Gateway's X25519 public key (derived from directPrivKey). */
+  private gatewayPubkey: Uint8Array | null = null;
+
+  /** Returns the gateway's X25519 public key in hex, or null if not configured. */
+  getPublicKeyHex(): string | null {
+    if (!this.directPrivKey) return null;
+    if (!this.gatewayPubkey) {
+      const kp = nacl.box.keyPair.fromSecretKey(this.directPrivKey);
+      this.gatewayPubkey = kp.publicKey;
+    }
+    return Buffer.from(this.gatewayPubkey).toString('hex');
+  }
+
+  /**
+   * Encrypt a notification body for a user's X25519 notification key.
+   *
+   * Uses nacl.box with the gateway's secret key and the user's public key.
+   * The user decrypts client-side using their wallet-derived X25519 secret key
+   * and the gateway's public key.
+   *
+   * @param userX25519Pubkey - User's X25519 public key (32 bytes, hex-encoded).
+   * @param body - Plaintext body to encrypt (will be JSON-encoded).
+   * @returns Encrypted payload with hex-encoded ciphertext and nonce.
+   */
+  encryptForUser(
+    userX25519PubkeyHex: string,
+    body: Record<string, unknown>,
+  ): EncryptedPayload | null {
+    if (!this.directPrivKey) return null;
+
+    const userPubkey = Buffer.from(userX25519PubkeyHex, 'hex');
+    if (userPubkey.length !== 32) return null;
+
+    const keypair = nacl.box.keyPair.fromSecretKey(this.directPrivKey);
+    const nonce = nacl.randomBytes(nacl.box.nonceLength);
+    const plaintext = decodeUTF8(JSON.stringify(body));
+
+    const ciphertext = nacl.box(
+      plaintext,
+      nonce,
+      userPubkey,
+      keypair.secretKey,
+    );
+
+    if (!ciphertext) return null;
+
+    return {
+      ciphertext: Buffer.from(ciphertext).toString('hex'),
+      nonce: Buffer.from(nonce).toString('hex'),
+      gatewayPubkey: Buffer.from(keypair.publicKey).toString('hex'),
+    };
   }
 
   /**

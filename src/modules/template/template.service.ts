@@ -4,14 +4,39 @@ import * as path from 'path';
 import Handlebars from 'handlebars';
 import juice from 'juice';
 import { marked } from 'marked';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
 import { PrismaService } from '../../database/prisma.service';
 import { getTierLimits } from '../auth/rate-limit.constants';
 import {
   parseMarkdownLinks,
   convertLinksToHtml,
 } from '../../common/utils/link-parser';
-import { MjmlCompilerService } from './mjml-compiler.service';
-import { XssSanitizer } from './utils/xss-sanitizer';
+// Tags/attrs DOMPurify must preserve when sanitising user-submitted template HTML.
+// Must allow <style>, <head>, <meta>, <link> so Google Fonts and inline CSS survive.
+const TEMPLATE_ALLOWED_TAGS = [
+  'html', 'head', 'body', 'title', 'style', 'meta', 'link',
+  'div', 'span', 'section', 'article', 'header', 'footer', 'main',
+  'nav', 'aside', 'figure', 'figcaption', 'center',
+  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col', 'caption',
+  'p', 'br', 'hr', 'pre', 'code', 'blockquote',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark',
+  'small', 'big', 'sub', 'sup', 'abbr', 'cite', 'q', 'dfn',
+  'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+  'a', 'img', 'font',
+];
+
+const TEMPLATE_ALLOWED_ATTRS = [
+  'style', 'class', 'id', 'dir', 'lang', 'title',
+  'width', 'height', 'align', 'valign',
+  'bgcolor', 'border', 'cellpadding', 'cellspacing',
+  'colspan', 'rowspan', 'scope', 'summary', 'span',
+  'color', 'face', 'size',
+  'href', 'src', 'alt', 'target', 'rel',
+  'charset', 'http-equiv', 'content', 'name', 'media',
+  'role', 'aria-label', 'aria-hidden', 'aria-describedby',
+];
 
 const HERALD_LOGO_URL =
   'https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg';
@@ -59,8 +84,7 @@ export class TemplateService {
     string,
     HandlebarsTemplateDelegate
   >();
-  private readonly xssSanitizer: XssSanitizer;
-  private readonly mjmlCompiler: MjmlCompilerService;
+  private readonly purify: any;
 
   constructor(private readonly prisma: PrismaService) {
     const isProd = process.env.NODE_ENV === 'production';
@@ -68,8 +92,8 @@ export class TemplateService {
       ? path.join(process.cwd(), 'dist', 'modules', 'template', 'templates')
       : path.join(process.cwd(), 'src', 'modules', 'template', 'templates');
 
-    this.xssSanitizer = new XssSanitizer();
-    this.mjmlCompiler = new MjmlCompilerService();
+    const jsdomWindow = new JSDOM('').window;
+    this.purify = createDOMPurify(jsdomWindow as any);
     this.logger.log(`Template directory: ${this.templateDir}`);
     this.registerHelpers();
   }
@@ -83,20 +107,30 @@ export class TemplateService {
 
     // Template waterfall: custom templateId → custom default → system default
     let hbsSource: string | null = null;
+    // footerKey is null for system templates (they have their own footer already).
+    // For custom templates it's the key ('full'|'small'|'minimal'|'enterprise'|'none').
+    let footerKey: string | null = null;
 
     if (templateId && protocolId) {
-      hbsSource = await this.loadCustomTemplate(templateId, protocolId);
+      const custom = await this.loadCustomTemplate(templateId, protocolId);
+      if (custom) {
+        hbsSource = custom.htmlSource;
+        footerKey = custom.heraldFooter ?? this.tierToFooterKey(tier);
+      }
     }
 
     if (!hbsSource && protocolId) {
-      hbsSource = await this.loadProtocolDefaultTemplate(
-        protocolId,
-        template, // template name = category
-      );
+      const custom = await this.loadProtocolDefaultTemplate(protocolId, template);
+      if (custom) {
+        hbsSource = custom.htmlSource;
+        footerKey = custom.heraldFooter ?? this.tierToFooterKey(tier);
+      }
     }
 
     if (!hbsSource) {
       hbsSource = await this.loadSystemTemplate(template);
+      // System templates carry their own footer — don't inject a second one.
+      footerKey = null;
     }
 
     // Handlebars: variable injection
@@ -109,12 +143,8 @@ export class TemplateService {
     // Juice: inline CSS for email client compatibility
     const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
 
-    // Inject tiered Herald footer
-    const htmlWithFooter = this.injectHeraldFooter(
-      inlinedHtml,
-      variables,
-      tier,
-    );
+    // Inject Herald footer for custom templates only
+    const htmlWithFooter = this.injectHeraldFooter(inlinedHtml, variables, footerKey);
 
     // Plain text fallback
     const plainText = this.renderPlainTextFallback(variables);
@@ -156,82 +186,83 @@ export class TemplateService {
 
   // ── Footer injection ─────────────────────────────────────────────────────
 
+  private tierToFooterKey(tier: number): string {
+    if (tier === 0) return 'full';
+    if (tier === 1) return 'small';
+    if (tier === 2) return 'minimal';
+    if (tier === 3) return 'enterprise';
+    return 'none';
+  }
+
+  /**
+   * Inject a Herald-branded footer into custom user templates.
+   * Pass `footerKey = null` for system templates — they already embed their own footer.
+   *
+   * HTML structure mirrors the defi-alert system template footer exactly:
+   * divider → optional privacy note → logo/Herald/pipe/Unsubscribe[/pipe/site] table.
+   */
   private injectHeraldFooter(
     html: string,
     variables: Record<string, unknown>,
-    tier: number,
+    footerKey: string | null,
   ): string {
-    const unsubscribeUrl = (variables.unsubscribeUrl as string) || '#';
-
-    const footers: Record<string, string> = {
-      full: `
-        <div style="background:#040C18;padding:24px 32px;border-top:1px solid #0E2A3D;font-family:Arial,sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td>
-              <span style="font-size:18px;font-weight:800;color:#00C896;">◈ Herald</span><br>
-              <span style="font-size:11px;color:#2D4A5E;">
-                Privacy-preserving DeFi notifications. <a href="https://useherald.xyz" style="color:#007A5C;">useherald.xyz</a>
-              </span>
-            </td>
-            <td align="right" valign="top">
-              <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
-            </td>
-          </tr></table>
-        </div>`,
-
-      small: `
-        <div style="background:#040C18;padding:16px 32px;border-top:1px solid #071520;font-family:Arial,sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td>
-              <span style="font-size:11px;color:#2D4A5E;">
-                Delivered securely via <a href="https://useherald.xyz" style="color:#007A5C;">Herald</a>
-              </span>
-            </td>
-            <td align="right">
-              <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
-            </td>
-          </tr></table>
-        </div>`,
-
-      minimal: `
-        <div style="background:#040C18;padding:12px 32px;border-top:1px solid #071520;text-align:center;font-family:Arial,sans-serif;">
-          <a href="${unsubscribeUrl}" style="font-size:11px;color:#2D4A5E;">Unsubscribe</a>
-          &nbsp;·&nbsp;
-          <span style="font-size:11px;color:#1A2D3D;">◈ Herald</span>
-        </div>`,
-
-      none: `
-        <div style="padding:12px 32px;text-align:center;font-family:Arial,sans-serif;">
-          <a href="${unsubscribeUrl}" style="font-size:11px;color:#666;">Unsubscribe</a>
-        </div>`,
-
-      enterprise: `
-        <div style="padding:16px 32px;text-align:center;font-family:Arial,sans-serif;border-top:1px solid #e5e7eb;">
-          <img src="${HERALD_LOGO_URL}" alt="Herald" width="20" height="20" style="vertical-align:middle;margin-right:6px;">
-          <span style="font-size:11px;color:#666;">Herald</span>
-          <span style="color:#ccc;margin:0 8px;">|</span>
-          <a href="${unsubscribeUrl}" style="font-size:11px;color:#666;">Unsubscribe</a>
-        </div>`,
-    };
-
-    const footerKey =
-      tier === 0
-        ? 'full'
-        : tier === 1
-          ? 'small'
-          : tier === 2
-            ? 'minimal'
-            : tier === 3
-              ? 'enterprise'
-              : 'none';
-
-    // System templates already include their own footer (Herald logo + unsubscribe).
-    // Only inject when the template doesn't have one to avoid a duplicate footer.
-    if (html.includes('footer-brand')) {
+    // System templates carry a footer-brand element — skip to avoid duplication.
+    if (footerKey === null || html.includes('footer-brand')) {
       return html;
     }
 
-    const footer = footers[footerKey];
+    const unsub = (variables.unsubscribeUrl as string) || '#';
+    const protocolName = (variables.protocolName as string) || '';
+    const logo = HERALD_LOGO_URL;
+
+    // Outer wrapper — matches .footer padding from defi-alert
+    const wrapOpen = `<div class="footer-brand" style="padding:28px 8px 8px;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">`;
+    const wrapClose = `</div>`;
+
+    // Divider — matches .footer-divider
+    const divider = `<hr style="height:1px;background:#E2E8F0;margin:20px 0 18px;border:0;">`;
+
+    // Privacy line — matches the second .footer-meta paragraph in defi-alert
+    const privacy = protocolName
+      ? `<p style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0 0 0;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">${protocolName}</strong> does not have access to your email address.</p>`
+      : `<p style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0 0 0;">Delivered securely by Herald Protocol. Your email address is never shared with the sending protocol.</p>`;
+
+    // Brand row cells — exact style match with rendered defi-alert footer table
+    const tbl = (cells: string) =>
+      `<table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">`
+      + `<tr>${cells}</tr></table>`;
+
+    const logoTd  = `<td style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle"><img src="${logo}" width="20" height="20" style="display:block;border-radius:5px;"></td>`;
+    const nameTd  = `<td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
+    const pipeTd  = `<td style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
+    const unsubTd = `<td style="vertical-align:middle;" valign="middle"><a href="${unsub}" style="color:#64748B;text-decoration:none;">Unsubscribe</a></td>`;
+    const siteTd  = `<td style="vertical-align:middle;" valign="middle"><a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>`;
+
+    // Full brand row (logo + name + | + unsub + | + site)
+    const fullRow  = tbl(logoTd + nameTd + pipeTd + unsubTd + pipeTd + siteTd);
+    // Short brand row (logo + name + | + unsub — no site link)
+    const shortRow = tbl(logoTd + nameTd + pipeTd + unsubTd);
+
+    const footers: Record<string, string> = {
+      // Developer (0) — privacy note + full brand row
+      full: `${wrapOpen}${privacy}${divider}${fullRow}${wrapClose}`,
+
+      // Growth (1) — full brand row, no privacy note
+      small: `${wrapOpen}${divider}${fullRow}${wrapClose}`,
+
+      // Scale (2) — short brand row (no site link)
+      minimal: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
+
+      // Enterprise (3) — same as minimal: logo + unsubscribe, Herald retained
+      enterprise: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
+
+      // No Herald branding — plain unsubscribe link centred
+      none: `<div class="footer-brand" style="padding:12px 8px 8px;text-align:center;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">`
+        + `<a href="${unsub}" style="font-size:12px;color:#64748B;text-decoration:none;">Unsubscribe</a>`
+        + `</div>`,
+    };
+
+    const footer = footers[footerKey] ?? footers['full'];
     return html.includes('</body>')
       ? html.replace('</body>', `${footer}</body>`)
       : html + footer;
@@ -242,12 +273,14 @@ export class TemplateService {
   private async loadCustomTemplate(
     templateId: string,
     protocolId: string,
-  ): Promise<string | null> {
+  ): Promise<{ htmlSource: string; heraldFooter: string | null } | null> {
     try {
       const tmpl = await this.prisma.notificationTemplate.findFirst({
         where: { id: templateId, protocolId, isActive: true },
+        select: { htmlSource: true, heraldFooter: true },
       });
-      return tmpl?.htmlSource ?? null;
+      if (!tmpl?.htmlSource) return null;
+      return { htmlSource: tmpl.htmlSource, heraldFooter: tmpl.heraldFooter };
     } catch {
       return null;
     }
@@ -256,12 +289,14 @@ export class TemplateService {
   private async loadProtocolDefaultTemplate(
     protocolId: string,
     category: string,
-  ): Promise<string | null> {
+  ): Promise<{ htmlSource: string; heraldFooter: string | null } | null> {
     try {
       const tmpl = await this.prisma.notificationTemplate.findFirst({
         where: { protocolId, category, isDefault: true, isActive: true },
+        select: { htmlSource: true, heraldFooter: true },
       });
-      return tmpl?.htmlSource ?? null;
+      if (!tmpl?.htmlSource) return null;
+      return { htmlSource: tmpl.htmlSource, heraldFooter: tmpl.heraldFooter };
     } catch {
       return null;
     }
@@ -340,10 +375,18 @@ export class TemplateService {
   }
 
   private sanitizeHtml(html: string): string {
+    // Strip event handlers first before DOMPurify pass
     let sanitized = html.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '');
-    sanitized = this.xssSanitizer.sanitize(sanitized, {
-      maxLength: 51200,
-    }).html;
+    sanitized = this.purify.sanitize(sanitized, {
+      ALLOWED_TAGS: TEMPLATE_ALLOWED_TAGS,
+      ALLOWED_ATTR: TEMPLATE_ALLOWED_ATTRS,
+      ALLOW_DATA_ATTR: true,
+      WHOLE_DOCUMENT: true,
+      RETURN_DOM_FRAGMENT: false,
+      RETURN_DOM: false,
+      FORBID_TAGS: ['script', 'noscript', 'object', 'embed', 'applet', 'form', 'input', 'button', 'select', 'textarea', 'iframe'],
+      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onkeypress'],
+    });
     return sanitized;
   }
 

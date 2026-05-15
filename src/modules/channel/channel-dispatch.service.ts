@@ -221,7 +221,11 @@ export class ChannelDispatchService {
       const templateName = this.getTemplateName(job.category);
       const { html, text } = await this.templateService.render({
         template: templateName,
+        templateId: job.templateId,
+        tier: job.tier ?? 0,
+        protocolId: job.protocolId,
         variables: {
+          ...job.templateVariables,
           protocolName: job.protocolName,
           subject: job.subject,
           body: job.body,
