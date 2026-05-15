@@ -64,7 +64,7 @@ describe('TemplateService', () => {
     jest.clearAllMocks();
 
     (fs.promises.readFile as jest.Mock).mockImplementation(
-      async (filePath: string) => {
+      (filePath: string) => {
         if (filePath.includes('defi-alert') && filePath.endsWith('index.hbs')) {
           return '<html><body><h1>{{subject}}</h1><p>{{body}}</p></body></html>';
         }

@@ -76,7 +76,7 @@ describe('MjmlCompilerService', () => {
       expect(result).toContain('<!doctype html');
     });
 
-    it('should compile HTML with Handlebars and inline CSS', async () => {
+    it('should compile HTML with Handlebars and inline CSS', () => {
       const result = service.compileHtml(VALID_HTML, {
         subject: 'Test',
         title: 'Hello',
