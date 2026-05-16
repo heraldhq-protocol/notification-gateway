@@ -41,6 +41,7 @@ model Protocol {
   notificationTemplates  NotificationTemplate[]
   telegramTemplates      TelegramTemplate[]
   designPartner          DesignPartner? // Phase 3
+  apiRequestLogs         ApiRequestLog[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -710,4 +711,28 @@ model SandboxReceipt {
   @@index([apiKeyId, createdAt(sort: Desc)], map: "idx_sandbox_receipts_api_key")
   @@index([createdAt], map: "idx_sandbox_receipts_created")
   @@map("sandbox_receipts")
+}
+
+// ── api_request_logs ────────────────────────────────────────────────────────
+// Logs every authenticated inbound API request for the Request Inspector.
+model ApiRequestLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  protocolId    String    @map("protocol_id") @db.Uuid
+  apiKeyId      String?   @map("api_key_id") @db.Uuid
+  isTestKey     Boolean   @default(false) @map("is_test_key")
+  method        String    @db.VarChar(10)
+  endpoint      String    @db.VarChar(200)
+  requestBody   Json?     @map("request_body")
+  responseBody  Json?     @map("response_body")
+  statusCode    Int       @map("status_code")
+  latencyMs     Int       @map("latency_ms")
+  correlationId String?   @map("correlation_id") @db.VarChar(128)
+  ipHash        String?   @map("ip_hash") @db.VarChar(64)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, createdAt(sort: Desc)], map: "idx_api_request_logs_protocol")
+  @@index([correlationId], map: "idx_api_request_logs_correlation")
+  @@map("api_request_logs")
 }

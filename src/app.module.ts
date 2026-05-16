@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { RequestLogInterceptor } from './common/interceptors/request-log.interceptor';
 
 import { loadConfiguration } from './config/configuration';
 import { PrismaModule } from './database/prisma.module';
@@ -153,6 +155,12 @@ import { RedisModule } from './modules/redis/redis.module';
     PrometheusModule.register({
       controller: MetricsController,
     }),
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestLogInterceptor,
+    },
   ],
 })
 export class AppModule {}

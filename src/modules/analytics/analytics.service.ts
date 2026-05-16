@@ -80,4 +80,56 @@ export class AnalyticsService {
       period_reset_at: p?.periodResetAt?.toISOString() ?? null,
     };
   }
+
+  async getRequestLogs(
+    protocolId: string,
+    filters: {
+      page: number;
+      limit: number;
+      statusCode?: number;
+      endpoint?: string;
+      isTestKey?: boolean;
+    },
+  ) {
+    const { page, limit, statusCode, endpoint, isTestKey } = filters;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      protocolId,
+      ...(statusCode !== undefined && { statusCode }),
+      ...(endpoint !== undefined && { endpoint: { contains: endpoint } }),
+      ...(isTestKey !== undefined && { isTestKey }),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.apiRequestLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          apiKeyId: true,
+          isTestKey: true,
+          method: true,
+          endpoint: true,
+          requestBody: true,
+          responseBody: true,
+          statusCode: true,
+          latencyMs: true,
+          correlationId: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.apiRequestLog.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      hasMore: skip + items.length < total,
+    };
+  }
 }
