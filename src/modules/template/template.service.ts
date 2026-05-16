@@ -15,27 +15,112 @@ import {
 // Tags/attrs DOMPurify must preserve when sanitising user-submitted template HTML.
 // Must allow <style>, <head>, <meta>, <link> so Google Fonts and inline CSS survive.
 const TEMPLATE_ALLOWED_TAGS = [
-  'html', 'head', 'body', 'title', 'style', 'meta', 'link',
-  'div', 'span', 'section', 'article', 'header', 'footer', 'main',
-  'nav', 'aside', 'figure', 'figcaption', 'center',
-  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col', 'caption',
-  'p', 'br', 'hr', 'pre', 'code', 'blockquote',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark',
-  'small', 'big', 'sub', 'sup', 'abbr', 'cite', 'q', 'dfn',
-  'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-  'a', 'img', 'font',
+  'html',
+  'head',
+  'body',
+  'title',
+  'style',
+  'meta',
+  'link',
+  'div',
+  'span',
+  'section',
+  'article',
+  'header',
+  'footer',
+  'main',
+  'nav',
+  'aside',
+  'figure',
+  'figcaption',
+  'center',
+  'table',
+  'thead',
+  'tbody',
+  'tfoot',
+  'tr',
+  'th',
+  'td',
+  'colgroup',
+  'col',
+  'caption',
+  'p',
+  'br',
+  'hr',
+  'pre',
+  'code',
+  'blockquote',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'strong',
+  'b',
+  'em',
+  'i',
+  'u',
+  's',
+  'del',
+  'ins',
+  'mark',
+  'small',
+  'big',
+  'sub',
+  'sup',
+  'abbr',
+  'cite',
+  'q',
+  'dfn',
+  'ul',
+  'ol',
+  'li',
+  'dl',
+  'dt',
+  'dd',
+  'a',
+  'img',
+  'font',
 ];
 
 const TEMPLATE_ALLOWED_ATTRS = [
-  'style', 'class', 'id', 'dir', 'lang', 'title',
-  'width', 'height', 'align', 'valign',
-  'bgcolor', 'border', 'cellpadding', 'cellspacing',
-  'colspan', 'rowspan', 'scope', 'summary', 'span',
-  'color', 'face', 'size',
-  'href', 'src', 'alt', 'target', 'rel',
-  'charset', 'http-equiv', 'content', 'name', 'media',
-  'role', 'aria-label', 'aria-hidden', 'aria-describedby',
+  'style',
+  'class',
+  'id',
+  'dir',
+  'lang',
+  'title',
+  'width',
+  'height',
+  'align',
+  'valign',
+  'bgcolor',
+  'border',
+  'cellpadding',
+  'cellspacing',
+  'colspan',
+  'rowspan',
+  'scope',
+  'summary',
+  'span',
+  'color',
+  'face',
+  'size',
+  'href',
+  'src',
+  'alt',
+  'target',
+  'rel',
+  'charset',
+  'http-equiv',
+  'content',
+  'name',
+  'media',
+  'role',
+  'aria-label',
+  'aria-hidden',
+  'aria-describedby',
 ];
 
 const HERALD_LOGO_URL =
@@ -47,6 +132,13 @@ export interface RenderParams {
   protocolId?: string;
   templateId?: string;
   tier?: number;
+}
+
+interface CustomTemplateRecord {
+  htmlSource: string;
+  heraldFooter: string | null;
+  textSource: string | null;
+  previewText: string | null;
 }
 
 export interface RenderedEmail {
@@ -93,7 +185,7 @@ export class TemplateService {
       : path.join(process.cwd(), 'src', 'modules', 'template', 'templates');
 
     const jsdomWindow = new JSDOM('').window;
-    this.purify = createDOMPurify(jsdomWindow as any);
+    this.purify = createDOMPurify(jsdomWindow);
     this.logger.log(`Template directory: ${this.templateDir}`);
     this.registerHelpers();
   }
@@ -110,20 +202,29 @@ export class TemplateService {
     // footerKey is null for system templates (they have their own footer already).
     // For custom templates it's the key ('full'|'small'|'minimal'|'enterprise'|'none').
     let footerKey: string | null = null;
+    let storedTextSource: string | null = null;
+    let storedPreviewText: string | null = null;
 
     if (templateId && protocolId) {
       const custom = await this.loadCustomTemplate(templateId, protocolId);
       if (custom) {
         hbsSource = custom.htmlSource;
         footerKey = custom.heraldFooter ?? this.tierToFooterKey(tier);
+        storedTextSource = custom.textSource;
+        storedPreviewText = custom.previewText;
       }
     }
 
     if (!hbsSource && protocolId) {
-      const custom = await this.loadProtocolDefaultTemplate(protocolId, template);
+      const custom = await this.loadProtocolDefaultTemplate(
+        protocolId,
+        template,
+      );
       if (custom) {
         hbsSource = custom.htmlSource;
         footerKey = custom.heraldFooter ?? this.tierToFooterKey(tier);
+        storedTextSource = custom.textSource;
+        storedPreviewText = custom.previewText;
       }
     }
 
@@ -143,11 +244,25 @@ export class TemplateService {
     // Juice: inline CSS for email client compatibility
     const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
 
-    // Inject Herald footer for custom templates only
-    const htmlWithFooter = this.injectHeraldFooter(inlinedHtml, variables, footerKey);
+    // Inject previewText as email preheader (invisible preview text in inbox)
+    const previewTextValue =
+      storedPreviewText || (variables.previewText as string) || '';
+    const htmlWithPreheader = this.injectPreheader(
+      inlinedHtml,
+      previewTextValue,
+    );
 
-    // Plain text fallback
-    const plainText = this.renderPlainTextFallback(variables);
+    // Inject Herald footer for custom templates only
+    const htmlWithFooter = this.injectHeraldFooter(
+      htmlWithPreheader,
+      variables,
+      footerKey,
+    );
+
+    // Use stored plain-text override if provided, otherwise generate fallback
+    const plainText = storedTextSource
+      ? Handlebars.compile(storedTextSource)(processedVars)
+      : this.renderPlainTextFallback(variables);
 
     return {
       html: htmlWithFooter,
@@ -182,6 +297,23 @@ export class TemplateService {
     // Strip dangerous tags/attrs (no XSS via custom templates)
     const sanitized = this.sanitizeHtml(source);
     return { valid: true, compiledHtml: sanitized };
+  }
+
+  // ── Preheader injection ───────────────────────────────────────────────────
+
+  private injectPreheader(html: string, previewText: string): string {
+    if (!previewText || html.includes('class="preheader"')) return html;
+    const escaped = previewText
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const span =
+      `<span class="preheader" style="display:none;visibility:hidden;opacity:0;` +
+      `height:0;max-height:0;overflow:hidden;font-size:1px;line-height:1px;` +
+      `color:transparent;mso-hide:all;">${escaped}</span>`;
+    return html.includes('<body')
+      ? html.replace(/<body[^>]*>/, (tag) => tag + span)
+      : span + html;
   }
 
   // ── Footer injection ─────────────────────────────────────────────────────
@@ -229,17 +361,17 @@ export class TemplateService {
 
     // Brand row cells — exact style match with rendered defi-alert footer table
     const tbl = (cells: string) =>
-      `<table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">`
-      + `<tr>${cells}</tr></table>`;
+      `<table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">` +
+      `<tr>${cells}</tr></table>`;
 
-    const logoTd  = `<td style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle"><img src="${logo}" width="20" height="20" style="display:block;border-radius:5px;"></td>`;
-    const nameTd  = `<td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
-    const pipeTd  = `<td style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
+    const logoTd = `<td style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle"><img src="${logo}" width="20" height="20" style="display:block;border-radius:5px;"></td>`;
+    const nameTd = `<td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
+    const pipeTd = `<td style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
     const unsubTd = `<td style="vertical-align:middle;" valign="middle"><a href="${unsub}" style="color:#64748B;text-decoration:none;">Unsubscribe</a></td>`;
-    const siteTd  = `<td style="vertical-align:middle;" valign="middle"><a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>`;
+    const siteTd = `<td style="vertical-align:middle;" valign="middle"><a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>`;
 
     // Full brand row (logo + name + | + unsub + | + site)
-    const fullRow  = tbl(logoTd + nameTd + pipeTd + unsubTd + pipeTd + siteTd);
+    const fullRow = tbl(logoTd + nameTd + pipeTd + unsubTd + pipeTd + siteTd);
     // Short brand row (logo + name + | + unsub — no site link)
     const shortRow = tbl(logoTd + nameTd + pipeTd + unsubTd);
 
@@ -257,9 +389,10 @@ export class TemplateService {
       enterprise: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
 
       // No Herald branding — plain unsubscribe link centred
-      none: `<div class="footer-brand" style="padding:12px 8px 8px;text-align:center;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">`
-        + `<a href="${unsub}" style="font-size:12px;color:#64748B;text-decoration:none;">Unsubscribe</a>`
-        + `</div>`,
+      none:
+        `<div class="footer-brand" style="padding:12px 8px 8px;text-align:center;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">` +
+        `<a href="${unsub}" style="font-size:12px;color:#64748B;text-decoration:none;">Unsubscribe</a>` +
+        `</div>`,
     };
 
     const footer = footers[footerKey] ?? footers['full'];
@@ -273,14 +406,24 @@ export class TemplateService {
   private async loadCustomTemplate(
     templateId: string,
     protocolId: string,
-  ): Promise<{ htmlSource: string; heraldFooter: string | null } | null> {
+  ): Promise<CustomTemplateRecord | null> {
     try {
       const tmpl = await this.prisma.notificationTemplate.findFirst({
         where: { id: templateId, protocolId, isActive: true },
-        select: { htmlSource: true, heraldFooter: true },
+        select: {
+          htmlSource: true,
+          heraldFooter: true,
+          textSource: true,
+          previewText: true,
+        },
       });
       if (!tmpl?.htmlSource) return null;
-      return { htmlSource: tmpl.htmlSource, heraldFooter: tmpl.heraldFooter };
+      return {
+        htmlSource: tmpl.htmlSource,
+        heraldFooter: tmpl.heraldFooter,
+        textSource: tmpl.textSource,
+        previewText: tmpl.previewText,
+      };
     } catch {
       return null;
     }
@@ -289,14 +432,24 @@ export class TemplateService {
   private async loadProtocolDefaultTemplate(
     protocolId: string,
     category: string,
-  ): Promise<{ htmlSource: string; heraldFooter: string | null } | null> {
+  ): Promise<CustomTemplateRecord | null> {
     try {
       const tmpl = await this.prisma.notificationTemplate.findFirst({
         where: { protocolId, category, isDefault: true, isActive: true },
-        select: { htmlSource: true, heraldFooter: true },
+        select: {
+          htmlSource: true,
+          heraldFooter: true,
+          textSource: true,
+          previewText: true,
+        },
       });
       if (!tmpl?.htmlSource) return null;
-      return { htmlSource: tmpl.htmlSource, heraldFooter: tmpl.heraldFooter };
+      return {
+        htmlSource: tmpl.htmlSource,
+        heraldFooter: tmpl.heraldFooter,
+        textSource: tmpl.textSource,
+        previewText: tmpl.previewText,
+      };
     } catch {
       return null;
     }
@@ -384,8 +537,32 @@ export class TemplateService {
       WHOLE_DOCUMENT: true,
       RETURN_DOM_FRAGMENT: false,
       RETURN_DOM: false,
-      FORBID_TAGS: ['script', 'noscript', 'object', 'embed', 'applet', 'form', 'input', 'button', 'select', 'textarea', 'iframe'],
-      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onkeypress'],
+      FORBID_TAGS: [
+        'script',
+        'noscript',
+        'object',
+        'embed',
+        'applet',
+        'form',
+        'input',
+        'button',
+        'select',
+        'textarea',
+        'iframe',
+      ],
+      FORBID_ATTR: [
+        'onerror',
+        'onload',
+        'onclick',
+        'onmouseover',
+        'onfocus',
+        'onblur',
+        'onchange',
+        'onsubmit',
+        'onkeydown',
+        'onkeyup',
+        'onkeypress',
+      ],
     });
     return sanitized;
   }

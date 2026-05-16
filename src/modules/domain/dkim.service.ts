@@ -24,7 +24,8 @@ export class DkimService {
   private readonly ses: SESv2Client;
 
   constructor(private readonly prisma: PrismaService) {
-    const region = process.env.AWS_REGION || 'eu-north-1';
+    const region =
+      process.env.SES_REGION || process.env.AWS_REGION || 'us-east-1';
     this.kms = new KMSClient({ region });
     this.ses = new SESv2Client({ region });
   }

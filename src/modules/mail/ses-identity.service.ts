@@ -24,7 +24,7 @@ export class SesIdentityService {
       this.config.get('MAIL_PROVIDER') === 'ses';
 
     this.client = new SESClient({
-      region: this.config.get('AWS_REGION', 'us-east-1'),
+      region: this.config.get('SES_REGION', 'us-east-1'),
       maxAttempts: 2,
     });
   }

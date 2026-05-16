@@ -59,6 +59,8 @@ export class TemplateController {
       subjectTemplate,
       htmlSource,
       textSource,
+      previewText,
+      heraldFooter,
       isDefault,
     } = body;
 
@@ -92,6 +94,8 @@ export class TemplateController {
         subjectTemplate,
         htmlSource: validation.compiledHtml, // Sanitized
         textSource,
+        previewText,
+        heraldFooter: heraldFooter ?? 'full',
         isDefault: isDefault ?? false,
       },
     });

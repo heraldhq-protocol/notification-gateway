@@ -28,7 +28,7 @@ export class SesProvider implements IMailProvider {
     private readonly prisma: PrismaService,
   ) {
     this.client = new SESClient({
-      region: config.get('AWS_REGION', 'us-east-1'),
+      region: config.get('SES_REGION', 'us-east-1'),
       maxAttempts: 3,
     });
   }
