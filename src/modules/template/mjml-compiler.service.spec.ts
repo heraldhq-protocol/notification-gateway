@@ -119,7 +119,9 @@ describe('MjmlCompilerService', () => {
     });
 
     it('should handle Handlebars templates gracefully', async () => {
-      const result = await service.validate('<html><body>{{title}}</body></html>');
+      const result = await service.validate(
+        '<html><body>{{title}}</body></html>',
+      );
       expect(result.valid).toBe(true);
     });
   });

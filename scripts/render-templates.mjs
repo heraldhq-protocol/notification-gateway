@@ -160,7 +160,13 @@ async function render() {
     const compiled = Handlebars.compile(source);
     const htmlWithVars = compiled(data);
 
-    const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
+    const inlinedHtml = juice(htmlWithVars, {
+      removeStyleTags: false,
+      preserveMediaQueries: true,
+      preserveFontFaces: true,
+      preserveImportant: true,
+      applyAttributeStyleTags: true,
+    });
 
     const outPath = path.join(OUTPUT_DIR, `${name}.html`);
     fs.writeFileSync(outPath, inlinedHtml, 'utf-8');
@@ -195,8 +201,156 @@ ${sizes.map(s => `<tr><td><strong>${s.name}</strong></td><td class="size">${s.si
   to test rendering across email clients.
 </p></body></html>`;
 
-  fs.writeFileSync(path.join(OUTPUT_DIR, 'index.html'), indexHtml, 'utf-8');
-  console.log(`\n  [DONE] index.html — preview page`);
+  // ── Render the custom template from test-template-flow.mjs ────────────────
+  // This mirrors the exact server pipeline: Handlebars → juice → output.
+  // Open rendered-templates/custom-defi-alert.html in a browser to verify
+  // that all CSS classes are correctly inlined by juice.
+  console.log('\n  Rendering custom template (test-template-flow)...');
+
+  const CUSTOM_TEMPLATE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{subject}}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root { color-scheme: light dark; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:0; background:#F8FAFC; color:#0F172A;
+      font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; text-size-adjust:100%; }
+    .wrap { width:100%; background:#F8FAFC; padding:32px 16px; }
+    .container { max-width:600px; margin:0 auto; }
+    .preheader { display:none !important; visibility:hidden; opacity:0; height:0; max-height:0; overflow:hidden; font-size:1px; line-height:1px; color:transparent; mso-hide:all; }
+    .brand-name { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; letter-spacing:-0.01em; color:#0F172A; }
+    .card { background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:36px 32px; }
+    .eyebrow { display:block; font-size:10px; text-transform:uppercase; letter-spacing:0.16em; font-weight:700; color:#00C896; margin:0 0 20px; }
+    .eyebrow .dot { width:6px; height:6px; border-radius:99px; background:#00C896; display:inline-block; vertical-align:middle; margin-right:6px; position:relative; top:-1px; }
+    .headline { font-family:'Syne',sans-serif; font-size:26px; font-weight:700; line-height:1.18; letter-spacing:-0.022em; color:#0F172A; margin:0 0 16px; }
+    .body-text { font-size:15px; line-height:1.6; color:#475569; margin:0 0 8px; font-weight:400; }
+    .body-text strong { color:#0F172A; font-weight:600; }
+    .cta-wrap { margin-top:28px; }
+    .cta { display:inline-block; padding:13px 22px; background:#00C896; color:#FFFFFF !important; border-radius:6px; font-weight:700; font-size:14px; text-decoration:none; letter-spacing:-0.005em; font-family:'Syne',sans-serif; }
+    .divider { height:1px; background:#E2E8F0; border:0; margin:28px 0; }
+    .meta-row { display:flex; justify-content:space-between; gap:16px; padding:14px 0; border-top:1px solid #E2E8F0; font-size:13px; }
+    .meta-row:first-child { border-top:0; padding-top:0; }
+    .meta-key { color:#64748B; font-size:11px; text-transform:uppercase; letter-spacing:0.12em; font-weight:600; }
+    .meta-val { color:#0F172A; font-weight:600; text-align:right; }
+    .mono { font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace; }
+    img { color-scheme: light; }
+    @media (prefers-color-scheme: dark) {
+      img { filter: none !important; -webkit-filter: none !important; }
+    }
+    @media (max-width:600px) {
+      .card { padding:28px 22px; }
+      .headline { font-size:22px; }
+    }
+  </style>
+</head>
+<body>
+  <span class="preheader">{{brandName}} — {{subject}}</span>
+  <div class="wrap"><div class="container">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:8px 4px 0;">
+      <tr>
+        <td style="vertical-align:middle;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:middle;padding-right:12px;line-height:0;"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;" alt="{{brandName}}"></td>
+            <td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.01em;color:#0F172A;">{{brandName}}</td>
+          </tr></table>
+        </td>
+        <td align="right" style="vertical-align:middle;font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:#64748B;font-weight:700;white-space:nowrap;">DeFi Alert</td>
+      </tr>
+    </table>
+    <div style="height:20px;line-height:20px;font-size:20px;">&nbsp;</div>
+    <div class="card">
+      <div class="eyebrow"><span class="dot"></span>DeFi Alert</div>
+      <h1 class="headline">{{subject}}</h1>
+      <div class="body-text"><p>{{body}}</p></div>
+      <hr class="divider">
+      <div class="meta-row" style="border-top:0;padding-top:0;">
+        <span class="meta-key">Health Factor</span>
+        <span class="meta-val mono">{{healthFactor}}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Position Value</span>
+        <span class="meta-val mono">{{positionValue}}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Wallet</span>
+        <span class="meta-val mono" style="font-size:12px;">{{walletAddress}}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Time</span>
+        <span class="meta-val">just now</span>
+      </div>
+      <div class="cta-wrap"><a class="cta" href="{{actionUrl}}">{{actionLabel}}</a></div>
+    </div>
+    <!-- SERVER INJECTS HERALD FOOTER HERE via injectHeraldFooter() -->
+    <div style="padding:28px 8px 8px;font-family:'Plus Jakarta Sans',-apple-system,sans-serif;">
+      <p style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">{{brandName}}</strong> does not have access to your email address.</p>
+      <hr style="height:1px;background:#E2E8F0;margin:20px 0 18px;border:0;">
+      <table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">
+        <tr>
+          <td style="vertical-align:middle;padding-right:6px;line-height:0;"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="20" height="20" style="display:block;border-radius:5px;"></td>
+          <td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;">Herald</td>
+          <td style="vertical-align:middle;color:#CBD5E1;padding:0 4px;">|</td>
+          <td style="vertical-align:middle;"><a href="{{unsubscribeUrl}}" style="color:#64748B;text-decoration:none;">Unsubscribe</a></td>
+          <td style="vertical-align:middle;color:#CBD5E1;padding:0 4px;">|</td>
+          <td style="vertical-align:middle;"><a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>
+        </tr>
+      </table>
+    </div>
+  </div></div>
+</body>
+</html>`;
+
+  const customData = {
+    brandName: 'Orca Finance',
+    protocolName: 'Orca Finance',
+    subject: 'Your position health is critical',
+    body: 'Your SOL collateralized position on Orca has dropped below the safe threshold. Please take action immediately to avoid liquidation.',
+    healthFactor: '1.05',
+    positionValue: '$12,450.00 USDC',
+    walletAddress: '55bnYVxXz5RhFQBqPpuF8XazvEC5XL6kbA2wmVb2eiDc',
+    actionUrl: 'https://app.orca.so/positions',
+    actionLabel: 'View Position',
+    unsubscribeUrl: 'https://useherald.xyz/unsubscribe/preview',
+  };
+
+  const customCompiled = Handlebars.compile(CUSTOM_TEMPLATE_HTML);
+  const customHtmlWithVars = customCompiled(customData);
+  const customInlined = juice(customHtmlWithVars, {
+    removeStyleTags: false,
+    preserveMediaQueries: true,
+    preserveFontFaces: true,
+    preserveImportant: true,
+    applyAttributeStyleTags: true,
+  });
+
+  // Verify CSS inlining worked — check key classes are present as inline styles
+  const inlineChecks = [
+    { selector: 'background: #FFFFFF', label: '.card background' },
+    { selector: 'background: #00C896', label: '.cta background' },
+    { selector: 'color: #00C896', label: '.eyebrow color' },
+    { selector: "font-family: 'Syne'", label: 'Syne font' },
+    { selector: '@media', label: '@media queries preserved' },
+  ];
+
+  console.log('\n  CSS inlining checks:');
+  for (const { selector, label } of inlineChecks) {
+    const found = customInlined.includes(selector);
+    console.log(`    ${found ? '✅' : '❌'} ${label}${found ? '' : ` — MISSING: "${selector}"` }`);
+  }
+
+  const customOutPath = path.join(OUTPUT_DIR, 'custom-defi-alert.html');
+  fs.writeFileSync(customOutPath, customInlined, 'utf-8');
+  const customSizeKb = (Buffer.byteLength(customInlined, 'utf-8') / 1024).toFixed(1);
+  console.log(`\n  [DONE] custom-defi-alert — ${customSizeKb} KB`);
+  console.log(`  Open: ${customOutPath}`);
+
   console.log(`\n  Output: ${OUTPUT_DIR}`);
 }
 

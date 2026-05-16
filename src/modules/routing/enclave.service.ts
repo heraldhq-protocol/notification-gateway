@@ -10,7 +10,7 @@ import type {
 
 export interface EncryptedPayload {
   ciphertext: string; // hex-encoded NaCl box ciphertext
-  nonce: string;      // hex-encoded 24-byte nonce
+  nonce: string; // hex-encoded 24-byte nonce
   gatewayPubkey: string; // hex-encoded gateway X25519 public key
 }
 

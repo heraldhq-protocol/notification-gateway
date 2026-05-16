@@ -75,51 +75,95 @@ const BRAND_TEMPLATE_HTML = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>{{subject}}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    body { margin:0; padding:0; background:#F0FDF4; font-family:'Plus Jakarta Sans',-apple-system,sans-serif; }
-    .wrap { width:100%; padding:32px 16px; }
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root { color-scheme: light dark; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:0; background:#F8FAFC; color:#0F172A;
+      font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; text-size-adjust:100%; }
+    .wrap { width:100%; background:#F8FAFC; padding:32px 16px; }
     .container { max-width:600px; margin:0 auto; }
-    .card { background:#FFFFFF; border:1px solid #DCFCE7; border-radius:12px; padding:36px 32px; }
-    .brand-header { text-align:center; margin-bottom:24px; }
-    .brand-header img { width:48px; height:48px; border-radius:10px; }
-    .brand-name { font-family:'Syne',sans-serif; font-size:20px; font-weight:700; color:#166534; margin-top:8px; }
-    .headline { font-family:'Syne',sans-serif; font-size:24px; font-weight:700; color:#14532D; margin:0 0 16px; }
-    .body-text { font-size:15px; line-height:1.7; color:#374151; }
-    .highlight { background:#F0FDF4; border-left:4px solid #22C55E; padding:12px 16px; margin:16px 0; border-radius:4px; }
-    .cta { display:inline-block; padding:14px 28px; background:#22C55E; color:#FFFFFF !important; border-radius:8px; font-weight:700; font-size:15px; text-decoration:none; font-family:'Syne',sans-serif; }
-    .cta-wrap { text-align:center; margin:28px 0; }
-    .meta { font-size:12px; color:#6B7280; padding:16px 0; border-top:1px solid #E5E7EB; margin-top:24px; }
-    .meta-item { display:flex; justify-content:space-between; padding:4px 0; }
-    .custom-field { font-weight:600; color:#14532D; }
+    .preheader { display:none !important; visibility:hidden; opacity:0; height:0; max-height:0; overflow:hidden; font-size:1px; line-height:1px; color:transparent; mso-hide:all; }
+    .brand-name { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; letter-spacing:-0.01em; color:#0F172A; }
+    .card { background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:36px 32px; }
+    .eyebrow { display:block; font-size:10px; text-transform:uppercase; letter-spacing:0.16em; font-weight:700; color:#00C896; margin:0 0 20px; }
+    .eyebrow .dot { width:6px; height:6px; border-radius:99px; background:#00C896; display:inline-block; vertical-align:middle; margin-right:6px; position:relative; top:-1px; }
+    .headline { font-family:'Syne',sans-serif; font-size:26px; font-weight:700; line-height:1.18; letter-spacing:-0.022em; color:#0F172A; margin:0 0 16px; }
+    .body-text { font-size:15px; line-height:1.6; color:#475569; margin:0 0 8px; font-weight:400; }
+    .body-text strong { color:#0F172A; font-weight:600; }
+    .cta-wrap { margin-top:28px; }
+    .cta { display:inline-block; padding:13px 22px; background:#00C896; color:#FFFFFF !important; border-radius:6px; font-weight:700; font-size:14px; text-decoration:none; letter-spacing:-0.005em; font-family:'Syne',sans-serif; }
+    .divider { height:1px; background:#E2E8F0; border:0; margin:28px 0; }
+    .meta-row { display:flex; justify-content:space-between; gap:16px; padding:14px 0; border-top:1px solid #E2E8F0; font-size:13px; }
+    .meta-row:first-child { border-top:0; padding-top:0; }
+    .meta-key { color:#64748B; font-size:11px; text-transform:uppercase; letter-spacing:0.12em; font-weight:600; }
+    .meta-val { color:#0F172A; font-weight:600; text-align:right; }
+    .mono { font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace; }
+    img { color-scheme: light; }
+    @media (prefers-color-scheme: dark) {
+      img { filter: none !important; -webkit-filter: none !important; }
+    }
+    @media (max-width:600px) {
+      .card { padding:28px 22px; }
+      .headline { font-size:22px; }
+    }
   </style>
 </head>
 <body>
+  <span class="preheader">{{brandName}} — {{subject}}</span>
   <div class="wrap"><div class="container">
-    <div class="brand-header">
-      <div style="display:inline-flex;align-items:center;gap:10px;">
-        <img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;">
-        <span class="brand-name">{{brandName}}</span>
-      </div>
-    </div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:8px 4px 0;">
+      <tr>
+        <td style="vertical-align:middle;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:middle;padding-right:12px;line-height:0;"><img src="https://herald-storage-bucket.s3.eu-north-1.amazonaws.com/herald-logo.svg" width="32" height="32" style="display:block;border-radius:7px;" alt="{{brandName}}"></td>
+            <td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.01em;color:#0F172A;">{{brandName}}</td>
+          </tr></table>
+        </td>
+        <td align="right" style="vertical-align:middle;font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:#64748B;font-weight:700;white-space:nowrap;">DeFi Alert</td>
+      </tr>
+    </table>
+    <div style="height:20px;line-height:20px;font-size:20px;">&nbsp;</div>
+
     <div class="card">
+      <div class="eyebrow"><span class="dot"></span>DeFi Alert</div>
       <h1 class="headline">{{subject}}</h1>
       <div class="body-text">
         <p>{{body}}</p>
       </div>
-      <div class="highlight">
-        <strong>Health Factor:</strong> {{healthFactor}}<br>
-        <strong>Position Value:</strong> {{positionValue}}
+
+      <hr class="divider">
+
+      <div class="meta-row" style="border-top:0;padding-top:0;">
+        <span class="meta-key">Health Factor</span>
+        <span class="meta-val mono">{{healthFactor}}</span>
       </div>
+      <div class="meta-row">
+        <span class="meta-key">Position Value</span>
+        <span class="meta-val mono">{{positionValue}}</span>
+      </div>
+      {{#if walletAddress}}
+      <div class="meta-row">
+        <span class="meta-key">Wallet</span>
+        <span class="meta-val mono" style="font-size:12px;">{{truncateAddress walletAddress 6}}</span>
+      </div>
+      {{/if}}
+      <div class="meta-row">
+        <span class="meta-key">Time</span>
+        <span class="meta-val">{{timeAgo timestamp}}</span>
+      </div>
+
       {{#if actionUrl}}
       <div class="cta-wrap"><a class="cta" href="{{actionUrl}}">{{actionLabel}}</a></div>
       {{/if}}
-      <div class="meta">
-        <div class="meta-item"><span>Wallet</span><span class="custom-field">{{truncateAddress walletAddress 6}}</span></div>
-        <div class="meta-item"><span>Time</span><span>{{timeAgo timestamp}}</span></div>
-      </div>
     </div>
+
   </div></div>
 </body>
 </html>`;
@@ -175,6 +219,7 @@ async function run() {
       templateId: createdTemplateId,
       templateVariables: {
         brandName: 'Orca Finance',
+        protocolName: 'Orca Finance',
         healthFactor: '1.05',
         positionValue: '$12,450.00 USDC',
         timestamp: String(Math.floor(Date.now() / 1000)),

@@ -7,10 +7,7 @@ export class BounceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async processResendEvent(
-    eventType: string,
-    data: Record<string, unknown>,
-  ) {
+  async processResendEvent(eventType: string, data: Record<string, unknown>) {
     const emailId = (data.email_id ?? data.id) as string | undefined;
 
     if (!emailId) {
@@ -131,7 +128,10 @@ export class BounceService {
 
       if (bounceType === 'soft') {
         const latestHardBounce = await this.prisma.emailBounce.findFirst({
-          where: { walletHash: notification.walletHash, bounceType: { in: ['hard', 'complaint'] } },
+          where: {
+            walletHash: notification.walletHash,
+            bounceType: { in: ['hard', 'complaint'] },
+          },
           orderBy: { bouncedAt: 'desc' },
         });
 
@@ -145,9 +145,10 @@ export class BounceService {
           latestDelivery?.deliveredAt,
         ].filter((d): d is Date => d !== undefined);
 
-        const cutoff = resetTimes.length > 0
-          ? resetTimes.reduce((max, d) => d > max ? d : max)
-          : new Date(0);
+        const cutoff =
+          resetTimes.length > 0
+            ? resetTimes.reduce((max, d) => (d > max ? d : max))
+            : new Date(0);
 
         const consecutiveSofts = await this.prisma.emailBounce.count({
           where: {

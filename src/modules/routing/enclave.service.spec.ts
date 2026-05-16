@@ -34,10 +34,10 @@ describe('EnclaveService', () => {
       const emptyService = new EnclaveService({
         get: jest.fn(() => undefined),
       } as any);
-      const result = emptyService.encryptForUser(
-        'aa'.repeat(32),
-        { subject: 'test', message: 'hello' },
-      );
+      const result = emptyService.encryptForUser('aa'.repeat(32), {
+        subject: 'test',
+        message: 'hello',
+      });
       expect(result).toBeNull();
     });
 
@@ -119,7 +119,12 @@ describe('EnclaveService', () => {
       const nonce = Buffer.from(encrypted!.nonce, 'hex');
       const gatewayPubkey = Buffer.from(encrypted!.gatewayPubkey, 'hex');
 
-      const decrypted = nacl.box.open(ciphertext, nonce, gatewayPubkey, userKeypair.secretKey);
+      const decrypted = nacl.box.open(
+        ciphertext,
+        nonce,
+        gatewayPubkey,
+        userKeypair.secretKey,
+      );
       expect(decrypted).not.toBeNull();
 
       const parsed = JSON.parse(encodeUTF8(decrypted!));

@@ -241,8 +241,20 @@ export class TemplateService {
     const processedVars = this.processBodyLinks(variables);
     const htmlWithVars = compiled(processedVars);
 
-    // Juice: inline CSS for email client compatibility
-    const inlinedHtml = juice(htmlWithVars, { removeStyleTags: false });
+    // Juice: inline CSS for email client compatibility.
+    // Options:
+    //   removeStyleTags:false    — keep <style> for clients that support it (Gmail web, Apple Mail)
+    //   preserveMediaQueries     — keep @media (dark mode + responsive) inside <style>
+    //   preserveFontFaces        — keep @font-face / @import for webfont clients
+    //   preserveImportant        — honour !important declarations after inlining
+    //   applyStyleTags  — also inline existing style="" attributes
+    const inlinedHtml = juice(htmlWithVars, {
+      removeStyleTags: false,
+      preserveMediaQueries: true,
+      preserveFontFaces: true,
+      preserveImportant: true,
+      applyStyleTags: true,
+    });
 
     // Inject previewText as email preheader (invisible preview text in inbox)
     const previewTextValue =

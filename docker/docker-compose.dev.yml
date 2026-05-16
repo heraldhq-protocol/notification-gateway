@@ -34,7 +34,7 @@ services:
       network: host
     container_name: herald-gateway
     entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
-    command: ["gateway"]
+    command: ["dev"]
     ports:
       - "3002:3000"
     environment:

@@ -114,8 +114,7 @@ describe('TemplateController', () => {
     it('should create a template and return templateId', async () => {
       mockTemplateService.validateCustomTemplate.mockReturnValue({
         valid: true,
-        compiledHtml:
-          '<html><body><h1>{{title}}</h1></body></html>',
+        compiledHtml: '<html><body><h1>{{title}}</h1></body></html>',
       });
       mockPrisma.notificationTemplate.create.mockResolvedValue({
         id: 'new-tmpl-id',
@@ -139,8 +138,7 @@ describe('TemplateController', () => {
     it('should unset existing defaults when isDefault=true', async () => {
       mockTemplateService.validateCustomTemplate.mockReturnValue({
         valid: true,
-        compiledHtml:
-          '<html><body><h1>{{title}}</h1></body></html>',
+        compiledHtml: '<html><body><h1>{{title}}</h1></body></html>',
       });
       mockPrisma.notificationTemplate.create.mockResolvedValue({
         id: 'tmpl-id',
@@ -157,21 +155,15 @@ describe('TemplateController', () => {
     it('should validate and sanitize HTML', async () => {
       mockTemplateService.validateCustomTemplate.mockReturnValue({
         valid: true,
-        compiledHtml:
-          '<html><body><h1>{{title}}</h1></body></html>',
+        compiledHtml: '<html><body><h1>{{title}}</h1></body></html>',
       });
       mockPrisma.notificationTemplate.create.mockResolvedValue({
         id: 'tmpl-id',
       });
 
-      await controller.createEmailTemplate(
-        mockGrowthTier,
-        createDtoNoDefault,
-      );
+      await controller.createEmailTemplate(mockGrowthTier, createDtoNoDefault);
 
-      expect(
-        mockTemplateService.validateCustomTemplate,
-      ).toHaveBeenCalled();
+      expect(mockTemplateService.validateCustomTemplate).toHaveBeenCalled();
     });
 
     it('should reject invalid HTML', async () => {
@@ -196,9 +188,7 @@ describe('TemplateController', () => {
       const result = await controller.listEmailTemplates(mockGrowthTier);
 
       expect(result.data).toHaveLength(2);
-      expect(
-        mockPrisma.notificationTemplate.findMany,
-      ).toHaveBeenCalledWith({
+      expect(mockPrisma.notificationTemplate.findMany).toHaveBeenCalledWith({
         where: { protocolId: 'proto-1', isActive: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -253,8 +243,7 @@ describe('TemplateController', () => {
       );
       mockTemplateService.validateCustomTemplate.mockReturnValue({
         valid: true,
-        compiledHtml:
-          '<html><body><h1>Updated</h1></body></html>',
+        compiledHtml: '<html><body><h1>Updated</h1></body></html>',
       });
       mockPrisma.notificationTemplateVersion.count.mockResolvedValue(3);
       mockPrisma.notificationTemplate.update.mockResolvedValue({});
@@ -288,11 +277,7 @@ describe('TemplateController', () => {
       mockPrisma.notificationTemplate.findFirst.mockResolvedValue(null);
 
       await expect(
-        controller.updateEmailTemplate(
-          mockGrowthTier,
-          'unknown',
-          updateDto,
-        ),
+        controller.updateEmailTemplate(mockGrowthTier, 'unknown', updateDto),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -307,8 +292,7 @@ describe('TemplateController', () => {
       );
       mockTemplateService.validateCustomTemplate.mockReturnValue({
         valid: true,
-        compiledHtml:
-          '<html><body><h1>Updated</h1></body></html>',
+        compiledHtml: '<html><body><h1>Updated</h1></body></html>',
       });
       mockPrisma.notificationTemplateVersion.count.mockResolvedValue(12);
       mockPrisma.notificationTemplateVersion.findMany.mockResolvedValue(
@@ -316,11 +300,7 @@ describe('TemplateController', () => {
       );
       mockPrisma.notificationTemplate.update.mockResolvedValue({});
 
-      await controller.updateEmailTemplate(
-        mockGrowthTier,
-        'tmpl-1',
-        updateDto,
-      );
+      await controller.updateEmailTemplate(mockGrowthTier, 'tmpl-1', updateDto);
 
       expect(
         mockPrisma.notificationTemplateVersion.deleteMany,
@@ -333,21 +313,16 @@ describe('TemplateController', () => {
       );
       mockTemplateService.validateCustomTemplate.mockReturnValue({
         valid: true,
-        compiledHtml:
-          '<html><body><h1>Updated</h1></body></html>',
+        compiledHtml: '<html><body><h1>Updated</h1></body></html>',
       });
       mockPrisma.notificationTemplateVersion.count.mockResolvedValue(2);
       mockPrisma.notificationTemplate.update.mockResolvedValue({});
 
-      await controller.updateEmailTemplate(
-        mockGrowthTier,
-        'tmpl-1',
-        { isDefault: true },
-      );
+      await controller.updateEmailTemplate(mockGrowthTier, 'tmpl-1', {
+        isDefault: true,
+      });
 
-      expect(
-        mockPrisma.notificationTemplate.updateMany,
-      ).toHaveBeenCalledWith({
+      expect(mockPrisma.notificationTemplate.updateMany).toHaveBeenCalledWith({
         where: { protocolId: 'proto-1', category: 'defi' },
         data: { isDefault: false },
       });

@@ -58,13 +58,14 @@ export class PrismaService
       max: 25,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 30_000,
-      ssl: isLocal || sslDisabled
-        ? false
-        : {
-            rejectUnauthorized: false,
-            // Bypass hostname verification for internal AWS endpoints
-            checkServerIdentity: () => undefined,
-          },
+      ssl:
+        isLocal || sslDisabled
+          ? false
+          : {
+              rejectUnauthorized: false,
+              // Bypass hostname verification for internal AWS endpoints
+              checkServerIdentity: () => undefined,
+            },
     });
 
     const adapter = new PrismaPg(pool);

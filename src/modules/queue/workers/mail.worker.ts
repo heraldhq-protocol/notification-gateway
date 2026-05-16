@@ -220,7 +220,7 @@ export class MailWorker extends WorkerHost {
           });
         } catch (err) {
           this.logger.warn('Failed to clear email suppression', {
-            walletHash: (job.data.walletHash as string).slice(0, 8) + '...',
+            walletHash: job.data.walletHash.slice(0, 8) + '...',
             error: (err as Error).message,
           });
         }
@@ -274,8 +274,7 @@ export class MailWorker extends WorkerHost {
       try {
         const userPubkey = identity.senderX25519Pubkey;
         if (userPubkey && userPubkey.length === 32) {
-          const actionUrl =
-            job.data.templateVariables?.action_url;
+          const actionUrl = job.data.templateVariables?.action_url;
           const encrypted = this.enclaveService.encryptForUser(
             Buffer.from(userPubkey).toString('hex'),
             {
@@ -290,10 +289,10 @@ export class MailWorker extends WorkerHost {
           }
         }
       } catch (err) {
-        this.logger.warn(
-          'Failed to encrypt notification body for portal',
-          { notificationId, error: (err as Error).message },
-        );
+        this.logger.warn('Failed to encrypt notification body for portal', {
+          notificationId,
+          error: (err as Error).message,
+        });
       }
 
       // ── Step 5: Update notification record ─────────────────────
