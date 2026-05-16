@@ -294,13 +294,13 @@ export class NotifyService {
       }
     } else {
       // Fallback to protocol's static test contacts (protocol_settings)
-      const settings = await this.prisma.protocol_settings.findUnique({
-        where: { protocol_id: protocol.protocolId },
+      const settings = await this.prisma.protocolSettings.findUnique({
+        where: { protocolId: protocol.protocolId },
       });
 
-      const testEmail = settings?.test_email;
-      const testTelegramId = settings?.test_telegram_id;
-      const testPhone = settings?.test_phone;
+      const testEmail = settings?.testEmail;
+      const testTelegramId = settings?.testTelegramId;
+      const testPhone = settings?.testPhone;
 
       if (!testEmail && !testTelegramId && !testPhone) {
         await this.prisma.notification.create({
@@ -436,8 +436,8 @@ export class NotifyService {
     // Build response
     const isDevnetResolved = devnetResult.resolved;
     const settingsForResponse = !isDevnetResolved
-      ? await this.prisma.protocol_settings.findUnique({
-          where: { protocol_id: protocol.protocolId },
+      ? await this.prisma.protocolSettings.findUnique({
+          where: { protocolId: protocol.protocolId },
         })
       : null;
 
@@ -462,14 +462,14 @@ export class NotifyService {
               : null,
           }
         : {
-            email: settingsForResponse?.test_email
-              ? this.maskEmail(settingsForResponse.test_email)
+            email: settingsForResponse?.testEmail
+              ? this.maskEmail(settingsForResponse.testEmail)
               : null,
-            telegram: settingsForResponse?.test_telegram_id
+            telegram: settingsForResponse?.testTelegramId
               ? 'configured'
               : null,
-            sms: settingsForResponse?.test_phone
-              ? this.maskPhone(settingsForResponse.test_phone)
+            sms: settingsForResponse?.testPhone
+              ? this.maskPhone(settingsForResponse.testPhone)
               : null,
           },
       sandbox_notes: [

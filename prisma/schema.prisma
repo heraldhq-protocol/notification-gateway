@@ -8,58 +8,62 @@ datasource db {
 }
 
 model Protocol {
-  id                     String                  @id @default(uuid()) @db.Uuid
-  protocolPubkey         String                  @unique @map("protocol_pubkey") @db.VarChar(44)
-  nameEncrypted          Bytes                   @map("name_encrypted")
-  tier                   Int                     @default(0) @db.SmallInt
-  isActive               Boolean                 @default(true) @map("is_active")
-  isSuspended            Boolean                 @default(false) @map("is_suspended")
-  sendsThisPeriod        BigInt                  @default(0) @map("sends_this_period")
-  overageEnabled         Boolean                 @default(false) @map("overage_enabled")
-  periodResetAt          DateTime                @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
-  subscriptionExpiresAt  DateTime?               @map("subscription_expires_at") @db.Timestamptz(6)
-  maxTelegramButtons    Int?                    @map("max_telegram_buttons") @db.SmallInt // Protocol-level override for max inline buttons (null = use global default)
-  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                     String                   @id @default(uuid()) @db.Uuid
+  protocolPubkey         String                   @unique @map("protocol_pubkey") @db.VarChar(44)
+  nameEncrypted          Bytes                    @map("name_encrypted")
+  adminNotes             String?                  @map("admin_notes") // Phase 2 — internal only, never exposed to protocol
+  tier                   Int                      @default(0) @db.SmallInt
+  isActive               Boolean                  @default(true) @map("is_active")
+  isSuspended            Boolean                  @default(false) @map("is_suspended")
+  sendsThisPeriod        BigInt                   @default(0) @map("sends_this_period")
+  overageEnabled         Boolean                  @default(false) @map("overage_enabled")
+  periodResetAt          DateTime                 @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
+  subscriptionExpiresAt  DateTime?                @map("subscription_expires_at") @db.Timestamptz(6)
+  maxTelegramButtons    Int?                     @map("max_telegram_buttons") @db.SmallInt
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   apiKeys                ApiKey[]
-  audit_log              audit_log[]
+  auditLogs              AuditLog[]
+  bimi_records           bimi_records[]
+  bimi_verification_logs bimi_verification_logs[]
   digestQueue            DigestQueue[]
   dkimKeys               DkimKey[]
   helioEvents            HelioWebhookEvent[]
   notifications          Notification[]
   payments               Payment[]
-  protocol_settings      protocol_settings?
+  settings               ProtocolSettings?
   subscription           Subscription?
-  team_members           team_members[]
+  teamMembers            TeamMember[]
   webhooks               Webhook[]
-  bimi_records           BimiRecord[]
-  bimi_verification_logs bimi_verification_log[]
+  overageLedger          OverageLedger[]
+  overageInvoices        OverageInvoice[]
+  protocolAssets         ProtocolAsset[]
   notificationTemplates  NotificationTemplate[]
   telegramTemplates      TelegramTemplate[]
-  protocolAssets       ProtocolAsset[]
+  designPartner          DesignPartner? // Phase 3
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
 }
 
 model ApiKey {
-  id                  String    @id @default(uuid()) @db.Uuid
-  protocolId          String    @map("protocol_id") @db.Uuid
-  keyHash             String    @unique @map("key_hash") @db.VarChar(64)
-  keyPrefix           String    @map("key_prefix") @db.VarChar(20)
-  environment         String    @db.VarChar(10)
-  scopes              String[]  @default(["notify:write", "notify:read"])
-  name                String?   @db.VarChar(100)
-  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz(6)
-  isRevoked           Boolean   @default(false) @map("is_revoked")
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  expiresAt           DateTime?  @map("expires_at") @db.Timestamptz(6)
-  isTestKey           Boolean   @default(false) @map("is_test_key")
-  testDailyLimit      Int       @default(100) @map("test_daily_limit") @db.SmallInt
-  testNotificationsSent Int     @default(0) @map("test_notifications_sent") @db.SmallInt
-  testKeyType         String?   @map("test_key_type") @db.VarChar(20)
-  testKeyIpHash       String?   @map("test_key_ip_hash") @db.VarChar(64)
-  protocol            Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(uuid()) @db.Uuid
+  protocolId            String    @map("protocol_id") @db.Uuid
+  keyHash               String    @unique @map("key_hash") @db.VarChar(64)
+  keyPrefix             String    @map("key_prefix") @db.VarChar(20)
+  environment           String    @db.VarChar(10)
+  scopes                String[]  @default(["notify:write", "notify:read"])
+  name                  String?   @db.VarChar(100)
+  lastUsedAt            DateTime? @map("last_used_at") @db.Timestamptz(6)
+  isRevoked             Boolean   @default(false) @map("is_revoked")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt             DateTime? @map("expires_at") @db.Timestamptz(6)
+  isTestKey             Boolean   @default(false) @map("is_test_key")
+  testDailyLimit        Int       @default(100) @map("test_daily_limit") @db.SmallInt
+  testNotificationsSent Int       @default(0) @map("test_notifications_sent") @db.SmallInt
+  testKeyType           String?   @map("test_key_type") @db.VarChar(20)
+  testKeyIpHash         String?   @map("test_key_ip_hash") @db.VarChar(64)
+  protocol              Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@index([keyHash], map: "idx_api_keys_hash")
   @@index([isTestKey, createdAt], map: "idx_api_keys_test_key")
@@ -78,8 +82,10 @@ model Notification {
   queuedAt          DateTime          @default(now()) @map("queued_at") @db.Timestamptz(6)
   processingAt      DateTime?         @map("processing_at") @db.Timestamptz(6)
   deliveredAt       DateTime?         @map("delivered_at") @db.Timestamptz(6)
-  receiptTx         String?           @map("receipt_tx") @db.VarChar(88)
-  sesMessageId      String?           @map("ses_message_id") @db.VarChar(100)
+  receiptTx              String?           @map("receipt_tx") @db.VarChar(88)
+  receiptFailureReason   String?           @map("receipt_failure_reason") // Phase 2
+  lastReceiptAttemptAt   DateTime?         @map("last_receipt_attempt_at") @db.Timestamptz(6) // Phase 2
+  sesMessageId           String?           @map("ses_message_id") @db.VarChar(100)
   emailProvider     String?           @map("email_provider") @db.VarChar(20)
   bounce            Boolean           @default(false)
   bounceType        String?           @map("bounce_type") @db.VarChar(10)
@@ -88,35 +94,18 @@ model Notification {
   arweaveId         String?           @map("arweave_id") @db.VarChar(100)
   ciphertext        String?           @map("ciphertext") @db.Text
   nonce             String?           @map("nonce") @db.VarChar(48)
-  channelDeliveries ChannelDelivery[]
   emailBounces      EmailBounce[]
-  emailDeliveries   EmailDelivery[]
   emailSuppressions EmailSuppression[]
+  emailDeliveries   EmailDelivery[]
   protocol          Protocol          @relation(fields: [protocolId], references: [id])
   webhookDeliveries WebhookDelivery[]
+  channelDeliveries ChannelDelivery[]
 
   @@index([protocolId, queuedAt(sort: Desc)], map: "idx_notifications_protocol")
   @@index([walletHash], map: "idx_notifications_wallet")
   @@index([status], map: "idx_notifications_status")
   @@index([idempotencyKey], map: "idx_notifications_idem")
   @@map("notifications")
-}
-
-model ChannelDelivery {
-  id             String       @id @default(uuid()) @db.Uuid
-  notificationId String       @map("notification_id") @db.Uuid
-  channel        String       @db.VarChar(20) // 'email', 'telegram', 'sms'
-  success        Boolean      @default(false)
-  messageId      String?      @map("message_id") @db.VarChar(200)
-  provider       String?      @db.VarChar(30)
-  error          String?
-  deliveredAt    DateTime?    @map("delivered_at") @db.Timestamptz(6)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-
-  @@index([notificationId], map: "idx_channel_del_notification")
-  @@index([channel, success], map: "idx_channel_del_channel")
-  @@map("channel_deliveries")
 }
 
 model Webhook {
@@ -237,7 +226,20 @@ model Subscription {
   currentPeriodEnd    DateTime? @map("current_period_end") @db.Timestamptz(6)
   sendsThisPeriod     BigInt    @default(0) @map("sends_this_period")
   periodResetAt       DateTime  @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
-  cancelAtPeriodEnd   Boolean   @default(false) @map("cancel_at_period_end")
+  cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
+  gracePeriodDays      Int       @default(3) @map("grace_period_days")
+  gracePeriodStartedAt DateTime? @map("grace_period_started_at") @db.Timestamptz(6)
+  gracePeriodEndsAt    DateTime? @map("grace_period_ends_at") @db.Timestamptz(6)
+  renewalDueDate       DateTime? @map("renewal_due_date") @db.Timestamptz(6)
+  lastReminderSent     DateTime? @map("last_reminder_sent") @db.Timestamptz(6)
+  nextChargeUrl        String?   @map("next_charge_url")
+  chargeToken          String?   @map("charge_token")
+  endedAt              DateTime? @map("ended_at") @db.Timestamptz(6)
+  endReason            String?   @map("end_reason")
+  isAnonymous          Boolean   @default(false) @map("is_anonymous")
+  overagesThisPeriod    BigInt    @default(0) @map("overages_this_period")
+  overageUsdcThisPeriod BigInt    @default(0) @map("overage_usdc_this_period")
+  overageHardCapHit     Boolean   @default(false) @map("overage_hard_cap_hit")
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   protocol            Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
@@ -283,186 +285,406 @@ model HelioWebhookEvent {
   @@map("helio_webhook_events")
 }
 
-model audit_log {
-  id            String        @id @db.Uuid
-  protocol_id   String?       @db.Uuid
-  actor_id      String?       @db.Uuid
-  actor_role    String?       @db.VarChar(20)
-  action        String        @db.VarChar(80)
-  resource_type String?       @db.VarChar(40)
-  resource_id   String?       @db.VarChar(100)
-  old_value     Json?
-  new_value     Json?
-  ip_hash       String?       @db.VarChar(64)
-  user_agent    String?
-  timestamp     DateTime      @default(now()) @db.Timestamptz(6)
-  team_members  team_members? @relation(fields: [actor_id], references: [id])
-  protocols     Protocol?     @relation(fields: [protocol_id], references: [id])
+model ProtocolSettings {
+  protocolId             String    @id @map("protocol_id") @db.Uuid
+  adminEmailHash         String?   @map("admin_email_hash") @db.VarChar(64)
+  adminEmailEncrypted    Bytes?    @map("admin_email_encrypted")
+  websiteUrl             String?   @map("website_url")
+  logoUrl                String?   @map("logo_url")
+  notificationCategories String[]  @default(["defi", "governance", "system"]) @map("notification_categories")
+  customFromName         String?   @map("custom_from_name") @db.VarChar(100)
+  helioSubscriptionId    String?   @map("helio_subscription_id") @db.VarChar(100)
+  helioCustomerId        String?   @map("helio_customer_id") @db.VarChar(100)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  bimi_enabled           Boolean   @default(false)
+  logo_verified_at       DateTime? @db.Timestamptz(6)
+  optInOverage           Boolean   @default(false) @map("opt_in_overage")
+  maxOverageUsdc         BigInt    @default(500000000) @map("max_overage_usdc")
+  overageAlertAtUsdc     BigInt    @default(50000000) @map("overage_alert_at_usdc")
+  overageHardCapEnabled  Boolean   @default(true) @map("overage_hard_cap_enabled")
+  testEmail              String?   @map("test_email") @db.VarChar(100)
+  testTelegramId         String?   @map("test_telegram_id") @db.VarChar(100)
+  testPhone              String?   @map("test_phone") @db.VarChar(30)
+  protocol               Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
+  @@map("protocol_settings")
+}
+
+model TeamMember {
+  id              String       @id @default(uuid()) @db.Uuid
+  protocolId      String       @map("protocol_id") @db.Uuid
+  emailHash       String       @map("email_hash") @db.VarChar(64)
+  emailEncrypted  Bytes?       @map("email_encrypted")
+  role            String       @default("developer") @db.VarChar(20)
+  walletPubkey    String?      @map("wallet_pubkey") @db.VarChar(44)
+  nameEncrypted   Bytes?       @map("name_encrypted")
+  isActive        Boolean      @default(true) @map("is_active")
+  lastLoginAt     DateTime?    @map("last_login_at") @db.Timestamptz(6)
+  invitedBy       String?      @map("invited_by") @db.Uuid
+  inviteToken     String?      @unique @map("invite_token") @db.VarChar(100)
+  inviteExpiresAt DateTime?    @map("invite_expires_at") @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  passwordHash    String?      @map("password_hash") @db.VarChar(100)
+  totpEnabled     Boolean      @default(false) @map("totp_enabled")
+  totpSecret      String?      @map("totp_secret") @db.VarChar(64)
+  auditLogs       AuditLog[]
+  inviter         TeamMember?  @relation("TeamMemberInvites", fields: [invitedBy], references: [id])
+  invitees        TeamMember[] @relation("TeamMemberInvites")
+  protocol        Protocol     @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId])
+  @@index([emailHash])
+  @@index([walletPubkey])
+  @@map("team_members")
+}
+
+model AuditLog {
+  id           String      @id @default(uuid()) @db.Uuid
+  protocolId   String?     @map("protocol_id") @db.Uuid
+  actorId      String?     @map("actor_id") @db.Uuid
+  actorRole    String?     @map("actor_role") @db.VarChar(20)
+  action       String      @db.VarChar(80)
+  resourceType String?     @map("resource_type") @db.VarChar(40)
+  resourceId   String?     @map("resource_id") @db.VarChar(100)
+  oldValue     Json?       @map("old_value")
+  newValue     Json?       @map("new_value")
+  ipHash       String?     @map("ip_hash") @db.VarChar(64)
+  userAgent    String?     @map("user_agent")
+  timestamp    DateTime    @default(now()) @db.Timestamptz(6)
+  actor        TeamMember? @relation(fields: [actorId], references: [id])
+  protocol     Protocol?   @relation(fields: [protocolId], references: [id])
+
+  @@index([protocolId, timestamp(sort: Desc)])
+  @@index([actorId, timestamp(sort: Desc)])
   @@index([action, timestamp(sort: Desc)])
-  @@index([actor_id, timestamp(sort: Desc)])
-  @@index([protocol_id, timestamp(sort: Desc)])
+  @@map("audit_log")
 }
 
-model portal_sessions {
-  id           String       @id @db.Uuid
-  wallet_hash  String       @db.VarChar(64)
-  jwt_jti      String       @unique @db.VarChar(36)
-  expires_at   DateTime     @db.Timestamptz(6)
-  revoked      Boolean      @default(false)
-  created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  portal_users portal_users @relation(fields: [wallet_hash], references: [wallet_hash], onDelete: Cascade)
+model UnsubscribeToken {
+  tokenHash  String     @id @map("token_hash") @db.VarChar(64)
+  walletHash String     @map("wallet_hash") @db.VarChar(64)
+  category   String?    @db.VarChar(20)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  usedAt     DateTime?  @map("used_at") @db.Timestamptz(6)
+  expiresAt  DateTime   @default(dbgenerated("(now() + '7 days'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  user       PortalUser @relation(fields: [walletHash], references: [walletHash], onDelete: Cascade)
 
-  @@index([wallet_hash])
+  @@index([expiresAt])
+  @@map("unsubscribe_tokens")
 }
 
-model portal_users {
-  wallet_hash        String               @id @db.VarChar(64)
-  email_hash         String?              @db.VarChar(64)
-  opt_in_all         Boolean              @default(true)
-  opt_in_defi        Boolean              @default(true)
-  opt_in_governance  Boolean              @default(true)
-  opt_in_marketing   Boolean              @default(false)
-  digest_mode        Boolean              @default(false)
-  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
-  portal_sessions    portal_sessions[]
-  unsubscribe_tokens unsubscribe_tokens[]
+model PortalSession {
+  id         String     @id @default(uuid()) @db.Uuid
+  walletHash String     @map("wallet_hash") @db.VarChar(64)
+  jwtJti     String     @unique @map("jwt_jti") @db.VarChar(36)
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(6)
+  revoked    Boolean    @default(false)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       PortalUser @relation(fields: [walletHash], references: [walletHash], onDelete: Cascade)
+
+  @@index([walletHash])
+  @@map("portal_sessions")
 }
 
-model protocol_settings {
-  protocol_id             String    @id @db.Uuid
-  admin_email_hash        String?   @db.VarChar(64)
-  admin_email_encrypted   Bytes?
-  website_url             String?
-  logo_url                String?
-  logo_verified_at        DateTime? @map("logo_verified_at") @db.Timestamptz(6)
-  bimi_enabled            Boolean   @default(false) @map("bimi_enabled")
-  notification_categories String[]  @default(["defi", "governance", "system"])
-  custom_from_name        String?   @db.VarChar(100)
-  helio_subscription_id   String?   @db.VarChar(100)
-  helio_customer_id       String?   @db.VarChar(100)
-  test_email              String?   @db.VarChar(100)
-  test_telegram_id        String?   @db.VarChar(100)
-  test_phone               String?   @db.VarChar(30)
-  updated_at              DateTime  @db.Timestamptz(6)
-  protocols               Protocol  @relation(fields: [protocol_id], references: [id], onDelete: Cascade)
+model PortalUser {
+  walletHash        String             @id @map("wallet_hash") @db.VarChar(64)
+  emailHash         String?            @map("email_hash") @db.VarChar(64)
+  optInAll          Boolean            @default(true) @map("opt_in_all")
+  optInDefi         Boolean            @default(true) @map("opt_in_defi")
+  optInGovernance   Boolean            @default(true) @map("opt_in_governance")
+  optInMarketing    Boolean            @default(false) @map("opt_in_marketing")
+  digestMode        Boolean            @default(false) @map("digest_mode")
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sessions          PortalSession[]
+  unsubscribeTokens UnsubscribeToken[]
+
+  @@map("portal_users")
 }
 
-model team_members {
-  id                 String         @id @db.Uuid
-  protocol_id        String         @db.Uuid
-  email_hash         String         @db.VarChar(64)
-  email_encrypted    Bytes?
-  role               String         @default("developer") @db.VarChar(20)
-  wallet_pubkey      String?        @db.VarChar(44)
-  name_encrypted     Bytes?
-  is_active          Boolean        @default(true)
-  last_login_at      DateTime?      @db.Timestamptz(6)
-  invited_by         String?        @db.Uuid
-  invite_token       String?        @unique @db.VarChar(100)
-  invite_expires_at  DateTime?      @db.Timestamptz(6)
-  created_at         DateTime       @default(now()) @db.Timestamptz(6)
-  password_hash      String?        @db.VarChar(100)
-  totp_enabled       Boolean        @default(false)
-  totp_secret        String?        @db.VarChar(64)
-  audit_log          audit_log[]
-  team_members       team_members?  @relation("team_membersToteam_members", fields: [invited_by], references: [id])
-  other_team_members team_members[] @relation("team_membersToteam_members")
-  protocols          Protocol       @relation(fields: [protocol_id], references: [id], onDelete: Cascade)
+model bimi_records {
+  id                   String   @id @default(uuid()) @db.Uuid
+  protocol_id          String   @db.Uuid
+  domain               String   @db.VarChar(255)
+  selector             String   @default("default") @db.VarChar(63)
+  logo_url             String
+  vmc_url              String?
+  is_verified          Boolean  @default(false)
+  dmarc_verified       Boolean  @default(false)
+  dns_record_published Boolean  @default(false)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  protocols            Protocol @relation(fields: [protocol_id], references: [id], onDelete: Cascade)
 
-  @@index([email_hash])
-  @@index([protocol_id])
-  @@index([wallet_pubkey])
+  @@unique([protocol_id, domain])
 }
 
-model unsubscribe_tokens {
-  token_hash   String       @id @db.VarChar(64)
-  wallet_hash  String       @db.VarChar(64)
-  category     String?      @db.VarChar(20)
-  created_at   DateTime     @default(now()) @db.Timestamptz(6)
-  used_at      DateTime?    @db.Timestamptz(6)
-  expires_at   DateTime     @default(dbgenerated("(now() + '7 days'::interval)")) @db.Timestamptz(6)
-  portal_users portal_users @relation(fields: [wallet_hash], references: [wallet_hash], onDelete: Cascade)
-
-  @@index([expires_at])
+model bimi_verification_logs {
+  id          String   @id @default(uuid()) @db.Uuid
+  protocol_id String   @db.Uuid
+  domain      String   @db.VarChar(255)
+  checkType   String   @map("check_type") @db.VarChar(20)
+  status      String   @db.VarChar(20)
+  details     Json?
+  checkedAt   DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
+  protocols   Protocol @relation(fields: [protocol_id], references: [id], onDelete: Cascade)
 }
 
-model BimiRecord {
-  id                 String   @id @default(uuid()) @db.Uuid
-  protocolId         String   @map("protocol_id") @db.Uuid
-  domain             String   @db.VarChar(255)
-  selector           String   @default("default") @db.VarChar(63)
-  logoUrl            String   @map("logo_url")
-  vmcUrl             String?  @map("vmc_url")
-  isVerified         Boolean  @default(false) @map("is_verified")
-  dmarcVerified      Boolean  @default(false) @map("dmarc_verified")
-  dnsRecordPublished Boolean  @default(false) @map("dns_record_published")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  protocol           Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+model OverageLedger {
+  id             String          @id @default(uuid()) @db.Uuid
+  protocolId     String          @map("protocol_id") @db.Uuid
+  notificationId String?         @map("notification_id") @db.Uuid
+  channel        String          @default("email") @db.VarChar(20)
+  tierAtSend     Int             @map("tier_at_send") @db.SmallInt
+  priceUsdc      BigInt          @map("price_usdc")
+  periodStart    DateTime        @map("period_start") @db.Timestamptz(6)
+  periodEnd      DateTime        @map("period_end") @db.Timestamptz(6)
+  settled        Boolean         @default(false)
+  invoiceId      String?         @map("invoice_id") @db.Uuid
+  sentAt         DateTime        @default(now()) @map("sent_at") @db.Timestamptz(6)
+  invoice        OverageInvoice? @relation(fields: [invoiceId], references: [id])
+  protocol       Protocol        @relation(fields: [protocolId], references: [id])
 
-  @@unique([protocolId, domain])
-  @@map("bimi_records")
+  @@index([protocolId, periodStart, settled], map: "idx_overage_protocol_period")
+  @@map("overage_ledger")
 }
 
-model bimi_verification_log {
+model OverageInvoice {
+  id                 String          @id @default(uuid()) @db.Uuid
+  protocolId         String          @map("protocol_id") @db.Uuid
+  periodStart        DateTime        @map("period_start") @db.Timestamptz(6)
+  periodEnd          DateTime        @map("period_end") @db.Timestamptz(6)
+  totalOverages      BigInt          @map("total_overages")
+  totalUsdc          BigInt          @map("total_usdc")
+  channelBreakdown   Json            @default("{}") @map("channel_breakdown")
+  status             String          @default("pending") @db.VarChar(20)
+  collectionMethod   String?         @map("collection_method") @db.VarChar(20)
+  helioPaymentLink   String?         @map("helio_payment_link")
+  helioTransactionId String?         @unique @map("helio_transaction_id") @db.VarChar(100)
+  solanaTxSignature  String?         @map("solana_tx_signature") @db.VarChar(88)
+  issuedAt           DateTime        @default(now()) @map("issued_at") @db.Timestamptz(6)
+  dueAt              DateTime        @map("due_at") @db.Timestamptz(6)
+  paidAt             DateTime?       @map("paid_at") @db.Timestamptz(6)
+  failedAt           DateTime?       @map("failed_at") @db.Timestamptz(6)
+  failureReason      String?         @map("failure_reason")
+  ledgerEntries      OverageLedger[]
+  protocol           Protocol        @relation(fields: [protocolId], references: [id])
+
+  @@index([protocolId, periodStart], map: "idx_overage_inv_protocol")
+  @@map("overage_invoices")
+}
+
+enum MonitorStatus {
+  up
+  down
+  degraded
+}
+
+enum IncidentStatus {
+  investigating
+  identified
+  monitoring
+  resolved
+}
+
+enum IncidentSeverity {
+  critical
+  major
+  minor
+  maintenance
+}
+
+model Monitor {
+  id                  String        @id @default(uuid()) @db.Uuid
+  name                String        @db.VarChar(255)
+  url                 String        @db.VarChar(255)
+  interval            Int           @default(60)
+  timeout             Int           @default(5000)
+  isActive            Boolean       @default(true) @map("is_active")
+  currentStatus       MonitorStatus @default(up) @map("current_status")
+  uptimePercentage    Decimal       @default(0) @map("uptime_percentage") @db.Decimal(5, 2)
+  averageResponseTime Int           @default(0) @map("average_response_time")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  checks              Check[]
+  incidents           Incident[]
+
+  @@map("monitors")
+}
+
+model Check {
+  id           String        @id @default(uuid()) @db.Uuid
+  monitorId    String        @map("monitor_id") @db.Uuid
+  status       MonitorStatus
+  responseTime Int           @map("response_time")
+  statusCode   Int?          @map("status_code")
+  errorMessage String?       @map("error_message")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  monitor      Monitor       @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, createdAt], map: "idx_checks_monitor_date")
+  @@map("checks")
+}
+
+model Incident {
+  id                 String              @id @default(uuid()) @db.Uuid
+  monitorId          String?             @map("monitor_id") @db.Uuid // Phase 2: made nullable so admin can create incidents without a monitor
+  affectedComponent  String?             @map("affected_component") @db.VarChar(255) // Phase 2
+  title              String              @db.VarChar(255)
+  description        String              @db.Text
+  status             IncidentStatus      @default(investigating)
+  severity           IncidentSeverity
+  startedAt          DateTime?           @map("started_at") @db.Timestamptz(6)
+  resolvedAt         DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  monitor            Monitor?            @relation(fields: [monitorId], references: [id], onDelete: SetNull)
+  timelines          IncidentTimeline[]  // Phase 2
+
+  @@map("incidents")
+}
+
+// Phase 2 — timeline entries for admin-managed incidents
+model IncidentTimeline {
   id         String   @id @default(uuid()) @db.Uuid
-  protocolId String   @map("protocol_id") @db.Uuid
-  domain     String   @db.VarChar(255)
-  checkType  String   @db.VarChar(20) // 'dmarc', 'dns', 'logo'
-  status     String   @db.VarChar(20) // 'pass', 'fail'
-  details    Json?
-  checkedAt  DateTime @default(now()) @db.Timestamptz(6)
-  protocol   Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  incidentId String   @map("incident_id") @db.Uuid
+  message    String
+  author     String   @default("herald-admin") @db.VarChar(100)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
-  @@map("bimi_verification_logs")
+  @@index([incidentId, createdAt], map: "idx_incident_timeline_incident")
+  @@map("incident_timelines")
+}
+
+model ProtocolAsset {
+  id          String    @id @default(uuid()) @db.Uuid
+  protocolId  String    @map("protocol_id") @db.Uuid
+  assetType   String    @db.VarChar(20) // "banner" | "video" | "logo"
+  url        String    @db.VarChar(500)
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  protocol   Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@unique([protocolId, assetType])
+  @@index([protocolId], map: "idx_protocol_assets_protocol")
+  @@map("protocol_assets")
 }
 
 /// Custom email templates stored per protocol (Growth+ tier).
 model NotificationTemplate {
-  id              String   @id @default(uuid()) @db.Uuid
-  protocolId      String   @map("protocol_id") @db.Uuid
-  name            String   @db.VarChar(100)
-  category        String   @db.VarChar(20)
-  subjectTemplate String?  @map("subject_template")
-  htmlSource      String?  @map("html_source")
-  textSource      String?  @map("text_source")
-  previewText     String?  @map("preview_text") @db.VarChar(200)
-  heraldFooter    String   @default("full") @map("herald_footer") @db.VarChar(20) // full|small|minimal|none|enterprise
-  isActive        Boolean  @default(true) @map("is_active")
-  isDefault       Boolean  @default(false) @map("is_default")
-  version         Int      @default(1) @map("version")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  protocol        Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
-  versions        NotificationTemplateVersion[]
+  id              String    @id @default(uuid()) @db.Uuid
+  protocolId      String    @map("protocol_id") @db.Uuid
+  name            String    @db.VarChar(100)
+  category        String    @db.VarChar(20)
+  subjectTemplate String?   @map("subject_template")
+  htmlSource      String?   @map("html_source")
+  textSource     String?   @map("text_source")
+  previewText    String?   @map("preview_text") @db.VarChar(200)
+  heraldFooter  String    @default("full") @map("herald_footer") @db.VarChar(20)
+  isActive       Boolean   @default(true) @map("is_active")
+  isDefault     Boolean   @default(false) @map("is_default")
+  version       Int       @default(1) @map("version")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  protocol      Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  versions      NotificationTemplateVersion[]
 
   @@index([protocolId, category], map: "idx_notif_templates_protocol")
   @@map("notification_templates")
 }
 
-/// Version history for email templates (keeps last 10 versions).
+/// Version history for email templates.
 model NotificationTemplateVersion {
   id              String   @id @default(uuid()) @db.Uuid
-  templateId      String   @map("template_id") @db.Uuid
-  version         Int      @default(1) @map("version")
-  htmlSource      String   @map("html_source")
-  subjectTemplate String?  @map("subject_template")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  template        NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId     String   @map("template_id") @db.Uuid
+  version        Int      @default(1) @map("version")
+  htmlSource     String   @map("html_source")
+  subjectTemplate String? @map("subject_template")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  template       NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@unique([templateId, version], map: "idx_template_version")
   @@index([templateId], map: "idx_template_versions_template")
   @@map("notification_template_versions")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 — Herald internal admin team (separate from per-protocol TeamMember)
+// Roles: super_admin | admin | viewer
+// Auth:  wallet | email-totp
+// ─────────────────────────────────────────────────────────────────────────────
+model AdminUser {
+  id               String    @id @default(uuid()) @db.Uuid
+  displayName      String    @map("display_name") @db.VarChar(100)
+  role             String    @default("viewer") @db.VarChar(20)
+  authMethod       String    @map("auth_method") @db.VarChar(20)
+  walletPubkeyHash String?   @map("wallet_pubkey_hash") @db.VarChar(64)
+  emailHash        String?   @map("email_hash") @db.VarChar(64)
+  emailEncrypted   Bytes?    @map("email_encrypted")
+  passwordHash     String?   @map("password_hash") @db.VarChar(100)
+  totpEnabled      Boolean   @default(false) @map("totp_enabled")
+  totpSecret       String?   @map("totp_secret") @db.VarChar(64)
+  isActive         Boolean   @default(true) @map("is_active")
+  lastActiveAt     DateTime? @map("last_active_at") @db.Timestamptz(6)
+  invitedBy        String?   @map("invited_by") @db.Uuid
+  inviteToken      String?   @unique @map("invite_token") @db.VarChar(100)
+  inviteExpiresAt  DateTime? @map("invite_expires_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([walletPubkeyHash], map: "idx_admin_users_wallet")
+  @@index([emailHash], map: "idx_admin_users_email")
+  @@map("admin_users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 — Design partners (protocols with retainer agreements)
+// ─────────────────────────────────────────────────────────────────────────────
+model DesignPartner {
+  id                  String    @id @default(uuid()) @db.Uuid
+  protocolId          String    @unique @map("protocol_id") @db.Uuid
+  retainerAmountCents Int       @default(100000) @map("retainer_amount_cents")
+  retainerStart       DateTime  @map("retainer_start") @db.Timestamptz(6)
+  retainerEnd         DateTime? @map("retainer_end") @db.Timestamptz(6)
+  status              String    @default("active") @db.VarChar(20)
+  feedbackSessions    Int       @default(0) @map("feedback_sessions")
+  equityWarrantIssued Boolean   @default(false) @map("equity_warrant_issued")
+  notes               String?
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  protocol            Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([status], map: "idx_design_partners_status")
+  @@map("design_partners")
+}
+
+// ── channel_deliveries ──────────────────────────────────────────────────────
+// Tracks per-channel delivery outcome for each notification.
+model ChannelDelivery {
+  id             String       @id @default(uuid()) @db.Uuid
+  notificationId String       @map("notification_id") @db.Uuid
+  channel        String       @db.VarChar(20) // 'email', 'telegram', 'sms'
+  success        Boolean      @default(false)
+  messageId      String?      @map("message_id") @db.VarChar(200)
+  provider       String?      @db.VarChar(30)
+  error          String?
+  deliveredAt    DateTime?    @map("delivered_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId], map: "idx_channel_del_notification")
+  @@index([channel, success], map: "idx_channel_del_channel")
+  @@map("channel_deliveries")
+}
+
+// ── telegram_templates ──────────────────────────────────────────────────────
+// Custom Telegram message templates per protocol.
 model TelegramTemplate {
   id           String   @id @default(uuid()) @db.Uuid
   protocolId   String   @map("protocol_id") @db.Uuid
   name         String   @db.VarChar(100)
   category     String   @db.VarChar(20)
   textTemplate String   @map("text_template")
-  buttons      Json? // [{label, urlTemplate}]
+  buttons      Json?
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   protocol     Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
@@ -471,20 +693,8 @@ model TelegramTemplate {
   @@map("telegram_templates")
 }
 
-model ProtocolAsset {
-  id          String   @id @default(uuid()) @db.Uuid
-  protocolId  String   @map("protocol_id") @db.Uuid
-  assetType   String   @db.VarChar(20) // "banner" | "video" | "logo"
-  url        String   @db.VarChar(500)
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  protocol   Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
-
-  @@unique([protocolId, assetType])
-  @@index([protocolId], map: "idx_protocol_assets_protocol")
-  @@map("protocol_assets")
-}
-
+// ── sandbox_receipts ────────────────────────────────────────────────────────
+// Receipts for sandbox/test API key notifications.
 model SandboxReceipt {
   id              String    @id @default(uuid()) @db.Uuid
   apiKeyId        String    @map("api_key_id") @db.Uuid

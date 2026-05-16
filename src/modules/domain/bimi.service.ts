@@ -142,8 +142,8 @@ export class BimiService {
    * Resyncs BIMI status with DNS and records logs.
    */
   async syncBimiStatus(protocolId: string, domain: string) {
-    const bimi = await this.prisma.bimiRecord.findUnique({
-      where: { protocolId_domain: { protocolId, domain } },
+    const bimi = await this.prisma.bimi_records.findUnique({
+      where: { protocol_id_domain: { protocol_id: protocolId, domain } },
     });
 
     if (!bimi) {
@@ -154,25 +154,25 @@ export class BimiService {
     const dnsStatus = await this.dns.checkBimiRecord(
       domain,
       bimi.selector,
-      bimi.logoUrl,
+      bimi.logo_url,
     );
 
     // Update BIMI record
-    const updated = await this.prisma.bimiRecord.update({
+    const updated = await this.prisma.bimi_records.update({
       where: { id: bimi.id },
       data: {
-        dmarcVerified: dmarcStatus.valid,
-        dnsRecordPublished: dnsStatus.published,
-        isVerified:
+        dmarc_verified: dmarcStatus.valid,
+        dns_record_published: dnsStatus.published,
+        is_verified:
           dmarcStatus.valid && dnsStatus.published && dnsStatus.matches,
       },
     });
 
     // Log verification
-    await this.prisma.bimi_verification_log.createMany({
+    await this.prisma.bimi_verification_logs.createMany({
       data: [
         {
-          protocolId,
+          protocol_id: protocolId,
           domain,
           checkType: 'dmarc',
           status: dmarcStatus.valid ? 'pass' : 'fail',
@@ -183,7 +183,7 @@ export class BimiService {
           } as any,
         },
         {
-          protocolId,
+          protocol_id: protocolId,
           domain,
           checkType: 'dns',
           status: dnsStatus.published ? 'pass' : 'fail',

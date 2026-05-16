@@ -88,13 +88,13 @@ export class UnsubscribeService {
       .update(`${payloadStr}.${signature}`)
       .digest('hex');
 
-    this.prisma.unsubscribe_tokens
+    this.prisma.unsubscribeToken
       .create({
         data: {
-          token_hash: tokenHash,
-          wallet_hash: walletHash,
+          tokenHash,
+          walletHash,
           category,
-          expires_at: new Date(expiresAt * 1000),
+          expiresAt: new Date(expiresAt * 1000),
         },
       })
       .catch((err) => {
@@ -155,11 +155,11 @@ export class UnsubscribeService {
       .update(token)
       .digest('hex');
 
-    const existingToken = await this.prisma.unsubscribe_tokens.findUnique({
-      where: { token_hash: tokenHash },
+    const existingToken = await this.prisma.unsubscribeToken.findUnique({
+      where: { tokenHash },
     });
 
-    if (existingToken?.used_at) {
+    if (existingToken?.usedAt) {
       return { success: false, error: 'Token already used' };
     }
 
@@ -168,9 +168,9 @@ export class UnsubscribeService {
 
     // Mark token as used
     if (existingToken) {
-      await this.prisma.unsubscribe_tokens.update({
-        where: { token_hash: tokenHash },
-        data: { used_at: new Date() },
+      await this.prisma.unsubscribeToken.update({
+        where: { tokenHash },
+        data: { usedAt: new Date() },
       });
     }
 
@@ -224,8 +224,8 @@ export class UnsubscribeService {
     const { walletHash, category } = payload;
 
     // Check if user exists
-    const user = await this.prisma.portal_users.findUnique({
-      where: { wallet_hash: walletHash },
+    const user = await this.prisma.portalUser.findUnique({
+      where: { walletHash },
     });
 
     if (!user) {
@@ -237,11 +237,11 @@ export class UnsubscribeService {
 
     if (!category || category === 'all') {
       // Full opt-out — disable all notifications
-      await this.prisma.portal_users.update({
-        where: { wallet_hash: walletHash },
+      await this.prisma.portalUser.update({
+        where: { walletHash },
         data: {
-          opt_in_all: false,
-          updated_at: new Date(),
+          optInAll: false,
+          updatedAt: new Date(),
         },
       });
       this.logger.log(
@@ -249,25 +249,25 @@ export class UnsubscribeService {
       );
     } else {
       // Per-category opt-out
-      const updateData: Record<string, any> = { updated_at: new Date() };
+      const updateData: Record<string, any> = { updatedAt: new Date() };
 
       switch (category) {
         case 'defi':
-          updateData.opt_in_defi = false;
+          updateData.optInDefi = false;
           break;
         case 'governance':
-          updateData.opt_in_governance = false;
+          updateData.optInGovernance = false;
           break;
         case 'marketing':
-          updateData.opt_in_marketing = false;
+          updateData.optInMarketing = false;
           break;
         default:
           this.logger.warn(`Unknown unsubscribe category: ${category}`);
           return;
       }
 
-      await this.prisma.portal_users.update({
-        where: { wallet_hash: walletHash },
+      await this.prisma.portalUser.update({
+        where: { walletHash },
         data: updateData,
       });
       this.logger.log(

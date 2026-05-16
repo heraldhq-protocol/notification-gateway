@@ -97,13 +97,13 @@ export class SandboxController {
     }
 
     // 3. Load test contacts from protocol_settings
-    const settings = await this.prisma.protocol_settings.findUnique({
-      where: { protocol_id: protocol.protocolId },
+    const settings = await this.prisma.protocolSettings.findUnique({
+      where: { protocolId: protocol.protocolId },
     });
 
-    const testEmail = settings?.test_email;
-    const testTelegramId = settings?.test_telegram_id;
-    const testPhone = settings?.test_phone;
+    const testEmail = settings?.testEmail;
+    const testTelegramId = settings?.testTelegramId;
+    const testPhone = settings?.testPhone;
 
     if (!testEmail && !testTelegramId && !testPhone) {
       throw new BadRequestException({

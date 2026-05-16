@@ -100,8 +100,8 @@ export class DigestWorker extends WorkerHost {
 
       // For digest, we need to find the wallet pubkey to resolve channels.
       // Since we only have the hash, we look up the portal user's registered channels.
-      const portalUser = await this.prisma.portal_users.findUnique({
-        where: { wallet_hash: walletHash },
+      const portalUser = await this.prisma.portalUser.findUnique({
+        where: { walletHash },
       });
 
       if (!portalUser) {

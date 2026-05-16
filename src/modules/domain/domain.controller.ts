@@ -199,23 +199,23 @@ export class DomainController {
     }
 
     // 2. Save or update BIMI record
-    const bimi = await this.prisma.bimiRecord.upsert({
+    const bimi = await this.prisma.bimi_records.upsert({
       where: {
-        protocolId_domain: {
-          protocolId: protocol.protocolId,
+        protocol_id_domain: {
+          protocol_id: protocol.protocolId,
           domain: domainKey.domain,
         },
       },
       update: {
-        logoUrl: dto.logo_url,
-        vmcUrl: dto.vmc_url,
+        logo_url: dto.logo_url,
+        vmc_url: dto.vmc_url,
         selector: dto.selector,
       },
       create: {
-        protocolId: protocol.protocolId,
+        protocol_id: protocol.protocolId,
         domain: domainKey.domain,
-        logoUrl: dto.logo_url,
-        vmcUrl: dto.vmc_url,
+        logo_url: dto.logo_url,
+        vmc_url: dto.vmc_url,
         selector: dto.selector,
       },
     });
@@ -225,8 +225,8 @@ export class DomainController {
       bimi_id: bimi.id,
       dns_record_name: `${bimi.selector}._bimi.${bimi.domain}`,
       dns_record_value: this.bimiService.generateDnsRecord(
-        bimi.logoUrl,
-        bimi.vmcUrl ?? undefined,
+        bimi.logo_url,
+        bimi.vmc_url ?? undefined,
       ),
       validation_details: validation.details,
       instructions: `Add a TXT record to your DNS: ${bimi.selector}._bimi.${bimi.domain} with the generated value.`,
@@ -244,10 +244,10 @@ export class DomainController {
     });
     if (!domainKey) throw new NotFoundException('Domain not found');
 
-    const bimi = await this.prisma.bimiRecord.findUnique({
+    const bimi = await this.prisma.bimi_records.findUnique({
       where: {
-        protocolId_domain: {
-          protocolId: protocol.protocolId,
+        protocol_id_domain: {
+          protocol_id: protocol.protocolId,
           domain: domainKey.domain,
         },
       },
@@ -259,8 +259,8 @@ export class DomainController {
       ...bimi,
       dns_record_name: `${bimi.selector}._bimi.${bimi.domain}`,
       dns_record_value: this.bimiService.generateDnsRecord(
-        bimi.logoUrl,
-        bimi.vmcUrl ?? undefined,
+        bimi.logo_url,
+        bimi.vmc_url ?? undefined,
       ),
     };
   }

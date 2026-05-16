@@ -177,8 +177,8 @@ export class MailWorker extends WorkerHost {
       const identity = await this.routingService.resolveIdentity(wallet);
       if (!identity) {
         const portalUser = job.data.walletHash
-          ? await this.prisma.portal_users.findUnique({
-              where: { wallet_hash: job.data.walletHash },
+          ? await this.prisma.portalUser.findUnique({
+              where: { walletHash: job.data.walletHash },
             })
           : null;
 
@@ -186,7 +186,7 @@ export class MailWorker extends WorkerHost {
           where: { id: notificationId },
           data: {
             status: 'opted_out',
-            errorCode: portalUser?.email_hash
+            errorCode: portalUser?.emailHash
               ? 'PORTAL_FALLBACK_CHANNELS_UNAVAILABLE'
               : 'WALLET_NOT_REGISTERED_AT_PROCESSING',
           },

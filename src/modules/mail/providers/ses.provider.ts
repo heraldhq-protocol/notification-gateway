@@ -43,10 +43,10 @@ export class SesProvider implements IMailProvider {
       if (!domain) return null;
 
       // 1. Try to find custom BIMI record in DB
-      const bimi = await this.prisma.bimiRecord.findFirst({
+      const bimi = await this.prisma.bimi_records.findFirst({
         where: {
           domain,
-          isVerified: true,
+          is_verified: true,
         },
         select: { selector: true },
       });
