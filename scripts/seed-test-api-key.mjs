@@ -21,7 +21,7 @@ async function main() {
     VALUES (gen_random_uuid(), $1, $2, $3, true, 0, NOW() + INTERVAL '30 days')
     ON CONFLICT (protocol_pubkey) DO UPDATE SET is_active = true
     RETURNING id
-  `, [protocolPubkey, Buffer.from('test'), 2]);
+  `, [protocolPubkey, Buffer.from('Aether Labs'), 2]);
 
   const protocolId = protocolResult.rows[0].id;
   console.log('Protocol ID:', protocolId);

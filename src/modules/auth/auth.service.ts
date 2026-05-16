@@ -93,6 +93,7 @@ export class AuthService {
       isActive: protocol.isActive,
       sendsThisPeriod: protocol.sendsThisPeriod,
       overageEnabled: protocol.overageEnabled,
+      name: Buffer.from(protocol.nameEncrypted).toString('utf-8'),
       isTestKey: apiKey.isTestKey || false,
       testKeyType: apiKey.testKeyType || undefined,
     };
