@@ -18,6 +18,8 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import type { IdentityAccount } from '../../common/types/notification.types';
 import type { NotifyDto, NotifyResponseDto, BroadcastDto, BroadcastResponseDto } from './dto/notify.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { ContentScannerService } from './content-scanner.service';
+import { AiClassifierService } from './ai-classifier.service';
 
 /**
  * NotifyService — orchestrates the synchronous part of notification delivery.
@@ -44,6 +46,8 @@ export class NotifyService {
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly contentScanner: ContentScannerService,
+    private readonly aiClassifier: AiClassifierService,
   ) {}
 
   async queueNotification(
@@ -95,7 +99,26 @@ export class NotifyService {
       }
     }
 
-    // ── 2. Persist minimal notification record ───────────────────
+    // ── 2. Content scan (sync rules engine, <1ms) ───────────────
+    const scan = this.contentScanner.scan(dto.subject, dto.body);
+
+    if (scan.verdict === 'block') {
+      this.logger.warn(
+        { protocolId: protocol.protocolId, riskScore: scan.riskScore, rules: scan.triggeredRules },
+        'Notification blocked by content scanner',
+      );
+      return {
+        notification_id: notificationId,
+        status: 'blocked',
+        error_code: 'CONTENT_BLOCKED',
+        recipient_registered: null,
+        estimated_delivery_ms: 0,
+        receipt_tx: null,
+        environment: 'production',
+      };
+    }
+
+    // ── 3. Persist minimal notification record ───────────────────
     await this.prisma.notification.create({
       data: {
         id: notificationId,
@@ -106,10 +129,25 @@ export class NotifyService {
         category: dto.category ?? 'defi',
         idempotencyKey: dto.idempotencyKey,
         writeReceipt: dto.receipt ?? true,
+        riskScore: scan.riskScore,
+        scanVerdict: scan.verdict,
       },
     });
 
-    // ── 3. Enqueue async delivery job ────────────────────────────
+    // For review-range notifications, fire async AI classification (non-blocking)
+    if (scan.verdict === 'review') {
+      void this.aiClassifier.classifyAndFlag({
+        notificationId,
+        protocolId: protocol.protocolId,
+        protocolName: protocol.name ?? 'Unknown Protocol',
+        subject: dto.subject,
+        body: dto.body,
+        riskScore: scan.riskScore,
+        triggeredRules: scan.triggeredRules,
+      });
+    }
+
+    // ── 4. Enqueue async delivery job ────────────────────────────
     const channels = dto.batchChannels as
       | ('email' | 'telegram' | 'sms')[]
       | undefined;

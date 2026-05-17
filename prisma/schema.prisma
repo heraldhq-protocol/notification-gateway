@@ -14,12 +14,35 @@ enum TemplateStatus {
   REJECTED
 }
 
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+  FLAGGED
+}
+
+enum ModerationItemType {
+  protocol_registration
+  content_scan
+  health_degradation
+  user_report
+}
+
+enum ModerationSeverity {
+  low
+  medium
+  high
+  critical
+}
+
 model Protocol {
   id                     String                   @id @default(uuid()) @db.Uuid
   protocolPubkey         String                   @unique @map("protocol_pubkey") @db.VarChar(44)
   nameEncrypted          Bytes                    @map("name_encrypted")
   adminNotes             String?                  @map("admin_notes") // Phase 2 — internal only, never exposed to protocol
   tier                   Int                      @default(0) @db.SmallInt
+  verificationStatus     VerificationStatus       @default(UNVERIFIED) @map("verification_status")
   strikeCount            Int                      @default(0) @map("strike_count") @db.SmallInt
   strikesResetAt         DateTime?                @map("strikes_reset_at") @db.Timestamptz(6)
   lastStrikeAt           DateTime?                @map("last_strike_at") @db.Timestamptz(6)
@@ -57,6 +80,7 @@ model Protocol {
   audiences              Audience[]
   campaigns              Campaign[]
   scheduledNotifications ScheduledNotification[]
+  moderationItems        ModerationQueue[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -110,6 +134,8 @@ model Notification {
   arweaveId         String?           @map("arweave_id") @db.VarChar(100)
   ciphertext        String?           @map("ciphertext") @db.Text
   nonce             String?           @map("nonce") @db.VarChar(48)
+  riskScore         Int?              @default(0) @map("risk_score") @db.SmallInt
+  scanVerdict       String?           @map("scan_verdict") @db.VarChar(20)
   emailBounces      EmailBounce[]
   emailSuppressions EmailSuppression[]
   emailDeliveries   EmailDelivery[]
@@ -886,4 +912,25 @@ model ScheduledNotification {
 
   @@index([protocolId, status, nextRunAt], map: "idx_scheduled_notifications_protocol")
   @@map("scheduled_notifications")
+}
+
+// ── moderation_queue ────────────────────────────────────────────────────────
+// Gateway writes content_scan items here; admin-api manages the full queue.
+model ModerationQueue {
+  id            String             @id @default(uuid()) @db.Uuid
+  protocolId    String             @map("protocol_id") @db.Uuid
+  type          ModerationItemType
+  severity      ModerationSeverity @default(medium)
+  flagReason    String             @map("flag_reason") @db.Text
+  aiScanResult  Json?              @map("ai_scan_result")
+  rulesTriggers String[]           @map("rules_triggers") @default([])
+  resolvedAt    DateTime?          @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy    String?            @map("resolved_by") @db.VarChar(100)
+  resolution    String?            @db.VarChar(30)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  protocol      Protocol           @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, createdAt(sort: Desc)], map: "idx_modq_protocol")
+  @@index([resolvedAt], map: "idx_modq_resolved")
+  @@map("moderation_queue")
 }

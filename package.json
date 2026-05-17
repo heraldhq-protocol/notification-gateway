@@ -29,6 +29,7 @@
     "db:reset": "npx prisma migrate reset"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@aws-sdk/client-kms": "^3.1012.0",
     "@aws-sdk/client-secrets-manager": "^3.1034.0",
     "@aws-sdk/client-ses": "^3.1012.0",

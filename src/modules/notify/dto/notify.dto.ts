@@ -292,11 +292,12 @@ export class NotifyResponseDto {
       '`queued` — accepted and being delivered. ' +
       '`opted_out` — recipient has opted out of this category. ' +
       '`duplicate` — same idempotency key seen within dedup window. ' +
-      '`failed` — delivery could not be attempted (see error_code).',
-    enum: ['queued', 'opted_out', 'duplicate', 'failed'],
+      '`failed` — delivery could not be attempted (see error_code). ' +
+      '`blocked` — content scan rejected the notification.',
+    enum: ['queued', 'opted_out', 'duplicate', 'failed', 'blocked'],
     example: 'queued',
   })
-  status: 'queued' | 'opted_out' | 'duplicate' | 'failed';
+  status: 'queued' | 'opted_out' | 'duplicate' | 'failed' | 'blocked';
 
   @ApiProperty({
     description:
