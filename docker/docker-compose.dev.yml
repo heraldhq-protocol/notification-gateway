@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────
 # Herald Notification Gateway — Local Development Stack
 # ─────────────────────────────────────────────────────────────────────
-name: herald-gateway-dev
+name: herald-gateway-dev-v2
 # Usage: docker compose -f docker/docker-compose.dev.yml up -d
 # ─────────────────────────────────────────────────────────────────────
 # Starts Redis + the API gateway + the background worker.
@@ -12,7 +12,6 @@ services:
   # ── Redis ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: herald-redis
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
@@ -32,7 +31,6 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.dev
       network: host
-    container_name: herald-gateway
     entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
     command: ["dev"]
     ports:
@@ -63,7 +61,6 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.dev
       network: host
-    container_name: herald-worker
     entrypoint: ["/bin/sh", "/app/docker/entrypoint.sh"]
     command: ["worker"]
     environment:

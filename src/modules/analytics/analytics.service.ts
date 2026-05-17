@@ -81,6 +81,59 @@ export class AnalyticsService {
     };
   }
 
+  async getEngagementMetrics(
+    protocolId: string,
+    startDate?: string,
+    endDate?: string,
+    templateId?: string,
+  ) {
+    const since = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const until = endDate ? new Date(endDate) : new Date();
+
+    const where = {
+      protocolId,
+      createdAt: { gte: since, lte: until },
+    };
+
+    const [opens, clicks, unsubs, totalSends] = await Promise.all([
+      this.prisma.notificationEngagement.count({ where: { ...where, eventType: 'open' } }),
+      this.prisma.notificationEngagement.count({ where: { ...where, eventType: 'click' } }),
+      this.prisma.notificationEngagement.count({ where: { ...where, eventType: 'unsubscribe' } }),
+      this.prisma.notification.count({ where: { protocolId, queuedAt: { gte: since, lte: until } } }),
+    ]);
+
+    const safeRate = (n: number) => (totalSends > 0 ? +(n / totalSends * 100).toFixed(2) : 0);
+
+    return {
+      totalSends,
+      opens,
+      clicks,
+      unsubscribes: unsubs,
+      openRate: safeRate(opens),
+      clickRate: safeRate(clicks),
+      unsubscribeRate: safeRate(unsubs),
+      period: { from: since.toISOString(), to: until.toISOString() },
+    };
+  }
+
+  async recordEngagement(
+    notificationId: string,
+    protocolId: string,
+    eventType: 'open' | 'click' | 'unsubscribe',
+    linkUrl?: string,
+    userAgentHash?: string,
+  ) {
+    await this.prisma.notificationEngagement.create({
+      data: {
+        notificationId,
+        protocolId,
+        eventType,
+        linkUrl,
+        userAgentHash,
+      },
+    });
+  }
+
   async getRequestLogs(
     protocolId: string,
     filters: {

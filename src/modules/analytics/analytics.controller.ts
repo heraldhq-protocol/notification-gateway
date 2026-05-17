@@ -1,4 +1,6 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Redirect, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
+import { createHash } from 'crypto';
 import {
   ApiTags,
   ApiOperation,
@@ -11,15 +13,60 @@ import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
 import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 
+// 1×1 transparent GIF bytes
+const TRACKING_PIXEL = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+  'base64',
+);
+
 @ApiTags('Analytics')
-@ApiBearerAuth()
-@UseGuards(AuthGuard, ScopeGuard)
 @Controller('v1')
-@RequiredScopes('analytics:read')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
+  @Get('track/open/:notificationId')
+  @ApiOperation({ summary: 'Email open tracking pixel (public)' })
+  async trackOpen(
+    @Param('notificationId') notificationId: string,
+    @Query('p') protocolId: string,
+    @Res() res: Response,
+  ) {
+    // Fire-and-forget — never block the email client
+    if (notificationId && protocolId) {
+      this.analyticsService
+        .recordEngagement(notificationId, protocolId, 'open')
+        .catch(() => {});
+    }
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Cache-Control', 'no-store, no-cache');
+    res.send(TRACKING_PIXEL);
+  }
+
+  @Get('track/click/:notificationId')
+  @ApiOperation({ summary: 'Click-wrap redirect with engagement tracking (public)' })
+  async trackClick(
+    @Param('notificationId') notificationId: string,
+    @Query('p') protocolId: string,
+    @Query('url') encodedUrl: string,
+    @Res() res: Response,
+  ) {
+    let destination = 'https://useherald.xyz';
+    try {
+      destination = Buffer.from(encodedUrl, 'base64url').toString('utf8');
+    } catch {}
+
+    if (notificationId && protocolId) {
+      this.analyticsService
+        .recordEngagement(notificationId, protocolId, 'click', destination)
+        .catch(() => {});
+    }
+    res.redirect(302, destination);
+  }
+
   @Get('analytics')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('analytics:read')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get delivery analytics overview' })
   @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
   async getAnalytics(
@@ -30,12 +77,37 @@ export class AnalyticsController {
   }
 
   @Get('usage')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('analytics:read')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Current period usage vs quota' })
   async getUsage(@ApiKey() protocol: AuthenticatedProtocol) {
     return this.analyticsService.getUsage(protocol.protocolId, protocol.tier);
   }
 
+  @Get('engagement')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('analytics:read')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Engagement metrics — open/click/unsubscribe rates' })
+  async getEngagement(
+    @ApiKey() protocol: AuthenticatedProtocol,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('templateId') templateId?: string,
+  ) {
+    return this.analyticsService.getEngagementMetrics(
+      protocol.protocolId,
+      startDate,
+      endDate,
+      templateId,
+    );
+  }
+
   @Get('requests')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('analytics:read')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'API request inspector — paginated request logs' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })

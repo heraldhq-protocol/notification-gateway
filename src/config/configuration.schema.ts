@@ -66,6 +66,9 @@ export const EnvironmentSchema = z.object({
   IRYS_TOKEN: z.string().optional(),
   IRYS_NETWORK: z.enum(['mainnet', 'devnet']).default('devnet'),
 
+  // ── Protocol Name Decryption ──────────────────────────────────────
+  ENCRYPTION_KEY_ID: z.string().optional(),
+
   // ── Herald Auth & KMS ─────────────────────────────────────────────
   HERALD_AUTHORITY_KMS_KEY_ID: z.string().optional(),
   HERALD_AUTHORITY_SECRET_CIPHERTEXT: z.string().optional(),

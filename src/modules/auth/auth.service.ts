@@ -5,6 +5,7 @@ import {
   Logger,
   Inject,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../database/prisma.service';
 import type {
@@ -12,6 +13,7 @@ import type {
   GeneratedApiKey,
 } from '../../common/types/protocol.types';
 import bs58 from 'bs58';
+import { decryptAes256Gcm } from '../../common/utils/crypto.util';
 
 /**
  * AuthService — API key management and validation.
@@ -31,6 +33,7 @@ export class AuthService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
@@ -93,7 +96,7 @@ export class AuthService {
       isActive: protocol.isActive,
       sendsThisPeriod: protocol.sendsThisPeriod,
       overageEnabled: protocol.overageEnabled,
-      name: Buffer.from(protocol.nameEncrypted).toString('utf-8'),
+      name: this.decryptProtocolName(protocol.nameEncrypted),
       isTestKey: apiKey.isTestKey || false,
       testKeyType: apiKey.testKeyType || undefined,
     };
@@ -141,6 +144,17 @@ export class AuthService {
   /** Invalidate cached auth for a specific key hash. */
   async invalidateCache(keyHash: string): Promise<void> {
     await this.redis.del(`${AuthService.CACHE_PREFIX}${keyHash}`);
+  }
+
+  private decryptProtocolName(nameEncrypted: Uint8Array | Buffer | null): string {
+    if (!nameEncrypted) return 'Unknown Protocol';
+    try {
+      const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
+      if (!encKey) return 'Unknown Protocol';
+      return decryptAes256Gcm(nameEncrypted as Uint8Array, encKey);
+    } catch {
+      return 'Unknown Protocol';
+    }
   }
 
   private isValidKeyFormat(key: string): boolean {

@@ -42,6 +42,7 @@ model Protocol {
   telegramTemplates      TelegramTemplate[]
   designPartner          DesignPartner? // Phase 3
   apiRequestLogs         ApiRequestLog[]
+  engagements            NotificationEngagement[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -101,12 +102,30 @@ model Notification {
   protocol          Protocol          @relation(fields: [protocolId], references: [id])
   webhookDeliveries WebhookDelivery[]
   channelDeliveries ChannelDelivery[]
+  engagements       NotificationEngagement[]
 
   @@index([protocolId, queuedAt(sort: Desc)], map: "idx_notifications_protocol")
   @@index([walletHash], map: "idx_notifications_wallet")
   @@index([status], map: "idx_notifications_status")
   @@index([idempotencyKey], map: "idx_notifications_idem")
   @@map("notifications")
+}
+
+model NotificationEngagement {
+  id             String   @id @default(uuid()) @db.Uuid
+  notificationId String   @map("notification_id") @db.Uuid
+  protocolId     String   @map("protocol_id") @db.Uuid
+  eventType      String   @map("event_type") @db.VarChar(20)
+  linkUrl        String?  @map("link_url") @db.VarChar(2000)
+  userAgentHash  String?  @map("user_agent_hash") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  protocol     Protocol     @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, eventType, createdAt(sort: Desc)], map: "idx_engagement_protocol_type")
+  @@index([notificationId], map: "idx_engagement_notification")
+  @@map("notification_engagements")
 }
 
 model Webhook {
