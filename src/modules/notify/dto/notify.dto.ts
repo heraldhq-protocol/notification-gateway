@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsUUID,
   IsArray,
+  IsDateString,
   ArrayMaxSize,
   ValidateNested,
   ValidateIf,
@@ -430,6 +431,96 @@ export class BroadcastResponseDto {
 
   @ApiProperty({ description: 'Estimated delivery window in seconds.' })
   estimated_delivery_s: number;
+}
+
+/**
+ * DTO for POST /v1/schedule — schedule a one-time notification.
+ */
+export class ScheduleOnceDto {
+  @ApiPropertyOptional({ description: 'Target wallet public key (base58). Omit for broadcast scheduled jobs.' })
+  @IsOptional()
+  @IsString()
+  wallet?: string;
+
+  @ApiProperty({ description: 'Notification subject. Max 200 chars.' })
+  @IsString()
+  @MaxLength(200)
+  subject: string;
+
+  @ApiProperty({ description: 'Notification body (markdown supported). Max 10,000 chars.' })
+  @IsString()
+  @MaxLength(10000)
+  body: string;
+
+  @ApiPropertyOptional({ description: 'Notification category.', enum: ['defi', 'governance', 'system', 'marketing', 'security'], default: 'defi' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ description: 'Delivery channels.', isArray: true, example: ['email'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  channels?: string[];
+
+  @ApiProperty({ description: 'ISO 8601 datetime when the notification should fire.', example: '2026-06-01T12:00:00.000Z' })
+  @IsDateString()
+  scheduledFor: string;
+
+  @ApiPropertyOptional({ description: 'IANA timezone identifier.', default: 'UTC', example: 'America/New_York' })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @ApiPropertyOptional({ description: 'Custom email template UUID.' })
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
+}
+
+/**
+ * DTO for POST /v1/schedule/cron — schedule a recurring notification via cron expression.
+ */
+export class ScheduleRecurringDto {
+  @ApiPropertyOptional({ description: 'Target wallet public key (base58). Omit for broadcast scheduled jobs.' })
+  @IsOptional()
+  @IsString()
+  wallet?: string;
+
+  @ApiProperty({ description: 'Notification subject. Max 200 chars.' })
+  @IsString()
+  @MaxLength(200)
+  subject: string;
+
+  @ApiProperty({ description: 'Notification body (markdown supported). Max 10,000 chars.' })
+  @IsString()
+  @MaxLength(10000)
+  body: string;
+
+  @ApiPropertyOptional({ description: 'Notification category.', enum: ['defi', 'governance', 'system', 'marketing', 'security'], default: 'defi' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ description: 'Delivery channels.', isArray: true, example: ['email'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  channels?: string[];
+
+  @ApiProperty({ description: 'Standard 5-field cron expression (UTC).', example: '0 9 * * 1' })
+  @IsString()
+  cronExpr: string;
+
+  @ApiPropertyOptional({ description: 'IANA timezone identifier.', default: 'UTC', example: 'UTC' })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @ApiPropertyOptional({ description: 'Custom email template UUID.' })
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
 }
 
 /**

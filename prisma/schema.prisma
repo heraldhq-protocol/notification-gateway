@@ -44,6 +44,9 @@ model Protocol {
   apiRequestLogs         ApiRequestLog[]
   engagements            NotificationEngagement[]
   protocolSubscriptions  ProtocolSubscription[]
+  audiences              Audience[]
+  campaigns              Campaign[]
+  scheduledNotifications ScheduledNotification[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -778,4 +781,98 @@ model ProtocolSubscription {
   @@index([protocolId, status], map: "idx_protocol_subscriptions_protocol_status")
   @@index([walletHash], map: "idx_protocol_subscriptions_wallet")
   @@map("protocol_subscriptions")
+}
+
+// ── Campaign Management ──────────────────────────────────────────────────────
+// Shared with herald-admin-registration-api — both repos connect to the same DB.
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Audience {
+  id          String   @id @default(uuid()) @db.Uuid
+  protocolId  String   @map("protocol_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  wallets     String[]
+  walletCount Int      @default(0) @map("wallet_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  protocol  Protocol   @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@index([protocolId], map: "idx_audiences_protocol")
+  @@map("audiences")
+}
+
+model Campaign {
+  id           String         @id @default(uuid()) @db.Uuid
+  protocolId   String         @map("protocol_id") @db.Uuid
+  audienceId   String         @map("audience_id") @db.Uuid
+  templateId   String?        @map("template_id") @db.Uuid
+  subject      String         @db.VarChar(200)
+  body         String
+  category     String         @default("defi") @db.VarChar(30)
+  channels     String[]       @default(["email"])
+  status       CampaignStatus @default(DRAFT)
+  scheduledFor DateTime?      @map("scheduled_for") @db.Timestamptz(6)
+  startedAt    DateTime?      @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime?      @map("completed_at") @db.Timestamptz(6)
+  totalTargets Int            @default(0) @map("total_targets")
+  totalSent    Int            @default(0) @map("total_sent")
+  totalFailed  Int            @default(0) @map("total_failed")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  audience Audience @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, status], map: "idx_campaigns_protocol_status")
+  @@map("campaigns")
+}
+
+// ── Scheduled Notifications (Feature 8) ─────────────────────────────────────
+
+enum ScheduleType {
+  ONE_TIME
+  RECURRING
+}
+
+enum ScheduledJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+model ScheduledNotification {
+  id           String             @id @default(uuid()) @db.Uuid
+  protocolId   String             @map("protocol_id") @db.Uuid
+  wallet       String?            @db.VarChar(44)
+  subject      String             @db.VarChar(200)
+  body         String
+  category     String             @default("defi") @db.VarChar(30)
+  channels     String[]           @default(["email"])
+  scheduleType ScheduleType       @default(ONE_TIME) @map("schedule_type")
+  cronExpr     String?            @map("cron_expr") @db.VarChar(100)
+  timezone     String             @default("UTC") @db.VarChar(50)
+  nextRunAt    DateTime           @map("next_run_at") @db.Timestamptz(6)
+  lastRunAt    DateTime?          @map("last_run_at") @db.Timestamptz(6)
+  status       ScheduledJobStatus @default(PENDING)
+  templateId   String?            @map("template_id") @db.Uuid
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId, status, nextRunAt], map: "idx_scheduled_notifications_protocol")
+  @@map("scheduled_notifications")
 }

@@ -1,6 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { createHash } from 'crypto';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { SolanaService } from '../../solana/solana.service';
 import { NotifyService } from '../notify/notify.service';
+import { QueueService } from '../queue/queue.service';
+import { PrismaService } from '../../database/prisma.service';
 import { BroadcastDto } from './dto/broadcast.dto';
 import { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import pLimit from 'p-limit';
@@ -12,6 +16,8 @@ export class AdminService {
   constructor(
     private readonly solanaService: SolanaService,
     private readonly notifyService: NotifyService,
+    private readonly queueService: QueueService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -58,5 +64,87 @@ export class AdminService {
       enqueued_success: fulfilled,
       enqueued_failed: rejected,
     };
+  }
+
+  /**
+   * Enqueue one BullMQ notification job per wallet in the campaign's audience.
+   * Called by POST /internal/campaigns/:id/enqueue (triggered by admin-api after launch).
+   */
+  async enqueueCampaign(campaignId: string): Promise<{ campaignId: string; enqueued: number }> {
+    this.logger.log(`Enqueuing campaign ${campaignId}`);
+
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { audience: true },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException({
+        error: 'CAMPAIGN_NOT_FOUND',
+        message: `Campaign ${campaignId} not found`,
+      });
+    }
+
+    const wallets: string[] = campaign.audience.wallets;
+    const now = new Date();
+    const subjectHash = createHash('sha256').update(campaign.subject).digest('hex');
+
+    // Create Notification rows and enqueue jobs with bounded concurrency
+    const limit = pLimit(20);
+    const results = await Promise.allSettled(
+      wallets.map((wallet) =>
+        limit(async () => {
+          const notificationId = uuidv4();
+          const walletHash = createHash('sha256').update(wallet).digest('hex');
+
+          await this.prisma.notification.create({
+            data: {
+              id: notificationId,
+              walletHash,
+              subjectHash,
+              protocolId: campaign.protocolId,
+              status: 'queued',
+              category: campaign.category,
+              writeReceipt: false,
+              queuedAt: now,
+            },
+          });
+
+          await this.queueService.enqueueNotification({
+            notificationId,
+            protocolId: campaign.protocolId,
+            protocolPubkey: '',
+            protocolName: '',
+            wallet,
+            walletHash,
+            subject: campaign.subject,
+            body: campaign.body,
+            category: campaign.category,
+            writeReceipt: false,
+            digestMode: false,
+            isSandbox: false,
+          });
+        }),
+      ),
+    );
+
+    const enqueued = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+
+    if (failed > 0) {
+      this.logger.warn(`Campaign ${campaignId}: ${failed} wallets failed to enqueue`);
+    }
+
+    await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        status: 'RUNNING',
+        startedAt: now,
+        totalTargets: wallets.length,
+      },
+    });
+
+    this.logger.log(`Campaign ${campaignId}: enqueued ${enqueued}/${wallets.length}`);
+    return { campaignId, enqueued };
   }
 }

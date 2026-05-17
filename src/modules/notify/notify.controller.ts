@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   Query,
@@ -20,6 +21,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { NotifyService } from './notify.service';
+import { SchedulerService } from './scheduler.service';
 import {
   NotifyDto,
   NotifyBatchDto,
@@ -27,6 +29,8 @@ import {
   NotificationStatusDto,
   BroadcastDto,
   BroadcastResponseDto,
+  ScheduleOnceDto,
+  ScheduleRecurringDto,
 } from './dto/notify.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
@@ -51,6 +55,7 @@ export class NotifyController {
   constructor(
     private readonly notifyService: NotifyService,
     private readonly templateService: TemplateService,
+    private readonly schedulerService: SchedulerService,
   ) {}
 
   /**
@@ -259,6 +264,74 @@ export class NotifyController {
       telegramText,
       smsText,
     };
+  }
+
+  /**
+   * POST /v1/schedule — Schedule a one-time notification for future delivery.
+   */
+  @Post('schedule')
+  @HttpCode(HttpStatus.CREATED)
+  @RequiredScopes('notify:write')
+  @ApiOperation({ summary: 'Schedule a one-time notification' })
+  @ApiResponse({ status: 201, description: 'Scheduled notification created' })
+  async scheduleOnce(
+    @Body() dto: ScheduleOnceDto,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    return this.schedulerService.scheduleOnce(protocol.protocolId, dto);
+  }
+
+  /**
+   * POST /v1/schedule/cron — Create a recurring notification via cron expression.
+   */
+  @Post('schedule/cron')
+  @HttpCode(HttpStatus.CREATED)
+  @RequiredScopes('notify:write')
+  @ApiOperation({ summary: 'Create a recurring notification via cron expression' })
+  @ApiResponse({ status: 201, description: 'Recurring scheduled notification created' })
+  async scheduleRecurring(
+    @Body() dto: ScheduleRecurringDto,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    return this.schedulerService.scheduleRecurring(protocol.protocolId, dto);
+  }
+
+  /**
+   * GET /v1/schedule — List scheduled notifications for the authenticated protocol.
+   */
+  @Get('schedule')
+  @RequiredScopes('notify:read')
+  @ApiOperation({ summary: 'List scheduled notifications' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Paginated list of scheduled notifications' })
+  async listScheduled(
+    @ApiKey() protocol: AuthenticatedProtocol,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50',
+  ) {
+    return this.schedulerService.listScheduled(
+      protocol.protocolId,
+      parseInt(page, 10),
+      parseInt(limit, 10),
+    );
+  }
+
+  /**
+   * DELETE /v1/schedule/:id — Cancel a pending scheduled notification.
+   */
+  @Delete('schedule/:id')
+  @HttpCode(HttpStatus.OK)
+  @RequiredScopes('notify:write')
+  @ApiOperation({ summary: 'Cancel a scheduled notification' })
+  @ApiParam({ name: 'id', description: 'Scheduled notification UUID' })
+  @ApiResponse({ status: 200, description: 'Cancelled' })
+  async cancelScheduled(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ): Promise<{ cancelled: boolean }> {
+    await this.schedulerService.cancelScheduled(protocol.protocolId, id);
+    return { cancelled: true };
   }
 
   private buildTelegramPreview(

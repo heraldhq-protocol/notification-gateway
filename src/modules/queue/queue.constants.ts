@@ -5,6 +5,7 @@ export const QueueNames = {
   WEBHOOK: 'webhook',
   BOUNCE: 'bounce',
   DIGEST: 'digest',
+  CAMPAIGN: 'campaign',
 } as const;
 
 export type QueueName = (typeof QueueNames)[keyof typeof QueueNames];

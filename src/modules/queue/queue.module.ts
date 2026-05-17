@@ -19,6 +19,7 @@ import { DigestService } from '../notify/digest.service';
       { name: QueueNames.WEBHOOK },
       { name: QueueNames.BOUNCE },
       { name: QueueNames.DIGEST },
+      { name: QueueNames.CAMPAIGN },
     ),
   ],
   providers: [QueueService, DigestService],

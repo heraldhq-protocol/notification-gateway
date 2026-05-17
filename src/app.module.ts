@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 import { RequestLogInterceptor } from './common/interceptors/request-log.interceptor';
 
 import { loadConfiguration } from './config/configuration';
@@ -50,6 +51,7 @@ import { RedisModule } from './modules/redis/redis.module';
 
     // ── Database (PostgreSQL via Prisma) ──────────────────────
     PrismaModule,
+    ScheduleModule.forRoot(),
 
     // ── Redis ─────────────────────────────────────────────────
     RedisModule,
