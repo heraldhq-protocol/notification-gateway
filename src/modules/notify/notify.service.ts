@@ -99,7 +99,26 @@ export class NotifyService {
       }
     }
 
-    // ── 2. Content scan (sync rules engine, <1ms) ───────────────
+    // ── 2. Template status gate (live sends only) ────────────────
+    if (dto.templateId) {
+      const tmpl = await this.prisma.notificationTemplate.findFirst({
+        where: { id: dto.templateId, protocolId: protocol.protocolId },
+        select: { status: true },
+      });
+      if (tmpl && tmpl.status !== 'APPROVED') {
+        return {
+          notification_id: notificationId,
+          status: 'blocked',
+          error_code: 'TEMPLATE_PENDING_REVIEW',
+          recipient_registered: null,
+          estimated_delivery_ms: 0,
+          receipt_tx: null,
+          environment: 'production',
+        };
+      }
+    }
+
+    // ── 3. Content scan (sync rules engine, <1ms) ───────────────
     const scan = this.contentScanner.scan(dto.subject, dto.body);
 
     if (scan.verdict === 'block') {
