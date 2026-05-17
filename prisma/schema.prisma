@@ -43,6 +43,7 @@ model Protocol {
   designPartner          DesignPartner? // Phase 3
   apiRequestLogs         ApiRequestLog[]
   engagements            NotificationEngagement[]
+  protocolSubscriptions  ProtocolSubscription[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -754,4 +755,27 @@ model ApiRequestLog {
   @@index([protocolId, createdAt(sort: Desc)], map: "idx_api_request_logs_protocol")
   @@index([correlationId], map: "idx_api_request_logs_correlation")
   @@map("api_request_logs")
+}
+
+// Tracks per-protocol opt-in intent — created when a user visits /join/:protocolId
+// or clicks "Enable Notifications" in a protocol's embedded SDK button.
+// walletPubkey is null for legacy rows backfilled from the notifications table
+// (we have the hash but not the original pubkey from old records).
+model ProtocolSubscription {
+  id           String   @id @default(uuid()) @db.Uuid
+  walletPubkey String?  @map("wallet_pubkey") @db.VarChar(44)
+  walletHash   String   @map("wallet_hash") @db.VarChar(64)
+  protocolId   String   @map("protocol_id") @db.Uuid
+  channels     String[] @default(["email"])
+  status       String   @default("active") @db.VarChar(20)
+  source       String   @default("join_link") @db.VarChar(30)
+  subscribedAt DateTime @default(now()) @map("subscribed_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  protocol Protocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@unique([walletHash, protocolId], map: "protocol_subscriptions_wallet_hash_protocol_id_key")
+  @@index([protocolId, status], map: "idx_protocol_subscriptions_protocol_status")
+  @@index([walletHash], map: "idx_protocol_subscriptions_wallet")
+  @@map("protocol_subscriptions")
 }

@@ -378,6 +378,61 @@ export class NotifyResponseDto {
 }
 
 /**
+ * Request DTO for POST /v1/notify/broadcast — send to all active subscribers.
+ */
+export class BroadcastDto {
+  @ApiProperty({ description: 'Notification subject. Max 150 chars.' })
+  @IsString()
+  @MaxLength(150)
+  subject: string;
+
+  @ApiProperty({ description: 'Notification body (markdown or HTML). Max 10,000 chars.' })
+  @IsString()
+  @MaxLength(10000)
+  body: string;
+
+  @ApiPropertyOptional({
+    description: 'Category — controls which opt-in flag is checked per recipient.',
+    enum: ['defi', 'governance', 'system', 'marketing', 'security'],
+    default: 'system',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['defi', 'governance', 'system', 'marketing', 'security'])
+  category?: string;
+
+  @ApiPropertyOptional({ description: 'Custom email template ID (Growth+ tier).' })
+  @IsOptional()
+  @IsString()
+  templateId?: string;
+
+  @ApiPropertyOptional({ description: 'Write ZK receipts per notification. @default false for broadcasts.' })
+  @IsOptional()
+  @IsBoolean()
+  receipt?: boolean;
+}
+
+/**
+ * Response DTO for POST /v1/notify/broadcast.
+ */
+export class BroadcastResponseDto {
+  @ApiProperty({ description: 'Unique broadcast batch ID.' })
+  broadcast_id: string;
+
+  @ApiProperty({ description: 'Number of notifications queued.' })
+  queued_count: number;
+
+  @ApiProperty({ description: 'Total active subscribers at time of broadcast.' })
+  total_subscribers: number;
+
+  @ApiProperty({ description: 'Subscribers skipped — no wallet pubkey (backfilled rows).' })
+  skipped_count: number;
+
+  @ApiProperty({ description: 'Estimated delivery window in seconds.' })
+  estimated_delivery_s: number;
+}
+
+/**
  * Response DTO for GET /v1/notifications/:id — notification status.
  */
 export class NotificationStatusDto {

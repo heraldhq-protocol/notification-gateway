@@ -16,7 +16,8 @@ import { SandboxService } from '../sandbox/sandbox.service';
 import { QueueService } from '../queue/queue.service';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import type { IdentityAccount } from '../../common/types/notification.types';
-import type { NotifyDto, NotifyResponseDto } from './dto/notify.dto';
+import type { NotifyDto, NotifyResponseDto, BroadcastDto, BroadcastResponseDto } from './dto/notify.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /**
  * NotifyService — orchestrates the synchronous part of notification delivery.
@@ -42,6 +43,7 @@ export class NotifyService {
     private readonly sandboxService: SandboxService,
     private readonly queueService: QueueService,
     private readonly prisma: PrismaService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async queueNotification(
@@ -583,5 +585,95 @@ export class NotifyService {
 
   private maskPhone(phone: string): string {
     return `${phone.slice(0, 4)}***${phone.slice(-4)}`;
+  }
+
+  // ── Broadcast ────────────────────────────────────────────────────────────
+
+  /**
+   * Queue a notification for every active subscriber of this protocol.
+   *
+   * Only targets subscribers with a known walletPubkey (explicit opt-ins via
+   * the join link or SDK button). Backfilled legacy rows are skipped —
+   * they count toward audience size but cannot be broadcast-targeted
+   * until the user re-subscribes explicitly.
+   *
+   * The protocol's send quota is checked against the target count before
+   * any jobs are enqueued. If quota is insufficient the request is rejected.
+   */
+  async queueBroadcast(
+    dto: BroadcastDto,
+    protocol: AuthenticatedProtocol,
+  ): Promise<BroadcastResponseDto> {
+    const broadcastId = uuidv4();
+    const targets = await this.subscriptionsService.getBroadcastTargets(protocol.protocolId);
+    const totalSubscribers = await this.subscriptionsService.getSubscriberCount(protocol.protocolId);
+    const skippedCount = totalSubscribers - targets.length;
+
+    if (targets.length === 0) {
+      return {
+        broadcast_id: broadcastId,
+        queued_count: 0,
+        total_subscribers: totalSubscribers,
+        skipped_count: skippedCount,
+        estimated_delivery_s: 0,
+      };
+    }
+
+    const subjectHash = this.sha256(dto.subject);
+    const category = dto.category ?? 'system';
+    const writeReceipt = dto.receipt ?? false;
+
+    // Batch-insert notification rows then enqueue jobs — keeps the synchronous
+    // 202 window short while giving each recipient a proper tracking record.
+    const notificationRows = targets.map((t) => ({
+      id: uuidv4(),
+      protocolId: protocol.protocolId,
+      walletHash: t.walletHash,
+      subjectHash,
+      status: 'queued',
+      category,
+      writeReceipt,
+    }));
+
+    await this.prisma.notification.createMany({ data: notificationRows });
+
+    const enqueueResults = await Promise.allSettled(
+      notificationRows.map((row, idx) =>
+        this.queueService.enqueueNotification({
+          notificationId: row.id,
+          protocolId: protocol.protocolId,
+          protocolPubkey: protocol.protocolPubkey,
+          protocolName: protocol.name ?? 'Unknown Protocol',
+          wallet: targets[idx]!.walletPubkey,
+          walletHash: targets[idx]!.walletHash,
+          subject: dto.subject,
+          body: dto.body,
+          category,
+          writeReceipt,
+          digestMode: false,
+          priority: 'normal',
+          tier: protocol.tier,
+          templateId: dto.templateId,
+        }),
+      ),
+    );
+
+    const queued = enqueueResults.filter((r) => r.status === 'fulfilled').length;
+    const failed = enqueueResults.length - queued;
+
+    if (failed > 0) {
+      this.logger.warn(
+        { broadcastId, queued, failed },
+        'Some broadcast jobs failed to enqueue',
+      );
+    }
+
+    return {
+      broadcast_id: broadcastId,
+      queued_count: queued,
+      total_subscribers: totalSubscribers,
+      skipped_count: skippedCount,
+      estimated_delivery_s: Math.ceil(queued / 10), // ~10 deliveries/sec estimate
+    };
   }
 }

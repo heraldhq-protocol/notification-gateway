@@ -25,6 +25,8 @@ import {
   NotifyBatchDto,
   NotifyResponseDto,
   NotificationStatusDto,
+  BroadcastDto,
+  BroadcastResponseDto,
 } from './dto/notify.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
@@ -137,6 +139,31 @@ export class NotifyController {
         receipt_tx: null,
       };
     });
+  }
+
+  /**
+   * POST /v1/notify/broadcast — fan-out to all active subscribers.
+   *
+   * Targets every wallet that subscribed to this protocol via the join link
+   * or the SDK "Enable Notifications" button. Backfilled legacy audience members
+   * (known only by hash) are counted but skipped until they re-subscribe explicitly.
+   */
+  @Post('notify/broadcast')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(SubscriptionGuard)
+  @RequiredScopes('notify:write')
+  @ApiOperation({
+    summary: 'Broadcast notification to all active subscribers',
+    description:
+      'Queues one notification per active subscriber. Returns 202 with queued_count. ' +
+      'Skips legacy backfilled rows that lack a wallet pubkey.',
+  })
+  @ApiResponse({ status: 202, description: 'Broadcast queued', type: BroadcastResponseDto })
+  async broadcast(
+    @Body() dto: BroadcastDto,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ): Promise<BroadcastResponseDto> {
+    return this.notifyService.queueBroadcast(dto, protocol);
   }
 
   /**

@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionsService: SubscriptionsService,
+  ) {}
 
   async getAnalytics(protocolId: string, period: '7d' | '30d' | '90d' = '30d') {
     const days = { '7d': 7, '30d': 30, '90d': 90 }[period];
@@ -183,6 +187,67 @@ export class AnalyticsService {
       page,
       limit,
       hasMore: skip + items.length < total,
+    };
+  }
+
+  /**
+   * Audience analytics — combines subscription table data with
+   * notification delivery history for a full picture.
+   */
+  async getAudienceAnalytics(protocolId: string) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    const [subStats, recentlyNotified, registrationTrend] = await Promise.all([
+      this.subscriptionsService.getAudienceStats(protocolId),
+      // Distinct wallets that received a notification in the last 30 days
+      this.prisma.notification.findMany({
+        where: {
+          protocolId,
+          status: { in: ['delivered', 'partial'] },
+          queuedAt: { gte: thirtyDaysAgo },
+        },
+        select: { walletHash: true },
+        distinct: ['walletHash'],
+      }),
+      // Daily subscription counts for the last 90 days
+      this.prisma.protocolSubscription.findMany({
+        where: { protocolId, subscribedAt: { gte: ninetyDaysAgo } },
+        select: { subscribedAt: true },
+        orderBy: { subscribedAt: 'asc' },
+      }),
+    ]);
+
+    // Build daily registration trend
+    const trendMap: Record<string, number> = {};
+    for (const row of registrationTrend) {
+      const day = row.subscribedAt.toISOString().slice(0, 10);
+      trendMap[day] = (trendMap[day] ?? 0) + 1;
+    }
+    const trend = Object.entries(trendMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    const total = subStats.totalSubscribers;
+    const activeCount = recentlyNotified.length;
+    const retentionRate = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+
+    const emailCount = subStats.byChannel['email'] ?? 0;
+    const telegramCount = subStats.byChannel['telegram'] ?? 0;
+    const smsCount = subStats.byChannel['sms'] ?? 0;
+
+    return {
+      totalRegistered: total,
+      broadcastableSubscribers: subStats.broadcastableSubscribers,
+      activeLastThirtyDays: activeCount,
+      retentionRate,
+      channelCoverage: {
+        email: total > 0 ? Math.round((emailCount / total) * 100) : 0,
+        telegram: total > 0 ? Math.round((telegramCount / total) * 100) : 0,
+        sms: total > 0 ? Math.round((smsCount / total) * 100) : 0,
+      },
+      bySource: subStats.bySource,
+      registrationTrend: trend,
     };
   }
 }

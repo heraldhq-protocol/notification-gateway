@@ -104,6 +104,17 @@ export class AnalyticsController {
     );
   }
 
+  @Get('audience')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('analytics:read')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Audience analytics — subscription counts, channel coverage, registration trend',
+  })
+  async getAudienceAnalytics(@ApiKey() protocol: AuthenticatedProtocol) {
+    return this.analyticsService.getAudienceAnalytics(protocol.protocolId);
+  }
+
   @Get('requests')
   @UseGuards(AuthGuard, ScopeGuard)
   @RequiredScopes('analytics:read')

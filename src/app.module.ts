@@ -26,6 +26,7 @@ import { ChannelModule } from './modules/channel/channel.module';
 import { SandboxModule } from './modules/sandbox/sandbox.module';
 import { EnclaveModule } from './modules/enclave/enclave.module';
 import { ArweaveStorageModule } from './storage/arweave-storage.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -128,6 +129,7 @@ import { RedisModule } from './modules/redis/redis.module';
     HealthModule,
     StatusModule,
     NotifyModule,
+    SubscriptionsModule,
     WebhookModule,
     BounceModule,
     AnalyticsModule,

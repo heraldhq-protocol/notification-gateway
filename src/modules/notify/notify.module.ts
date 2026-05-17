@@ -8,6 +8,7 @@ import { RoutingModule } from '../routing/routing.module';
 import { QueueModule } from '../queue/queue.module';
 import { BillingModule } from '../billing/billing.module';
 import { TemplateModule } from '../template/template.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.interceptor';
 
 @Module({
@@ -17,6 +18,7 @@ import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.inter
     QueueModule, // Provides DigestService via exports
     BillingModule,
     TemplateModule,
+    SubscriptionsModule,
   ],
   controllers: [NotifyController, UnsubscribeController],
   // SandboxService is provided globally via @Global() SandboxModule (imported in AppModule).
