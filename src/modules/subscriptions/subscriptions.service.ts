@@ -16,7 +16,7 @@ export class SubscriptionsService {
   ) {
     const walletHash = this.sha256(walletPubkey);
     return this.prisma.protocolSubscription.upsert({
-      where: { protocol_subscriptions_wallet_hash_protocol_id_key: { walletHash, protocolId } },
+      where: { walletHash_protocolId: { walletHash, protocolId } },
       create: { walletPubkey, walletHash, protocolId, channels, status: 'active', source },
       update: { status: 'active', channels, walletPubkey, updatedAt: new Date() },
     });
@@ -34,7 +34,7 @@ export class SubscriptionsService {
     protocolId: string,
   ): Promise<{ isSubscribed: boolean; channels: string[]; subscribedAt: Date | null }> {
     const sub = await this.prisma.protocolSubscription.findUnique({
-      where: { protocol_subscriptions_wallet_hash_protocol_id_key: { walletHash, protocolId } },
+      where: { walletHash_protocolId: { walletHash, protocolId } },
     });
     return {
       isSubscribed: sub?.status === 'active',
