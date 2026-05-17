@@ -7,12 +7,22 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TemplateStatus {
+  DRAFT
+  APPROVED
+  PENDING_REVIEW
+  REJECTED
+}
+
 model Protocol {
   id                     String                   @id @default(uuid()) @db.Uuid
   protocolPubkey         String                   @unique @map("protocol_pubkey") @db.VarChar(44)
   nameEncrypted          Bytes                    @map("name_encrypted")
   adminNotes             String?                  @map("admin_notes") // Phase 2 — internal only, never exposed to protocol
   tier                   Int                      @default(0) @db.SmallInt
+  strikeCount            Int                      @default(0) @map("strike_count") @db.SmallInt
+  strikesResetAt         DateTime?                @map("strikes_reset_at") @db.Timestamptz(6)
+  lastStrikeAt           DateTime?                @map("last_strike_at") @db.Timestamptz(6)
   isActive               Boolean                  @default(true) @map("is_active")
   isSuspended            Boolean                  @default(false) @map("is_suspended")
   sendsThisPeriod        BigInt                   @default(0) @map("sends_this_period")
@@ -604,13 +614,14 @@ model NotificationTemplate {
   htmlSource      String?   @map("html_source")
   textSource     String?   @map("text_source")
   previewText    String?   @map("preview_text") @db.VarChar(200)
-  heraldFooter  String    @default("full") @map("herald_footer") @db.VarChar(20)
-  isActive       Boolean   @default(true) @map("is_active")
-  isDefault     Boolean   @default(false) @map("is_default")
-  version       Int       @default(1) @map("version")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  protocol      Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  heraldFooter  String         @default("full") @map("herald_footer") @db.VarChar(20)
+  status        TemplateStatus @default(DRAFT)
+  isActive       Boolean        @default(true) @map("is_active")
+  isDefault     Boolean        @default(false) @map("is_default")
+  version       Int            @default(1) @map("version")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  protocol      Protocol       @relation(fields: [protocolId], references: [id], onDelete: Cascade)
   versions      NotificationTemplateVersion[]
 
   @@index([protocolId, category], map: "idx_notif_templates_protocol")
