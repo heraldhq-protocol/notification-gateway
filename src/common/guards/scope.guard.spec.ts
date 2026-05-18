@@ -65,7 +65,7 @@ describe('RequiredScopes decorator', () => {
       Object.getOwnPropertyDescriptor({}, 'testMethod')!,
     );
 
-    const reflector = new Reflector();
+    const _reflector = new Reflector();
     // The decorator sets metadata on the descriptor
     expect(Reflect.getMetadata(SCOPES_KEY, target)).toEqual([
       'notify:write',

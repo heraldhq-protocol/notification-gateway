@@ -73,15 +73,7 @@ export class MailWorker extends WorkerHost {
   // ── Sandbox path ─────────────────────────────────────────────────────────
 
   private async processSandbox(job: Job<NotificationJobData>): Promise<void> {
-    const {
-      notificationId,
-      testContact,
-      protocolName,
-      subject,
-      body,
-      category,
-      tier,
-    } = job.data;
+    const { notificationId, testContact } = job.data;
 
     if (
       !testContact ||

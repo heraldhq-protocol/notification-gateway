@@ -198,9 +198,9 @@ export class SubscriptionService {
   }
 
   private async sendSubscriptionConfirmationEmail(
-    protocol: Protocol,
-    tier: number,
-    months: number,
+    _protocol: Protocol,
+    _tier: number,
+    _months: number,
   ): Promise<void> {
     // Protocol requires an admin email to send this. For this implementation we'll mock or skip.
     // Assuming adminEmail exists or we skip.

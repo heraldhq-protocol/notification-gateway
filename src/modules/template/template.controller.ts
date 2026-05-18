@@ -11,12 +11,7 @@ import {
   HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
 import { TemplateService } from './template.service';
 import { AuthGuard } from '../../common/guards/auth.guard';

@@ -17,8 +17,20 @@ export class SubscriptionsService {
     const walletHash = this.sha256(walletPubkey);
     return this.prisma.protocolSubscription.upsert({
       where: { walletHash_protocolId: { walletHash, protocolId } },
-      create: { walletPubkey, walletHash, protocolId, channels, status: 'active', source },
-      update: { status: 'active', channels, walletPubkey, updatedAt: new Date() },
+      create: {
+        walletPubkey,
+        walletHash,
+        protocolId,
+        channels,
+        status: 'active',
+        source,
+      },
+      update: {
+        status: 'active',
+        channels,
+        walletPubkey,
+        updatedAt: new Date(),
+      },
     });
   }
 
@@ -32,7 +44,11 @@ export class SubscriptionsService {
   async checkSubscription(
     walletHash: string,
     protocolId: string,
-  ): Promise<{ isSubscribed: boolean; channels: string[]; subscribedAt: Date | null }> {
+  ): Promise<{
+    isSubscribed: boolean;
+    channels: string[];
+    subscribedAt: Date | null;
+  }> {
     const sub = await this.prisma.protocolSubscription.findUnique({
       where: { walletHash_protocolId: { walletHash, protocolId } },
     });
@@ -52,7 +68,9 @@ export class SubscriptionsService {
   /** Returns subscribers that have a known walletPubkey — usable for broadcast targeting. */
   async getBroadcastTargets(
     protocolId: string,
-  ): Promise<{ walletPubkey: string; walletHash: string; channels: string[] }[]> {
+  ): Promise<
+    { walletPubkey: string; walletHash: string; channels: string[] }[]
+  > {
     const rows = await this.prisma.protocolSubscription.findMany({
       where: { protocolId, status: 'active', walletPubkey: { not: null } },
       select: { walletPubkey: true, walletHash: true, channels: true },
@@ -106,7 +124,13 @@ export class SubscriptionsService {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({ date, count }));
 
-    return { totalSubscribers: total, broadcastableSubscribers: broadcastable, bySource, byChannel: channelCount, recentSubscriptions };
+    return {
+      totalSubscribers: total,
+      broadcastableSubscribers: broadcastable,
+      bySource,
+      byChannel: channelCount,
+      recentSubscriptions,
+    };
   }
 
   sha256(input: string): string {

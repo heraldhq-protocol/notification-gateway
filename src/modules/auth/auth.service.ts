@@ -99,6 +99,7 @@ export class AuthService {
       name: this.decryptProtocolName(protocol.nameEncrypted),
       isTestKey: apiKey.isTestKey || false,
       testKeyType: apiKey.testKeyType || undefined,
+      verificationStatus: protocol.verificationStatus,
     };
 
     // 3. Cache for 60s
@@ -146,12 +147,14 @@ export class AuthService {
     await this.redis.del(`${AuthService.CACHE_PREFIX}${keyHash}`);
   }
 
-  private decryptProtocolName(nameEncrypted: Uint8Array | Buffer | null): string {
+  private decryptProtocolName(
+    nameEncrypted: Uint8Array | Buffer | null,
+  ): string {
     if (!nameEncrypted) return 'Unknown Protocol';
     try {
       const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
       if (!encKey) return 'Unknown Protocol';
-      return decryptAes256Gcm(nameEncrypted as Uint8Array, encKey);
+      return decryptAes256Gcm(nameEncrypted, encKey);
     } catch {
       return 'Unknown Protocol';
     }

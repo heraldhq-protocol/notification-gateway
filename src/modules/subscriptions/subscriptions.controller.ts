@@ -59,7 +59,10 @@ export class SubscriptionsController {
   @HttpCode(HttpStatus.CREATED)
   @RequiredScopes('notify:write')
   @ApiOperation({ summary: 'Subscribe a wallet to this protocol' })
-  @ApiResponse({ status: 201, description: 'Subscription created or reactivated' })
+  @ApiResponse({
+    status: 201,
+    description: 'Subscription created or reactivated',
+  })
   async subscribe(
     @Body() dto: SubscribeDto,
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -92,7 +95,10 @@ export class SubscriptionsController {
     @ApiKey() protocol: AuthenticatedProtocol,
   ): Promise<{ success: boolean }> {
     const walletHash = this.subscriptionsService.sha256(walletAddress);
-    await this.subscriptionsService.unsubscribe(walletHash, protocol.protocolId);
+    await this.subscriptionsService.unsubscribe(
+      walletHash,
+      protocol.protocolId,
+    );
     return { success: true };
   }
 
@@ -109,7 +115,8 @@ export class SubscriptionsController {
     @Query('walletAddress') walletAddress: string,
     @ApiKey() protocol: AuthenticatedProtocol,
   ): Promise<SubscriptionStatusDto> {
-    if (!walletAddress) throw new BadRequestException('walletAddress is required');
+    if (!walletAddress)
+      throw new BadRequestException('walletAddress is required');
     const walletHash = this.subscriptionsService.sha256(walletAddress);
     const result = await this.subscriptionsService.checkSubscription(
       walletHash,
@@ -130,8 +137,12 @@ export class SubscriptionsController {
   @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'Get subscriber count for this protocol' })
   @ApiResponse({ status: 200, type: SubscriberCountDto })
-  async count(@ApiKey() protocol: AuthenticatedProtocol): Promise<SubscriberCountDto> {
-    const stats = await this.subscriptionsService.getAudienceStats(protocol.protocolId);
+  async count(
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ): Promise<SubscriberCountDto> {
+    const stats = await this.subscriptionsService.getAudienceStats(
+      protocol.protocolId,
+    );
     return { total: stats.totalSubscribers, byChannel: stats.byChannel };
   }
 }
@@ -150,7 +161,9 @@ export class InternalSubscriptionsController {
   @Post()
   @UseGuards(InternalGuard)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register protocol subscription (internal — join flow)' })
+  @ApiOperation({
+    summary: 'Register protocol subscription (internal — join flow)',
+  })
   async subscribeInternal(@Body() dto: InternalSubscribeDto) {
     const sub = await this.subscriptionsService.subscribe(
       dto.walletPubkey,

@@ -10,8 +10,6 @@ const BLOCKED_PROTOCOLS = [
   'filesystem:',
 ];
 
-const ALLOWED_PROTOCOLS = ['http:', 'https:'];
-
 const ALLOWED_HOSTS = [
   'useherald.xyz',
   'notify.useherald.xyz',
@@ -20,8 +18,6 @@ const ALLOWED_HOSTS = [
   'fonts.gstatic.com',
   'ucshdejvxzanuxlxrano.supabase.co',
 ];
-
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
 
 export interface UrlValidationResult {
   valid: boolean;

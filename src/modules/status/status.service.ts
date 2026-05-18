@@ -33,7 +33,6 @@ export class StatusService {
       services.redis = 'error';
     }
 
-    const allOk = Object.values(services).every((s) => s === 'ok');
     const anyError = Object.values(services).some((s) => s === 'error');
 
     let overallStatus: 'operational' | 'degraded' | 'major_outage' =

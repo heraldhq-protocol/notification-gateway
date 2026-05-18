@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PublicKey } from '@solana/web3.js';
 import { Rpc, createRpc } from '@lightprotocol/stateless.js';
 import { fetchProofForReceipt } from '@herald-protocol/sdk/light';
 import type { LightProofResponse } from '@herald-protocol/sdk';

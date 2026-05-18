@@ -82,7 +82,7 @@ export class OnChainRenewalService {
         const file = await fs.readFile(devPath, 'utf-8');
         const secret = Uint8Array.from(JSON.parse(file));
         return Keypair.fromSecretKey(secret);
-      } catch (e) {
+      } catch {
         this.logger.warn(
           `Failed reading dev keypair at ${devPath}. Generating random keypair for auth stub.`,
         );

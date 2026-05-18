@@ -388,13 +388,16 @@ export class BroadcastDto {
   @MaxLength(150)
   subject: string;
 
-  @ApiProperty({ description: 'Notification body (markdown or HTML). Max 10,000 chars.' })
+  @ApiProperty({
+    description: 'Notification body (markdown or HTML). Max 10,000 chars.',
+  })
   @IsString()
   @MaxLength(10000)
   body: string;
 
   @ApiPropertyOptional({
-    description: 'Category — controls which opt-in flag is checked per recipient.',
+    description:
+      'Category — controls which opt-in flag is checked per recipient.',
     enum: ['defi', 'governance', 'system', 'marketing', 'security'],
     default: 'system',
   })
@@ -403,12 +406,17 @@ export class BroadcastDto {
   @IsIn(['defi', 'governance', 'system', 'marketing', 'security'])
   category?: string;
 
-  @ApiPropertyOptional({ description: 'Custom email template ID (Growth+ tier).' })
+  @ApiPropertyOptional({
+    description: 'Custom email template ID (Growth+ tier).',
+  })
   @IsOptional()
   @IsString()
   templateId?: string;
 
-  @ApiPropertyOptional({ description: 'Write ZK receipts per notification. @default false for broadcasts.' })
+  @ApiPropertyOptional({
+    description:
+      'Write ZK receipts per notification. @default false for broadcasts.',
+  })
   @IsOptional()
   @IsBoolean()
   receipt?: boolean;
@@ -424,10 +432,14 @@ export class BroadcastResponseDto {
   @ApiProperty({ description: 'Number of notifications queued.' })
   queued_count: number;
 
-  @ApiProperty({ description: 'Total active subscribers at time of broadcast.' })
+  @ApiProperty({
+    description: 'Total active subscribers at time of broadcast.',
+  })
   total_subscribers: number;
 
-  @ApiProperty({ description: 'Subscribers skipped — no wallet pubkey (backfilled rows).' })
+  @ApiProperty({
+    description: 'Subscribers skipped — no wallet pubkey (backfilled rows).',
+  })
   skipped_count: number;
 
   @ApiProperty({ description: 'Estimated delivery window in seconds.' })
@@ -438,7 +450,10 @@ export class BroadcastResponseDto {
  * DTO for POST /v1/schedule — schedule a one-time notification.
  */
 export class ScheduleOnceDto {
-  @ApiPropertyOptional({ description: 'Target wallet public key (base58). Omit for broadcast scheduled jobs.' })
+  @ApiPropertyOptional({
+    description:
+      'Target wallet public key (base58). Omit for broadcast scheduled jobs.',
+  })
   @IsOptional()
   @IsString()
   wallet?: string;
@@ -448,27 +463,44 @@ export class ScheduleOnceDto {
   @MaxLength(200)
   subject: string;
 
-  @ApiProperty({ description: 'Notification body (markdown supported). Max 10,000 chars.' })
+  @ApiProperty({
+    description: 'Notification body (markdown supported). Max 10,000 chars.',
+  })
   @IsString()
   @MaxLength(10000)
   body: string;
 
-  @ApiPropertyOptional({ description: 'Notification category.', enum: ['defi', 'governance', 'system', 'marketing', 'security'], default: 'defi' })
+  @ApiPropertyOptional({
+    description: 'Notification category.',
+    enum: ['defi', 'governance', 'system', 'marketing', 'security'],
+    default: 'defi',
+  })
   @IsOptional()
   @IsString()
   category?: string;
 
-  @ApiPropertyOptional({ description: 'Delivery channels.', isArray: true, example: ['email'] })
+  @ApiPropertyOptional({
+    description: 'Delivery channels.',
+    isArray: true,
+    example: ['email'],
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   channels?: string[];
 
-  @ApiProperty({ description: 'ISO 8601 datetime when the notification should fire.', example: '2026-06-01T12:00:00.000Z' })
+  @ApiProperty({
+    description: 'ISO 8601 datetime when the notification should fire.',
+    example: '2026-06-01T12:00:00.000Z',
+  })
   @IsDateString()
   scheduledFor: string;
 
-  @ApiPropertyOptional({ description: 'IANA timezone identifier.', default: 'UTC', example: 'America/New_York' })
+  @ApiPropertyOptional({
+    description: 'IANA timezone identifier.',
+    default: 'UTC',
+    example: 'America/New_York',
+  })
   @IsOptional()
   @IsString()
   timezone?: string;
@@ -483,7 +515,10 @@ export class ScheduleOnceDto {
  * DTO for POST /v1/schedule/cron — schedule a recurring notification via cron expression.
  */
 export class ScheduleRecurringDto {
-  @ApiPropertyOptional({ description: 'Target wallet public key (base58). Omit for broadcast scheduled jobs.' })
+  @ApiPropertyOptional({
+    description:
+      'Target wallet public key (base58). Omit for broadcast scheduled jobs.',
+  })
   @IsOptional()
   @IsString()
   wallet?: string;
@@ -493,27 +528,44 @@ export class ScheduleRecurringDto {
   @MaxLength(200)
   subject: string;
 
-  @ApiProperty({ description: 'Notification body (markdown supported). Max 10,000 chars.' })
+  @ApiProperty({
+    description: 'Notification body (markdown supported). Max 10,000 chars.',
+  })
   @IsString()
   @MaxLength(10000)
   body: string;
 
-  @ApiPropertyOptional({ description: 'Notification category.', enum: ['defi', 'governance', 'system', 'marketing', 'security'], default: 'defi' })
+  @ApiPropertyOptional({
+    description: 'Notification category.',
+    enum: ['defi', 'governance', 'system', 'marketing', 'security'],
+    default: 'defi',
+  })
   @IsOptional()
   @IsString()
   category?: string;
 
-  @ApiPropertyOptional({ description: 'Delivery channels.', isArray: true, example: ['email'] })
+  @ApiPropertyOptional({
+    description: 'Delivery channels.',
+    isArray: true,
+    example: ['email'],
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   channels?: string[];
 
-  @ApiProperty({ description: 'Standard 5-field cron expression (UTC).', example: '0 9 * * 1' })
+  @ApiProperty({
+    description: 'Standard 5-field cron expression (UTC).',
+    example: '0 9 * * 1',
+  })
   @IsString()
   cronExpr: string;
 
-  @ApiPropertyOptional({ description: 'IANA timezone identifier.', default: 'UTC', example: 'UTC' })
+  @ApiPropertyOptional({
+    description: 'IANA timezone identifier.',
+    default: 'UTC',
+    example: 'UTC',
+  })
   @IsOptional()
   @IsString()
   timezone?: string;

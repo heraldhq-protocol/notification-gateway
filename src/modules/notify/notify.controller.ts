@@ -163,7 +163,11 @@ export class NotifyController {
       'Queues one notification per active subscriber. Returns 202 with queued_count. ' +
       'Skips legacy backfilled rows that lack a wallet pubkey.',
   })
-  @ApiResponse({ status: 202, description: 'Broadcast queued', type: BroadcastResponseDto })
+  @ApiResponse({
+    status: 202,
+    description: 'Broadcast queued',
+    type: BroadcastResponseDto,
+  })
   async broadcast(
     @Body() dto: BroadcastDto,
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -287,8 +291,13 @@ export class NotifyController {
   @Post('schedule/cron')
   @HttpCode(HttpStatus.CREATED)
   @RequiredScopes('notify:write')
-  @ApiOperation({ summary: 'Create a recurring notification via cron expression' })
-  @ApiResponse({ status: 201, description: 'Recurring scheduled notification created' })
+  @ApiOperation({
+    summary: 'Create a recurring notification via cron expression',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Recurring scheduled notification created',
+  })
   async scheduleRecurring(
     @Body() dto: ScheduleRecurringDto,
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -304,7 +313,10 @@ export class NotifyController {
   @ApiOperation({ summary: 'List scheduled notifications' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Paginated list of scheduled notifications' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of scheduled notifications',
+  })
   async listScheduled(
     @ApiKey() protocol: AuthenticatedProtocol,
     @Query('page') page = '1',

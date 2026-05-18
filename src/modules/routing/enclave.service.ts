@@ -462,7 +462,7 @@ export class EnclaveService {
             resolve(response.email);
             return;
           }
-        } catch (err) {
+        } catch {
           // ignore parsing error since socket is ending
         }
         if (!socket.destroyed) {

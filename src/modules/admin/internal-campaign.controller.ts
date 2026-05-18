@@ -29,7 +29,9 @@ export class InternalCampaignController {
    */
   @Post(':id/enqueue')
   @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOperation({ summary: 'Enqueue campaign notifications for all audience wallets' })
+  @ApiOperation({
+    summary: 'Enqueue campaign notifications for all audience wallets',
+  })
   @ApiParam({ name: 'id', description: 'Campaign UUID' })
   @ApiResponse({ status: 202, description: 'Campaign enqueue started' })
   @ApiResponse({ status: 401, description: 'Invalid internal secret' })

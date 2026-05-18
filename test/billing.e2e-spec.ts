@@ -1,6 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, HttpStatus } from '@nestjs/common';
-import * as request from 'supertest';
+import type { INestApplication } from '@nestjs/common';
 
 // Placeholder test suite for Billing integration
 describe('BillingModule (e2e)', () => {

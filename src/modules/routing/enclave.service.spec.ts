@@ -1,5 +1,5 @@
 import * as nacl from 'tweetnacl';
-import { encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
+import { encodeUTF8 } from 'tweetnacl-util';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EnclaveService } from './enclave.service';

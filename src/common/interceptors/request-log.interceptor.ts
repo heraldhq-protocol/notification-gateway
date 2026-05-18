@@ -10,7 +10,13 @@ import { PrismaService } from '../../database/prisma.service';
 import { createHash } from 'crypto';
 
 const SENSITIVE_KEYS = new Set([
-  'wallet', 'email', 'subject', 'body', 'authorization', 'password', 'secret',
+  'wallet',
+  'email',
+  'subject',
+  'body',
+  'authorization',
+  'password',
+  'secret',
 ]);
 
 function sanitizeBody(obj: unknown): unknown {
@@ -18,7 +24,9 @@ function sanitizeBody(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(sanitizeBody);
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-    result[k] = SENSITIVE_KEYS.has(k.toLowerCase()) ? '[redacted]' : sanitizeBody(v);
+    result[k] = SENSITIVE_KEYS.has(k.toLowerCase())
+      ? '[redacted]'
+      : sanitizeBody(v);
   }
   return result;
 }
@@ -29,7 +37,14 @@ export class RequestLogInterceptor implements NestInterceptor {
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = ctx.switchToHttp().getRequest<
-      Request & { authProtocol?: { protocolId: string; apiKeyId?: string; isTestKey?: boolean }; correlationId?: string }
+      Request & {
+        authProtocol?: {
+          protocolId: string;
+          apiKeyId?: string;
+          isTestKey?: boolean;
+        };
+        correlationId?: string;
+      }
     >();
     const res = ctx.switchToHttp().getResponse<Response>();
     const start = Date.now();
@@ -41,45 +56,60 @@ export class RequestLogInterceptor implements NestInterceptor {
           if (!protocol?.protocolId) return;
 
           const latencyMs = Date.now() - start;
-          const ip = req.headers['x-forwarded-for'] as string | undefined ?? req.socket.remoteAddress ?? '';
-          const ipHash = ip ? createHash('sha256').update(ip).digest('hex').slice(0, 16) : null;
+          const ip =
+            (req.headers['x-forwarded-for'] as string | undefined) ??
+            req.socket.remoteAddress ??
+            '';
+          const ipHash = ip
+            ? createHash('sha256').update(ip).digest('hex').slice(0, 16)
+            : null;
 
-          this.prisma.apiRequestLog.create({
-            data: {
-              protocolId: protocol.protocolId,
-              apiKeyId: protocol.apiKeyId && protocol.apiKeyId !== 'internal' ? protocol.apiKeyId : null,
-              isTestKey: protocol.isTestKey ?? false,
-              method: req.method,
-              endpoint: req.path,
-              requestBody: sanitizeBody(req.body) as any,
-              responseBody: sanitizeBody(responseBody) as any,
-              statusCode: res.statusCode,
-              latencyMs,
-              correlationId: req.correlationId ?? null,
-              ipHash,
-            },
-          }).catch(() => {
-            // Fire-and-forget — never block response
-          });
+          this.prisma.apiRequestLog
+            .create({
+              data: {
+                protocolId: protocol.protocolId,
+                apiKeyId:
+                  protocol.apiKeyId && protocol.apiKeyId !== 'internal'
+                    ? protocol.apiKeyId
+                    : null,
+                isTestKey: protocol.isTestKey ?? false,
+                method: req.method,
+                endpoint: req.path,
+                requestBody: sanitizeBody(req.body) as any,
+                responseBody: sanitizeBody(responseBody) as any,
+                statusCode: res.statusCode,
+                latencyMs,
+                correlationId: req.correlationId ?? null,
+                ipHash,
+              },
+            })
+            .catch(() => {
+              // Fire-and-forget — never block response
+            });
         },
         error: (err) => {
           const protocol = req.authProtocol;
           if (!protocol?.protocolId) return;
 
           const latencyMs = Date.now() - start;
-          this.prisma.apiRequestLog.create({
-            data: {
-              protocolId: protocol.protocolId,
-              apiKeyId: protocol.apiKeyId && protocol.apiKeyId !== 'internal' ? protocol.apiKeyId : null,
-              isTestKey: protocol.isTestKey ?? false,
-              method: req.method,
-              endpoint: req.path,
-              requestBody: sanitizeBody(req.body) as any,
-              statusCode: err?.status ?? 500,
-              latencyMs,
-              correlationId: req.correlationId ?? null,
-            },
-          }).catch(() => {});
+          this.prisma.apiRequestLog
+            .create({
+              data: {
+                protocolId: protocol.protocolId,
+                apiKeyId:
+                  protocol.apiKeyId && protocol.apiKeyId !== 'internal'
+                    ? protocol.apiKeyId
+                    : null,
+                isTestKey: protocol.isTestKey ?? false,
+                method: req.method,
+                endpoint: req.path,
+                requestBody: sanitizeBody(req.body) as any,
+                statusCode: err?.status ?? 500,
+                latencyMs,
+                correlationId: req.correlationId ?? null,
+              },
+            })
+            .catch(() => {});
         },
       }),
     );

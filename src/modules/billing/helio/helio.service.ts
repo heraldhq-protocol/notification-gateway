@@ -54,7 +54,6 @@ export class HelioService {
     });
 
     const heraldTier = this.mapTierToHeraldTier(tier);
-    const templateId = this.getTemplateId(tier);
 
     return this.helioBilling.createSubscriptionCheckout({
       tier: heraldTier,

@@ -119,7 +119,9 @@ export class SchedulerService {
 
     if (overdue.length === 0) return;
 
-    this.logger.log(`Reconciling ${overdue.length} overdue scheduled notification(s)`);
+    this.logger.log(
+      `Reconciling ${overdue.length} overdue scheduled notification(s)`,
+    );
 
     for (const job of overdue) {
       try {
@@ -131,8 +133,12 @@ export class SchedulerService {
 
         if (job.wallet) {
           const notificationId = uuidv4();
-          const walletHash = createHash('sha256').update(job.wallet).digest('hex');
-          const subjectHash = createHash('sha256').update(job.subject).digest('hex');
+          const walletHash = createHash('sha256')
+            .update(job.wallet)
+            .digest('hex');
+          const subjectHash = createHash('sha256')
+            .update(job.subject)
+            .digest('hex');
 
           await this.prisma.notification.create({
             data: {
@@ -187,7 +193,9 @@ export class SchedulerService {
         }
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
-        this.logger.error(`Failed to process scheduled job ${job.id}: ${message}`);
+        this.logger.error(
+          `Failed to process scheduled job ${job.id}: ${message}`,
+        );
         await this.prisma.scheduledNotification
           .update({ where: { id: job.id }, data: { status: 'FAILED' } })
           .catch(() => {});

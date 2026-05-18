@@ -19,13 +19,56 @@ export interface AiVerdict {
 // OPENAI_MODEL         = gpt-4o-mini               (default)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a content moderation classifier for Herald, a Web3 DeFi notification platform.
+const TIER_NAMES = ['Developer', 'Growth', 'Scale', 'Enterprise'];
+
+function buildSystemPrompt(params: {
+  protocolName: string;
+  verificationStatus?: string;
+  tier: number;
+  environment: string;
+  riskScore: number;
+  triggeredRules: string[];
+}): string {
+  const tierName = TIER_NAMES[params.tier] ?? 'Developer';
+
+  const strictness =
+    params.verificationStatus === 'VERIFIED'
+      ? `RELAXED MODE. This protocol is VERIFIED and trusted.
+Allow routine notifications (liquidation alerts, governance votes, staking rewards,
+price alerts, tx confirmations, portfolio updates).
+Only BLOCK if there are clear phishing indicators: wallet drainer links, seed phrase
+requests, impersonation of other protocols, fake urgency to transfer funds.`
+      : `STRICT MODE. This protocol is ${params.verificationStatus ?? 'UNVERIFIED'}.
+Default to "flag" unless the content is clearly a standard, low-risk notification.
+Treat airdrop claims, urgency language, and external links as highly suspicious.
+Block any impersonation attempt or wallet drainer pattern.`;
+
+  return `You are a content moderation classifier for Herald, a Web3 DeFi notification platform.
+
+Protocol context:
+  Name: "${params.protocolName}"
+  Verification: ${params.verificationStatus ?? 'UNVERIFIED'}
+  Tier: ${tierName}
+  Environment: ${params.environment}
+
+Rules engine (first-pass) scored this ${params.riskScore}/100 and triggered: [${params.triggeredRules.join(', ')}]
+
+${strictness}
 
 LEGITIMATE notifications include: liquidation alerts, health factor warnings, governance votes, staking rewards, price alerts, transaction confirmations, airdrop claims FROM KNOWN VERIFIED PROTOCOLS, portfolio updates.
 
 FLAG or BLOCK: phishing attempts, wallet drainer links, impersonation of known protocols (Uniswap, Phantom, MetaMask etc.), pump-and-dump schemes, seed phrase / private key requests, fake urgency to transfer funds to external addresses.
 
-Respond ONLY with valid JSON (no markdown): { "verdict": "allow"|"flag"|"block", "reason": "<one sentence>", "confidence": <0.0-1.0> }`;
+Confidence scale:
+  >= 0.9: certain
+  >= 0.7: likely correct
+  <  0.7: uncertain — default to "flag"
+
+Respond ONLY with valid JSON (no markdown):
+{ "verdict": "allow"|"flag"|"block", "reason": "<one sentence>", "confidence": <0.0-1.0> }
+
+If you cannot classify, return: {"verdict": "flag", "reason": "Uncertain content", "confidence": 0.3}`;
+}
 
 @Injectable()
 export class AiClassifierService {
@@ -52,7 +95,7 @@ export class AiClassifierService {
         this.model = '';
         return;
       }
-      const baseURL = this.config.get<string>('OPENAI_BASE_URL'); // undefined = SDK default
+      const baseURL = this.config.get<string>('OPENAI_BASE_URL');
       this.openai = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
       this.model = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
       this.provider = 'openai';
@@ -82,6 +125,9 @@ export class AiClassifierService {
     notificationId: string;
     protocolId: string;
     protocolName: string;
+    verificationStatus?: string;
+    tier: number;
+    environment: string;
     subject: string;
     body: string;
     riskScore: number;
@@ -91,11 +137,16 @@ export class AiClassifierService {
 
     let verdict: AiVerdict;
     try {
-      verdict = await this.classify(
-        params.protocolName,
-        params.subject,
-        params.body,
-      );
+      verdict = await this.classify({
+        protocolName: params.protocolName,
+        verificationStatus: params.verificationStatus,
+        tier: params.tier,
+        environment: params.environment,
+        subject: params.subject,
+        body: params.body,
+        riskScore: params.riskScore,
+        triggeredRules: params.triggeredRules,
+      });
     } catch (err: any) {
       this.logger.error({ err: err.message }, 'AI classification failed');
       return;
@@ -117,7 +168,6 @@ export class AiClassifierService {
           type: 'content_scan',
           severity,
           flagReason: `Rules engine: ${params.riskScore}/100. AI (${this.provider}/${this.model}): ${verdict.verdict} @ ${(verdict.confidence * 100).toFixed(0)}% — ${verdict.reason}`,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           aiScanResult: verdict as any,
           rulesTriggers: params.triggeredRules,
         },
@@ -138,17 +188,31 @@ export class AiClassifierService {
     }
   }
 
-  private async classify(
-    protocolName: string,
-    subject: string,
-    body: string,
-  ): Promise<AiVerdict> {
-    const userContent = `Protocol: ${protocolName}\nSubject: ${subject.slice(0, 500)}\n\nBody: ${body.slice(0, 1000)}`;
+  private async classify(params: {
+    protocolName: string;
+    verificationStatus?: string;
+    tier: number;
+    environment: string;
+    subject: string;
+    body: string;
+    riskScore: number;
+    triggeredRules: string[];
+  }): Promise<AiVerdict> {
+    const userContent = `Protocol: ${params.protocolName}\nSubject: ${params.subject.slice(0, 500)}\n\nBody: ${params.body.slice(0, 1000)}`;
+
+    const systemPrompt = buildSystemPrompt({
+      protocolName: params.protocolName,
+      verificationStatus: params.verificationStatus,
+      tier: params.tier,
+      environment: params.environment,
+      riskScore: params.riskScore,
+      triggeredRules: params.triggeredRules,
+    });
 
     const raw =
       this.provider === 'openai'
-        ? await this.classifyOpenAi(userContent)
-        : await this.classifyAnthropic(protocolName, userContent);
+        ? await this.classifyOpenAi(userContent, systemPrompt)
+        : await this.classifyAnthropic(userContent, systemPrompt);
 
     const parsed = JSON.parse(raw) as AiVerdict;
     if (!['allow', 'flag', 'block'].includes(parsed.verdict)) {
@@ -158,27 +222,28 @@ export class AiClassifierService {
   }
 
   private async classifyAnthropic(
-    protocolName: string,
     userContent: string,
+    systemPrompt: string,
   ): Promise<string> {
     const msg = await this.anthropic!.messages.create({
       model: this.model,
       max_tokens: 150,
-      system:
-        SYSTEM_PROMPT +
-        `\n\nContext: the sending protocol is "${protocolName}".`,
+      system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
     });
     return (msg.content[0] as { text: string }).text.trim();
   }
 
-  private async classifyOpenAi(userContent: string): Promise<string> {
+  private async classifyOpenAi(
+    userContent: string,
+    systemPrompt: string,
+  ): Promise<string> {
     const completion = await this.openai!.chat.completions.create({
       model: this.model,
       max_tokens: 150,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
       ],
     });

@@ -89,9 +89,11 @@ export class AnalyticsService {
     protocolId: string,
     startDate?: string,
     endDate?: string,
-    templateId?: string,
+    _templateId?: string,
   ) {
-    const since = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const since = startDate
+      ? new Date(startDate)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const until = endDate ? new Date(endDate) : new Date();
 
     const where = {
@@ -100,13 +102,22 @@ export class AnalyticsService {
     };
 
     const [opens, clicks, unsubs, totalSends] = await Promise.all([
-      this.prisma.notificationEngagement.count({ where: { ...where, eventType: 'open' } }),
-      this.prisma.notificationEngagement.count({ where: { ...where, eventType: 'click' } }),
-      this.prisma.notificationEngagement.count({ where: { ...where, eventType: 'unsubscribe' } }),
-      this.prisma.notification.count({ where: { protocolId, queuedAt: { gte: since, lte: until } } }),
+      this.prisma.notificationEngagement.count({
+        where: { ...where, eventType: 'open' },
+      }),
+      this.prisma.notificationEngagement.count({
+        where: { ...where, eventType: 'click' },
+      }),
+      this.prisma.notificationEngagement.count({
+        where: { ...where, eventType: 'unsubscribe' },
+      }),
+      this.prisma.notification.count({
+        where: { protocolId, queuedAt: { gte: since, lte: until } },
+      }),
     ]);
 
-    const safeRate = (n: number) => (totalSends > 0 ? +(n / totalSends * 100).toFixed(2) : 0);
+    const safeRate = (n: number) =>
+      totalSends > 0 ? +((n / totalSends) * 100).toFixed(2) : 0;
 
     return {
       totalSends,
@@ -230,7 +241,8 @@ export class AnalyticsService {
 
     const total = subStats.totalSubscribers;
     const activeCount = recentlyNotified.length;
-    const retentionRate = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+    const retentionRate =
+      total > 0 ? Math.round((activeCount / total) * 100) : 0;
 
     const emailCount = subStats.byChannel['email'] ?? 0;
     const telegramCount = subStats.byChannel['telegram'] ?? 0;

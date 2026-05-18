@@ -197,7 +197,7 @@ export class SnsService implements OnModuleInit {
       subject: string;
       body: string;
     },
-    maxChars: number,
+    _maxChars: number,
   ): string {
     const { body } = this.buildSmsBody({
       protocolName: params.protocolName,

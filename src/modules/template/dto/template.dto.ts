@@ -7,12 +7,9 @@ import {
   MaxLength,
   MinLength,
   IsNumber,
-  IsArray,
-  ValidateNested,
   IsUUID,
   IsNotEmpty,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export const MAX_TEMPLATE_SIZE = 51200;
 

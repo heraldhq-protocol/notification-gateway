@@ -70,7 +70,9 @@ export class AdminService {
    * Enqueue one BullMQ notification job per wallet in the campaign's audience.
    * Called by POST /internal/campaigns/:id/enqueue (triggered by admin-api after launch).
    */
-  async enqueueCampaign(campaignId: string): Promise<{ campaignId: string; enqueued: number }> {
+  async enqueueCampaign(
+    campaignId: string,
+  ): Promise<{ campaignId: string; enqueued: number }> {
     this.logger.log(`Enqueuing campaign ${campaignId}`);
 
     const campaign = await this.prisma.campaign.findUnique({
@@ -87,7 +89,9 @@ export class AdminService {
 
     const wallets: string[] = campaign.audience.wallets;
     const now = new Date();
-    const subjectHash = createHash('sha256').update(campaign.subject).digest('hex');
+    const subjectHash = createHash('sha256')
+      .update(campaign.subject)
+      .digest('hex');
 
     // Create Notification rows and enqueue jobs with bounded concurrency
     const limit = pLimit(20);
@@ -132,7 +136,9 @@ export class AdminService {
     const failed = results.filter((r) => r.status === 'rejected').length;
 
     if (failed > 0) {
-      this.logger.warn(`Campaign ${campaignId}: ${failed} wallets failed to enqueue`);
+      this.logger.warn(
+        `Campaign ${campaignId}: ${failed} wallets failed to enqueue`,
+      );
     }
 
     await this.prisma.campaign.update({
@@ -144,7 +150,9 @@ export class AdminService {
       },
     });
 
-    this.logger.log(`Campaign ${campaignId}: enqueued ${enqueued}/${wallets.length}`);
+    this.logger.log(
+      `Campaign ${campaignId}: enqueued ${enqueued}/${wallets.length}`,
+    );
     return { campaignId, enqueued };
   }
 }

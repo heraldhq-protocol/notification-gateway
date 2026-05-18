@@ -31,7 +31,14 @@ import { AiClassifierService } from './ai-classifier.service';
   // SandboxService is provided globally via @Global() SandboxModule (imported in AppModule).
   // SandboxRoutingService is exported from RoutingModule — available via the RoutingModule import.
   // DigestService is provided by QueueModule (co-located there to avoid circular dependency).
-  providers: [NotifyService, UnsubscribeService, RateLimitInterceptor, SchedulerService, ContentScannerService, AiClassifierService],
+  providers: [
+    NotifyService,
+    UnsubscribeService,
+    RateLimitInterceptor,
+    SchedulerService,
+    ContentScannerService,
+    AiClassifierService,
+  ],
   exports: [NotifyService, UnsubscribeService, SchedulerService],
 })
 export class NotifyModule {}

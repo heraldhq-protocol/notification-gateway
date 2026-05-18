@@ -159,7 +159,7 @@ export class SandboxController {
         testContact,
         tier: protocol.tier,
       });
-    } catch (error) {
+    } catch {
       await this.prisma.notification
         .update({
           where: { id: notificationId },

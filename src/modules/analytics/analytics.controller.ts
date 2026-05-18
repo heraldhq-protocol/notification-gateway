@@ -1,6 +1,5 @@
-import { Controller, Get, Param, Query, Redirect, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
-import { createHash } from 'crypto';
 import {
   ApiTags,
   ApiOperation,
@@ -26,7 +25,7 @@ export class AnalyticsController {
 
   @Get('track/open/:notificationId')
   @ApiOperation({ summary: 'Email open tracking pixel (public)' })
-  async trackOpen(
+  trackOpen(
     @Param('notificationId') notificationId: string,
     @Query('p') protocolId: string,
     @Res() res: Response,
@@ -43,8 +42,10 @@ export class AnalyticsController {
   }
 
   @Get('track/click/:notificationId')
-  @ApiOperation({ summary: 'Click-wrap redirect with engagement tracking (public)' })
-  async trackClick(
+  @ApiOperation({
+    summary: 'Click-wrap redirect with engagement tracking (public)',
+  })
+  trackClick(
     @Param('notificationId') notificationId: string,
     @Query('p') protocolId: string,
     @Query('url') encodedUrl: string,
@@ -53,7 +54,9 @@ export class AnalyticsController {
     let destination = 'https://useherald.xyz';
     try {
       destination = Buffer.from(encodedUrl, 'base64url').toString('utf8');
-    } catch {}
+    } catch (_) {
+      /* ignore malformed base64url */
+    }
 
     if (notificationId && protocolId) {
       this.analyticsService
@@ -89,7 +92,9 @@ export class AnalyticsController {
   @UseGuards(AuthGuard, ScopeGuard)
   @RequiredScopes('analytics:read')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Engagement metrics — open/click/unsubscribe rates' })
+  @ApiOperation({
+    summary: 'Engagement metrics — open/click/unsubscribe rates',
+  })
   async getEngagement(
     @ApiKey() protocol: AuthenticatedProtocol,
     @Query('startDate') startDate?: string,
@@ -109,7 +114,8 @@ export class AnalyticsController {
   @RequiredScopes('analytics:read')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Audience analytics — subscription counts, channel coverage, registration trend',
+    summary:
+      'Audience analytics — subscription counts, channel coverage, registration trend',
   })
   async getAudienceAnalytics(@ApiKey() protocol: AuthenticatedProtocol) {
     return this.analyticsService.getAudienceAnalytics(protocol.protocolId);
@@ -138,7 +144,8 @@ export class AnalyticsController {
       limit: Math.min(parseInt(limit, 10), 100),
       statusCode: statusCode ? parseInt(statusCode, 10) : undefined,
       endpoint,
-      isTestKey: isTestKey === 'true' ? true : isTestKey === 'false' ? false : undefined,
+      isTestKey:
+        isTestKey === 'true' ? true : isTestKey === 'false' ? false : undefined,
     });
   }
 }

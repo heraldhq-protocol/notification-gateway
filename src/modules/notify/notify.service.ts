@@ -16,7 +16,12 @@ import { SandboxService } from '../sandbox/sandbox.service';
 import { QueueService } from '../queue/queue.service';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import type { IdentityAccount } from '../../common/types/notification.types';
-import type { NotifyDto, NotifyResponseDto, BroadcastDto, BroadcastResponseDto } from './dto/notify.dto';
+import type {
+  NotifyDto,
+  NotifyResponseDto,
+  BroadcastDto,
+  BroadcastResponseDto,
+} from './dto/notify.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ContentScannerService } from './content-scanner.service';
 import { AiClassifierService } from './ai-classifier.service';
@@ -123,7 +128,11 @@ export class NotifyService {
 
     if (scan.verdict === 'block') {
       this.logger.warn(
-        { protocolId: protocol.protocolId, riskScore: scan.riskScore, rules: scan.triggeredRules },
+        {
+          protocolId: protocol.protocolId,
+          riskScore: scan.riskScore,
+          rules: scan.triggeredRules,
+        },
         'Notification blocked by content scanner',
       );
       return {
@@ -159,6 +168,9 @@ export class NotifyService {
         notificationId,
         protocolId: protocol.protocolId,
         protocolName: protocol.name ?? 'Unknown Protocol',
+        verificationStatus: protocol.verificationStatus,
+        tier: protocol.tier,
+        environment: protocol.environment,
         subject: dto.subject,
         body: dto.body,
         riskScore: scan.riskScore,
@@ -287,7 +299,74 @@ export class NotifyService {
       }
     }
 
-    // ── 3. Try devnet PDA resolution (Feature Flagged for Server Devnet Tests) ─
+    // ── 3. Template status gate (if templateId provided) ─────────────────────
+    if (dto.templateId) {
+      const tmpl = await this.prisma.notificationTemplate.findUnique({
+        where: { id: dto.templateId },
+        select: { id: true, status: true },
+      });
+      if (tmpl && tmpl.status !== 'APPROVED') {
+        await this.prisma.notification.create({
+          data: {
+            id: notificationId,
+            protocolId: protocol.protocolId,
+            walletHash,
+            subjectHash,
+            status: 'blocked',
+            category: dto.category ?? 'defi',
+            idempotencyKey: dto.idempotencyKey,
+            writeReceipt: false,
+            errorCode: 'TEMPLATE_PENDING_REVIEW',
+          },
+        });
+        return {
+          notification_id: notificationId,
+          status: 'blocked',
+          error_code: 'TEMPLATE_PENDING_REVIEW',
+          recipient_registered: false,
+          estimated_delivery_ms: 0,
+          receipt_tx: null,
+          environment: 'sandbox',
+          sandbox_mode: true,
+          sandbox_notes: ['Template is not APPROVED.'],
+        };
+      }
+    }
+
+    // ── 4. Content scan (same rules engine as production) ────────────────────
+    const scan = this.contentScanner.scan(dto.subject, dto.body);
+    if (scan.verdict === 'block') {
+      await this.prisma.notification.create({
+        data: {
+          id: notificationId,
+          protocolId: protocol.protocolId,
+          walletHash,
+          subjectHash,
+          status: 'blocked',
+          category: dto.category ?? 'defi',
+          idempotencyKey: dto.idempotencyKey,
+          writeReceipt: false,
+          errorCode: 'CONTENT_BLOCKED',
+          riskScore: scan.riskScore,
+          scanVerdict: scan.verdict,
+        },
+      });
+      return {
+        notification_id: notificationId,
+        status: 'blocked',
+        error_code: 'CONTENT_BLOCKED',
+        recipient_registered: false,
+        estimated_delivery_ms: 0,
+        receipt_tx: null,
+        environment: 'sandbox',
+        sandbox_mode: true,
+        sandbox_notes: [
+          `Content scan blocked — triggered rules: ${scan.triggeredRules.join(', ')}`,
+        ],
+      };
+    }
+
+    // ── 5. Try devnet PDA resolution (Feature Flagged for Server Devnet Tests) ─
     const useDevnetSandbox =
       process.env.ENABLE_DEVNET_SANDBOX_RESOLUTION === 'true';
     let devnetResult: { resolved: boolean; channels: any; identity: any } = {
@@ -302,7 +381,7 @@ export class NotifyService {
       );
     }
 
-    // ── 4. Determine delivery contact ────────────────────────────────────────
+    // ── 6. Determine delivery contact ────────────────────────────────────────
     let testContact: {
       email?: string;
       telegramChatId?: string;
@@ -404,7 +483,7 @@ export class NotifyService {
           : 'Delivering to static test contacts.';
     }
 
-    // ── 5. Persist the sandbox notification record ────────────────────────────
+    // ── 7. Persist the sandbox notification record ────────────────────────────
     await this.prisma.notification.create({
       data: {
         id: notificationId,
@@ -418,7 +497,7 @@ export class NotifyService {
       },
     });
 
-    // ── 6. Enqueue to worker ─────────────────────────────────────────────────
+    // ── 8. Enqueue to worker ─────────────────────────────────────────────────
     const prefixedSubject = this.sandboxRoutingService.addTestPrefix(
       dto.subject,
     );
@@ -524,9 +603,7 @@ export class NotifyService {
             email: settingsForResponse?.testEmail
               ? this.maskEmail(settingsForResponse.testEmail)
               : null,
-            telegram: settingsForResponse?.testTelegramId
-              ? 'configured'
-              : null,
+            telegram: settingsForResponse?.testTelegramId ? 'configured' : null,
             sms: settingsForResponse?.testPhone
               ? this.maskPhone(settingsForResponse.testPhone)
               : null,
@@ -662,8 +739,12 @@ export class NotifyService {
     protocol: AuthenticatedProtocol,
   ): Promise<BroadcastResponseDto> {
     const broadcastId = uuidv4();
-    const targets = await this.subscriptionsService.getBroadcastTargets(protocol.protocolId);
-    const totalSubscribers = await this.subscriptionsService.getSubscriberCount(protocol.protocolId);
+    const targets = await this.subscriptionsService.getBroadcastTargets(
+      protocol.protocolId,
+    );
+    const totalSubscribers = await this.subscriptionsService.getSubscriberCount(
+      protocol.protocolId,
+    );
     const skippedCount = totalSubscribers - targets.length;
 
     if (targets.length === 0) {
@@ -701,8 +782,8 @@ export class NotifyService {
           protocolId: protocol.protocolId,
           protocolPubkey: protocol.protocolPubkey,
           protocolName: protocol.name ?? 'Unknown Protocol',
-          wallet: targets[idx]!.walletPubkey,
-          walletHash: targets[idx]!.walletHash,
+          wallet: targets[idx].walletPubkey,
+          walletHash: targets[idx].walletHash,
           subject: dto.subject,
           body: dto.body,
           category,
@@ -715,7 +796,9 @@ export class NotifyService {
       ),
     );
 
-    const queued = enqueueResults.filter((r) => r.status === 'fulfilled').length;
+    const queued = enqueueResults.filter(
+      (r) => r.status === 'fulfilled',
+    ).length;
     const failed = enqueueResults.length - queued;
 
     if (failed > 0) {

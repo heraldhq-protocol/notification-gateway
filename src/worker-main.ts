@@ -10,7 +10,7 @@ async function bootstrap() {
 
   process.on('SIGTERM', () => {
     console.log('Worker received SIGTERM — shutting down gracefully');
-    app.close().then(() => process.exit(0));
+    void app.close().then(() => process.exit(0));
   });
 
   console.log('Herald Worker started — listening for BullMQ jobs');

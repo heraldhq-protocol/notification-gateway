@@ -15,6 +15,7 @@ export interface AuthenticatedProtocol {
   overageEnabled?: boolean;
   isTestKey?: boolean;
   testKeyType?: string;
+  verificationStatus?: string;
 }
 
 /** Generated API key returned once at creation time. */

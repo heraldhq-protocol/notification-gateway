@@ -33,7 +33,7 @@ export class HelioWebhookController {
   async handleWebhook(
     @Req() req: RequestWithRawBody,
     @Body() payload: HelioWebhookPayload,
-    @Headers('x-helio-signature') signature: string,
+    @Headers('x-helio-signature') _signature: string,
   ): Promise<{ received: boolean }> {
     const rawBodyStr = req.rawBody.toString('utf8');
     const payloadHash = createHash('sha256').update(rawBodyStr).digest('hex');
