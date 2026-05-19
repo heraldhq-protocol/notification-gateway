@@ -27,8 +27,9 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue(QueueNames.BOUNCE) private readonly bounceQueue: Queue,
   ) {
     this.queueUrl = this.config.get<string>('SQS_SES_QUEUE_URL');
+    // SQS queue is co-located with SES — use SES_REGION, not the primary AWS_REGION
     this.sqs = new SQSClient({
-      region: this.config.get<string>('AWS_REGION', 'us-east-1'),
+      region: this.config.get<string>('SES_REGION', 'us-east-1'),
       maxAttempts: 3,
     });
   }
