@@ -40,7 +40,7 @@ export class OverageMeteringService {
         // Also increment on the Subscription record if it exists
         // (used by SubscriptionGuard and BillingService)
         this.prisma.subscription.updateMany({
-          where: { protocolId, status: 'active' },
+          where: { protocolId },
           data: { sendsThisPeriod: { increment: count } },
         }),
       ]);
