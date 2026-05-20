@@ -614,6 +614,8 @@ export class TemplateService {
           system: '#F59E0B',
           marketing: '#10B981',
           security: '#EF4444',
+          yield: '#06B6D4',
+          staking: '#3B82F6',
         })[category] ?? '#00C896',
     );
     Handlebars.registerHelper(
@@ -625,6 +627,8 @@ export class TemplateService {
           system: 'System',
           marketing: 'Update',
           security: 'Security',
+          yield: 'Yield',
+          staking: 'Staking',
         })[category] ?? 'Notification',
     );
     Handlebars.registerHelper(
@@ -636,6 +640,8 @@ export class TemplateService {
           system: '⚙️',
           marketing: '📢',
           security: '🔒',
+          yield: '💰',
+          staking: '🔐',
         })[category] ?? '🔔',
     );
     Handlebars.registerHelper('markdown', (content: string) => {

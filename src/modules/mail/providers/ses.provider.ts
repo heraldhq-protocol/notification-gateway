@@ -33,7 +33,7 @@ export class SesProvider implements IMailProvider {
     });
   }
 
-  private async getBimiConfig(from: string) {
+  private async getBimiConfig(from: string, protocolId?: string) {
     try {
       // Extract domain from "Name <email@domain.com>" or "email@domain.com"
       const emailMatch = from.match(/<([^>]+)>|([^\s]+@[^\s]+)/);
@@ -42,11 +42,12 @@ export class SesProvider implements IMailProvider {
 
       if (!domain) return null;
 
-      // 1. Try to find custom BIMI record in DB
+      // 1. Try to find custom BIMI record scoped to this protocol's domain
       const bimi = await this.prisma.bimi_records.findFirst({
         where: {
           domain,
           is_verified: true,
+          ...(protocolId ? { protocol_id: protocolId } : {}),
         },
         select: { selector: true },
       });
@@ -60,7 +61,7 @@ export class SesProvider implements IMailProvider {
         'sandbox.useherald.xyz',
       ];
       if (heraldDomains.includes(domain)) {
-        return { selector: 'herald' }; // We'll consistently use 'herald' selector for our own domains
+        return { selector: 'herald' };
       }
 
       return null;
@@ -77,7 +78,7 @@ export class SesProvider implements IMailProvider {
       const configSet = this.config.get<string>('SES_CONFIGURATION_SET');
 
       // BIMI Integration: Inject BIMI-Selector header if verified config exists
-      const bimiConfig = await this.getBimiConfig(message.from);
+      const bimiConfig = await this.getBimiConfig(message.from, message.protocolId);
 
       const headers: any = { ...message.headers };
 
@@ -118,9 +119,7 @@ export class SesProvider implements IMailProvider {
         provider: 'ses',
       };
     } catch (err: any) {
-      console.error('\n\n================ SES FATAL ERROR ================');
-      console.error(err);
-      console.error('=================================================\n\n');
+      this.logger.error('SES send failed', err.stack ?? err.message);
       throw err;
     }
   }

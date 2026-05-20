@@ -20,6 +20,7 @@ export interface SendEmailMessage {
   html: string;
   text: string;
   headers?: Record<string, string>;
+  protocolId?: string;
 }
 
 export interface SendEmailResult {
