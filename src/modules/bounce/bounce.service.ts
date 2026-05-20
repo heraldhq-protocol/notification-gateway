@@ -29,6 +29,14 @@ export class BounceService {
         emailId: emailId.slice(0, 12) + '...',
       });
 
+      const existingBounce = await this.prisma.emailBounce.findFirst({
+        where: { sesMessageId: emailId },
+      });
+      if (existingBounce) {
+        this.logger.warn('Duplicate Resend bounce event — skipping', { emailId: emailId.slice(0, 12) + '...' });
+        return;
+      }
+
       await this.prisma.emailBounce.create({
         data: {
           notificationId: notification.id,
@@ -53,14 +61,19 @@ export class BounceService {
         },
       });
     } else if (eventType === 'email.complained') {
-      await this.prisma.emailBounce.create({
-        data: {
-          notificationId: notification.id,
-          walletHash: notification.walletHash,
-          bounceType: 'complaint',
-          sesMessageId: emailId,
-        },
+      const existingComplaint = await this.prisma.emailBounce.findFirst({
+        where: { sesMessageId: emailId, bounceType: 'complaint' },
       });
+      if (!existingComplaint) {
+        await this.prisma.emailBounce.create({
+          data: {
+            notificationId: notification.id,
+            walletHash: notification.walletHash,
+            bounceType: 'complaint',
+            sesMessageId: emailId,
+          },
+        });
+      }
 
       await this.prisma.emailSuppression.upsert({
         where: { walletHash: notification.walletHash },
@@ -108,6 +121,14 @@ export class BounceService {
     if (sesNotificationType === 'Bounce') {
       const bounce = message.bounce as Record<string, unknown>;
       const bounceType = bounce?.bounceType === 'Permanent' ? 'hard' : 'soft';
+
+      const existingSesBounce = await this.prisma.emailBounce.findFirst({
+        where: { sesMessageId },
+      });
+      if (existingSesBounce) {
+        this.logger.warn('Duplicate SES bounce event — skipping', { sesMessageId });
+        return;
+      }
 
       await this.prisma.emailBounce.create({
         data: {
@@ -188,14 +209,19 @@ export class BounceService {
         });
       }
     } else if (sesNotificationType === 'Complaint') {
-      await this.prisma.emailBounce.create({
-        data: {
-          notificationId: notification.id,
-          walletHash: notification.walletHash,
-          bounceType: 'complaint',
-          sesMessageId,
-        },
+      const existingSesComplaint = await this.prisma.emailBounce.findFirst({
+        where: { sesMessageId, bounceType: 'complaint' },
       });
+      if (!existingSesComplaint) {
+        await this.prisma.emailBounce.create({
+          data: {
+            notificationId: notification.id,
+            walletHash: notification.walletHash,
+            bounceType: 'complaint',
+            sesMessageId,
+          },
+        });
+      }
 
       await this.prisma.emailSuppression.upsert({
         where: { walletHash: notification.walletHash },

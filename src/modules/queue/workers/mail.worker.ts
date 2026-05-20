@@ -338,7 +338,7 @@ export class MailWorker extends WorkerHost {
 
       // ── Step 5: Increment send counter (overage metering) ──────
       if (result.successCount > 0) {
-        this.overageMetering
+        await this.overageMetering
           .incrementSendsThisPeriod(protocolId, 1)
           .catch((err) =>
             this.logger.warn(
