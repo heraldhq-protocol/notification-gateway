@@ -53,6 +53,7 @@ model Protocol {
   periodResetAt          DateTime                 @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
   subscriptionExpiresAt  DateTime?                @map("subscription_expires_at") @db.Timestamptz(6)
   maxTelegramButtons    Int?                     @map("max_telegram_buttons") @db.SmallInt
+  verifiedAt             DateTime?                @map("verified_at") @db.Timestamptz(6)
   createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   apiKeys                ApiKey[]
@@ -363,6 +364,11 @@ model ProtocolSettings {
   maxOverageUsdc         BigInt    @default(500000000) @map("max_overage_usdc")
   overageAlertAtUsdc     BigInt    @default(50000000) @map("overage_alert_at_usdc")
   overageHardCapEnabled  Boolean   @default(true) @map("overage_hard_cap_enabled")
+  retryMaxAttempts       Int       @default(3) @map("retry_max_attempts") @db.SmallInt
+  retryWindowHours       Int       @default(6) @map("retry_window_hours") @db.SmallInt
+  retryBackoff           String    @default("exponential") @map("retry_backoff") @db.VarChar(20)
+  criticalCategories     String[]  @default([]) @map("critical_categories")
+  trackEngagement        Boolean   @default(false) @map("track_engagement")
   testEmail              String?   @map("test_email") @db.VarChar(100)
   testTelegramId         String?   @map("test_telegram_id") @db.VarChar(100)
   testPhone              String?   @map("test_phone") @db.VarChar(30)
@@ -670,16 +676,27 @@ model NotificationTemplateVersion {
   @@map("notification_template_versions")
 }
 
+enum AdminUserRole {
+  super_admin
+  admin
+  viewer
+}
+
+enum AdminAuthMethod {
+  wallet
+  email_totp @map("email-totp")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 3 — Herald internal admin team (separate from per-protocol TeamMember)
 // Roles: super_admin | admin | viewer
 // Auth:  wallet | email-totp
 // ─────────────────────────────────────────────────────────────────────────────
 model AdminUser {
-  id               String    @id @default(uuid()) @db.Uuid
-  displayName      String    @map("display_name") @db.VarChar(100)
-  role             String    @default("viewer") @db.VarChar(20)
-  authMethod       String    @map("auth_method") @db.VarChar(20)
+  id               String          @id @default(uuid()) @db.Uuid
+  displayName      String          @map("display_name") @db.VarChar(100)
+  role             AdminUserRole   @default(viewer)
+  authMethod       AdminAuthMethod @map("auth_method")
   walletPubkeyHash String?   @map("wallet_pubkey_hash") @db.VarChar(64)
   emailHash        String?   @map("email_hash") @db.VarChar(64)
   emailEncrypted   Bytes?    @map("email_encrypted")
