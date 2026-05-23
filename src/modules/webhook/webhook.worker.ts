@@ -7,6 +7,7 @@ import { createHmac } from 'crypto';
 import { QueueNames } from '../queue/queue.constants';
 import { PrismaService } from '../../database/prisma.service';
 import { WebhookPayload } from './webhook.service';
+import { decryptWebhookSecret, isEncrypted } from '../../common/crypto/webhook-crypto';
 
 interface WebhookJobData {
   webhookId: string;
@@ -73,6 +74,9 @@ export class WebhookWorker extends WorkerHost {
       return; // Don't retry
     }
 
+    // Decrypt the secret — supports both encrypted (new) and legacy plaintext (migration period)
+    const plaintextSecret = isEncrypted(secret) ? decryptWebhookSecret(secret) : secret;
+
     const bodyString = JSON.stringify(payload);
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
@@ -114,7 +118,7 @@ export class WebhookWorker extends WorkerHost {
 
     // Generate HMAC SHA-256 signature over timestamp + body for replay protection
     const signaturePayload = `${timestamp}.${bodyString}`;
-    const signature = createHmac('sha256', secret)
+    const signature = createHmac('sha256', plaintextSecret)
       .update(signaturePayload)
       .digest('hex');
 

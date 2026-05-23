@@ -266,10 +266,24 @@ export class ReceiptWorker extends WorkerHost {
         this.logger.log(`Wrote ZK receipt for ${notification.id}. Tx: ${txId}`);
       } catch (error) {
         failCount++;
+        const rawMessage = (error as Error).message;
+
+        // Translate the Anchor AccountNotInitialized error into a human-readable
+        // reason that points directly at the fix (POST /protocols/me/sync-onchain).
+        const failureReason = rawMessage.includes('AccountNotInitialized')
+          ? 'Protocol account not initialised on-chain. Call POST /protocols/me/sync-onchain from the dashboard to register the protocol PDA, then clear this field to retry.'
+          : rawMessage;
+
         this.logger.error(
-          `Failed to write receipt for ${notification.id}: ${(error as Error).message}`,
+          `Failed to write receipt for ${notification.id}: ${rawMessage}`,
         );
-        // Continue processing other notifications in the batch
+        await this.prisma.notification.update({
+          where: { id: notification.id },
+          data: {
+            receiptFailureReason: failureReason,
+            lastReceiptAttemptAt: new Date(),
+          },
+        });
       }
     }
 

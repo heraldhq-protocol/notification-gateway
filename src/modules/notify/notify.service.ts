@@ -631,13 +631,29 @@ export class NotifyService {
       });
     }
 
+    let receipt_status: 'pending' | 'confirmed' | 'failed' | 'disabled';
+    if (!notification.writeReceipt) {
+      receipt_status = 'disabled';
+    } else if (notification.receiptTx) {
+      receipt_status = 'confirmed';
+    } else if (notification.receiptFailureReason) {
+      receipt_status = 'failed';
+    } else {
+      receipt_status = 'pending';
+    }
+
     return {
       notification_id: notification.id,
       status: notification.status,
       category: notification.category,
       created_at: notification.queuedAt.toISOString(),
       delivered_at: notification.deliveredAt?.toISOString() ?? null,
+      receipt_status,
       receipt_tx: notification.receiptTx ?? null,
+      receipt_failure_reason: notification.receiptFailureReason ?? null,
+      last_receipt_attempt_at:
+        notification.lastReceiptAttemptAt?.toISOString() ?? null,
+      write_receipt: notification.writeReceipt,
       email_provider: notification.emailProvider ?? null,
       bounce: notification.bounce,
     };
@@ -655,15 +671,28 @@ export class NotifyService {
     ]);
 
     return {
-      data: notifications.map((n) => ({
-        notification_id: n.id,
-        status: n.status,
-        category: n.category,
-        created_at: n.queuedAt.toISOString(),
-        delivered_at: n.deliveredAt?.toISOString() ?? null,
-        receipt_tx: n.receiptTx ?? null,
-        bounce: n.bounce,
-      })),
+      data: notifications.map((n) => {
+        let receipt_status: 'pending' | 'confirmed' | 'failed' | 'disabled';
+        if (!n.writeReceipt) {
+          receipt_status = 'disabled';
+        } else if (n.receiptTx) {
+          receipt_status = 'confirmed';
+        } else if (n.receiptFailureReason) {
+          receipt_status = 'failed';
+        } else {
+          receipt_status = 'pending';
+        }
+        return {
+          notification_id: n.id,
+          status: n.status,
+          category: n.category,
+          created_at: n.queuedAt.toISOString(),
+          delivered_at: n.deliveredAt?.toISOString() ?? null,
+          receipt_status,
+          receipt_tx: n.receiptTx ?? null,
+          bounce: n.bounce,
+        };
+      }),
       total,
       page,
       limit,

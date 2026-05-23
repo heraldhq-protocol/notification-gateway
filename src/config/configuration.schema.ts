@@ -105,6 +105,11 @@ export const EnvironmentSchema = z.object({
     .string()
     .min(16)
     .default('development-webhook-secret-32chars!!'),
+  WEBHOOK_ENCRYPTION_KEY: z
+    .string()
+    .length(64)
+    .optional()
+    .describe('64-char hex string (32 bytes) for AES-256-GCM webhook secret encryption. Required in production.'),
   WEBHOOK_MAX_RETRIES: z.coerce.number().default(3),
   WEBHOOK_AUTO_DISABLE_THRESHOLD: z.coerce.number().default(10),
   ALLOW_LOCAL_WEBHOOKS: z.coerce.boolean().default(false),

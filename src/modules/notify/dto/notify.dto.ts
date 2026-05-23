@@ -595,10 +595,33 @@ export class NotificationStatusDto {
   @ApiPropertyOptional({ example: '2026-04-19T14:23:03.412Z' })
   delivered_at: string | null;
 
+  @ApiProperty({
+    enum: ['pending', 'confirmed', 'failed', 'disabled'],
+    example: 'confirmed',
+    description:
+      'ZK receipt status. pending = awaiting on-chain write, confirmed = receipt tx landed, failed = on-chain write failed, disabled = receipt opted out.',
+  })
+  receipt_status: 'pending' | 'confirmed' | 'failed' | 'disabled';
+
   @ApiPropertyOptional({
     example: '5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBwFMbSPLqBnFP...',
   })
   receipt_tx: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Authority keypair missing',
+    description: 'Reason for receipt failure, if status is failed.',
+  })
+  receipt_failure_reason: string | null;
+
+  @ApiPropertyOptional({ example: '2026-04-19T14:23:10.000Z' })
+  last_receipt_attempt_at: string | null;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether a ZK receipt was requested for this notification.',
+  })
+  write_receipt: boolean;
 
   @ApiPropertyOptional({ example: 'ses' })
   email_provider: string | null;

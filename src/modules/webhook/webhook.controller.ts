@@ -32,6 +32,7 @@ import { ApiKey } from '../../common/decorators/api-key.decorator';
 import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 import { randomBytes } from 'crypto';
 import bs58 from 'bs58';
+import { encryptWebhookSecret } from '../../common/crypto/webhook-crypto';
 import { WebhookService } from './webhook.service';
 
 // ── DTOs ───────────────────────────────────────────────────────────
@@ -109,17 +110,15 @@ export class WebhookController {
     @Body() dto: CreateWebhookDto,
     @ApiKey() protocol: AuthenticatedProtocol,
   ): Promise<WebhookResponseDto> {
-    // NOTE: For HMAC signing, the server MUST have access to the underlying secret.
-    // We store the plaintext secret in the `secretHash` column since Prisma schema dictates it.
-    // In a real production setup with more column flexibility, this would be encrypted via KMS.
     const secret = bs58.encode(randomBytes(32));
+    const encryptedSecret = encryptWebhookSecret(secret);
 
     const webhook = await this.prisma.webhook.create({
       data: {
         protocolId: protocol.protocolId,
         url: dto.url,
         events: dto.events ?? ['notification.delivered'],
-        secretHash: secret, // Storing plaintext temporarily to satisfy HMAC signing requirement
+        secretHash: encryptedSecret,
         secretPrefix: secret.substring(0, 8),
       },
     });

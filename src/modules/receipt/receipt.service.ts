@@ -39,11 +39,14 @@ export class ReceiptService {
   async enqueueReceiptBatches() {
     this.logger.debug('Scanning for pending ZK receipts...');
 
-    // Find notifications that were delivered but lack a receipt transaction
+    // Find notifications that were delivered but lack a receipt transaction.
+    // Exclude any that already have a failure reason — those need manual
+    // investigation (e.g. protocol_account not initialized on-chain).
     const pendingNotifications = await this.prisma.notification.findMany({
       where: {
         writeReceipt: true,
         receiptTx: null,
+        receiptFailureReason: null,
         status: 'delivered',
       },
       select: {
@@ -64,6 +67,11 @@ export class ReceiptService {
       `Found ${pendingNotifications.length} pending receipts. Enqueueing batch job...`,
     );
 
+    // Deterministic jobId keyed to the current 5-minute window so that
+    // multiple worker instances firing at the same cron tick don't enqueue
+    // duplicate batches — BullMQ will silently ignore the second add().
+    const windowId = Math.floor(Date.now() / 300_000);
+
     // Push a single batch job containing up to batchSize notifications
     await this.receiptQueue.add(
       'flush-receipts',
@@ -73,8 +81,7 @@ export class ReceiptService {
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
-        // Prevent duplicate batch jobs from racing
-        jobId: `receipt-batch-${Date.now()}`,
+        jobId: `receipt-batch-${windowId}`,
       },
     );
 
