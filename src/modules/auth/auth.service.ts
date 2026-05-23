@@ -64,7 +64,7 @@ export class AuthService {
     // 2. PostgreSQL lookup
     const apiKey = await this.prisma.apiKey.findFirst({
       where: { keyHash, isRevoked: false },
-      include: { protocol: true },
+      include: { protocol: { include: { settings: true } } },
     });
 
     if (!apiKey || !apiKey.protocol) return null;
@@ -96,7 +96,7 @@ export class AuthService {
       isActive: protocol.isActive,
       sendsThisPeriod: protocol.sendsThisPeriod,
       overageEnabled: protocol.overageEnabled,
-      name: this.decryptProtocolName(protocol.nameEncrypted),
+      name: protocol.settings?.customFromName || this.decryptProtocolName(protocol.nameEncrypted),
       isTestKey: apiKey.isTestKey || false,
       testKeyType: apiKey.testKeyType || undefined,
       verificationStatus: protocol.verificationStatus,
