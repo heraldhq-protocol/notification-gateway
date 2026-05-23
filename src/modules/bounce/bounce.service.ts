@@ -33,7 +33,9 @@ export class BounceService {
         where: { sesMessageId: emailId },
       });
       if (existingBounce) {
-        this.logger.warn('Duplicate Resend bounce event — skipping', { emailId: emailId.slice(0, 12) + '...' });
+        this.logger.warn('Duplicate Resend bounce event — skipping', {
+          emailId: emailId.slice(0, 12) + '...',
+        });
         return;
       }
 
@@ -126,7 +128,9 @@ export class BounceService {
         where: { sesMessageId },
       });
       if (existingSesBounce) {
-        this.logger.warn('Duplicate SES bounce event — skipping', { sesMessageId });
+        this.logger.warn('Duplicate SES bounce event — skipping', {
+          sesMessageId,
+        });
         return;
       }
 

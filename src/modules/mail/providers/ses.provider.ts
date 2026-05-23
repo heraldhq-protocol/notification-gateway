@@ -78,7 +78,10 @@ export class SesProvider implements IMailProvider {
       const configSet = this.config.get<string>('SES_CONFIGURATION_SET');
 
       // BIMI Integration: Inject BIMI-Selector header if verified config exists
-      const bimiConfig = await this.getBimiConfig(message.from, message.protocolId);
+      const bimiConfig = await this.getBimiConfig(
+        message.from,
+        message.protocolId,
+      );
 
       const headers: any = { ...message.headers };
 

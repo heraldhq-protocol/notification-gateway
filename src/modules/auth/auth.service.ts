@@ -96,7 +96,9 @@ export class AuthService {
       isActive: protocol.isActive,
       sendsThisPeriod: protocol.sendsThisPeriod,
       overageEnabled: protocol.overageEnabled,
-      name: protocol.settings?.customFromName || this.decryptProtocolName(protocol.nameEncrypted),
+      name:
+        protocol.settings?.customFromName ||
+        this.decryptProtocolName(protocol.nameEncrypted),
       isTestKey: apiKey.isTestKey || false,
       testKeyType: apiKey.testKeyType || undefined,
       verificationStatus: protocol.verificationStatus,

@@ -7,7 +7,10 @@ import { createHmac } from 'crypto';
 import { QueueNames } from '../queue/queue.constants';
 import { PrismaService } from '../../database/prisma.service';
 import { WebhookPayload } from './webhook.service';
-import { decryptWebhookSecret, isEncrypted } from '../../common/crypto/webhook-crypto';
+import {
+  decryptWebhookSecret,
+  isEncrypted,
+} from '../../common/crypto/webhook-crypto';
 
 interface WebhookJobData {
   webhookId: string;
@@ -75,7 +78,9 @@ export class WebhookWorker extends WorkerHost {
     }
 
     // Decrypt the secret — supports both encrypted (new) and legacy plaintext (migration period)
-    const plaintextSecret = isEncrypted(secret) ? decryptWebhookSecret(secret) : secret;
+    const plaintextSecret = isEncrypted(secret)
+      ? decryptWebhookSecret(secret)
+      : secret;
 
     const bodyString = JSON.stringify(payload);
     const timestamp = Math.floor(Date.now() / 1000).toString();
