@@ -218,6 +218,11 @@ export class ChannelDispatchService {
       const bannerAsset = assets.find((a) => a.assetType === 'banner');
       const logoAsset = assets.find((a) => a.assetType === 'logo');
 
+      const protocolSettings = await this.prisma.protocolSettings.findUnique({
+        where: { protocolId: job.protocolId },
+        select: { websiteUrl: true },
+      });
+
       const templateName = this.getTemplateName(job.category);
       const { html, text } = await this.templateService.render({
         template: templateName,
@@ -235,9 +240,9 @@ export class ChannelDispatchService {
             job.walletHash || '',
             job.category,
           ),
-          heraldLogoUrl:
-            logoAsset?.url ?? 'https://cdn.useherald.xyz/logo-email.png',
-          bannerUrl: bannerAsset?.url,
+          logoUrl: logoAsset?.url ?? null,
+          websiteUrl: protocolSettings?.websiteUrl ?? null,
+          bannerUrl: bannerAsset?.url ?? null,
         },
       });
 
