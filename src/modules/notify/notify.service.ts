@@ -622,6 +622,13 @@ export class NotifyService {
   async getNotificationStatus(notificationId: string, protocolId: string) {
     const notification = await this.prisma.notification.findFirst({
       where: { id: notificationId, protocolId },
+      include: {
+        channelDeliveries: {
+          where: { success: true },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
+      },
     });
 
     if (!notification) {
@@ -654,6 +661,7 @@ export class NotifyService {
       last_receipt_attempt_at:
         notification.lastReceiptAttemptAt?.toISOString() ?? null,
       write_receipt: notification.writeReceipt,
+      delivery_channel: notification.channelDeliveries[0]?.channel ?? null,
       email_provider: notification.emailProvider ?? null,
       bounce: notification.bounce,
     };
