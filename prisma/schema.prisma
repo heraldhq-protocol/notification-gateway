@@ -53,6 +53,9 @@ model Protocol {
   periodResetAt          DateTime                 @default(dbgenerated("(now() + '30 days'::interval)")) @map("period_reset_at") @db.Timestamptz(6)
   subscriptionExpiresAt  DateTime?                @map("subscription_expires_at") @db.Timestamptz(6)
   maxTelegramButtons    Int?                     @map("max_telegram_buttons") @db.SmallInt
+  strikeReasons          Json?                    @map("strike_reasons")
+  registrationFlags      Json?                    @map("registration_flags")
+  deletedAt              DateTime?                @map("deleted_at") @db.Timestamptz(6)
   verifiedAt             DateTime?                @map("verified_at") @db.Timestamptz(6)
   createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
