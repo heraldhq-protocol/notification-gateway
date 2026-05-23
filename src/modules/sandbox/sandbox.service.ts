@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../../database/prisma.service';
 import bs58 from 'bs58';
+import { getTierLimits } from '../auth/rate-limit.constants';
 
 export type TestKeyType = 'integration' | 'protocol' | 'full';
 
@@ -35,7 +36,6 @@ export interface SandboxValidationResult {
 @Injectable()
 export class SandboxService {
   private static readonly SANDBOX_PREFIX = 'hrld_test_';
-  private static readonly DAILY_LIMIT_DEFAULT = 100;
   private static readonly EXPIRATION_DAYS = 14;
   private static readonly IP_KEY_LIMIT_PER_DAY = 5;
 
@@ -146,7 +146,7 @@ export class SandboxService {
         testKeyType: apiKey.testKeyType as TestKeyType,
         dailyLimit: apiKey.testDailyLimit,
         remainingToday: 0,
-        error: 'Sandbox daily limit exceeded (100/day)',
+        error: `Sandbox daily limit reached (${apiKey.testDailyLimit}/day). Upgrade your plan for a higher limit.`,
         errorCode: 'SANDBOX_LIMIT_EXCEEDED',
       };
     }
@@ -202,6 +202,12 @@ export class SandboxService {
       await this.redis.expire(ipKey, 86400);
     }
 
+    const protocol = await this.prisma.protocol.findUniqueOrThrow({
+      where: { id: protocolId },
+      select: { tier: true },
+    });
+    const dailyLimit = getTierLimits(protocol.tier).sandboxDailyLimit;
+
     const env = 'sandbox';
     const random = randomBytes(32);
     const suffix = bs58.encode(random);
@@ -212,13 +218,6 @@ export class SandboxService {
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + SandboxService.EXPIRATION_DAYS);
-
-    let dailyLimit = SandboxService.DAILY_LIMIT_DEFAULT;
-    if (testKeyType === 'protocol') {
-      dailyLimit = 500;
-    } else if (testKeyType === 'full') {
-      dailyLimit = 1000;
-    }
 
     const apiKey = await this.prisma.apiKey.create({
       data: {
