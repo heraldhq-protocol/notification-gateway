@@ -209,11 +209,7 @@ export class ChannelDispatchService {
         ? customDomainRecord.domain
         : 'useherald.xyz';
 
-      const catFriendly =
-        job.category === 'defi'
-          ? 'DeFi'
-          : job.category.charAt(0).toUpperCase() + job.category.slice(1);
-      const formattedSubject = `[${job.protocolName} | ${catFriendly} Alert] ${job.subject}`;
+      const formattedSubject = `[${job.protocolName}] ${job.subject}`;
 
       const bannerAsset = assets.find((a) => a.assetType === 'banner');
       const logoAsset = assets.find((a) => a.assetType === 'logo');
