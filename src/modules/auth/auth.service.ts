@@ -79,6 +79,14 @@ export class AuthService {
       });
     }
 
+    if (!protocol.isActive) {
+      throw new UnauthorizedException({
+        error: 'AUTH_ACCOUNT_INACTIVE',
+        message:
+          'Protocol account not yet activated. Contact support at support@useherald.xyz.',
+      });
+    }
+
     if (apiKey.isTestKey && apiKey.expiresAt && new Date() > apiKey.expiresAt) {
       throw new UnauthorizedException({
         error: 'SANDBOX_KEY_EXPIRED',
