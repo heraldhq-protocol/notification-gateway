@@ -7,12 +7,14 @@ import { ReceiptService } from './receipt.service';
 import { LightClientService } from './light-client.service';
 import { ReceiptWorker } from './receipt.worker';
 import { SolanaModule } from '../../solana/solana.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule,
     ScheduleModule.forRoot(),
     SolanaModule,
+    RedisModule,
     BullModule.registerQueue({
       name: QueueNames.RECEIPT_BATCH,
     }),

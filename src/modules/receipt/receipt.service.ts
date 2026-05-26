@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Cron } from '@nestjs/schedule';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import { QueueNames } from '../queue/queue.constants';
 import { PrismaService } from '../../database/prisma.service';
+import { REDIS_CLIENT } from '../redis/redis.module';
 
 /**
  * ReceiptService — scans for delivered notifications lacking ZK receipts
@@ -25,6 +27,7 @@ export class ReceiptService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @InjectQueue(QueueNames.RECEIPT_BATCH) private readonly receiptQueue: Queue,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     this.batchSize = this.config.get<number>('RECEIPT_BATCH_SIZE', 20);
   }
@@ -37,6 +40,12 @@ export class ReceiptService {
    */
   @Cron('0 */5 * * * *') // Every 5 minutes (ss mm pattern)
   async enqueueReceiptBatches() {
+    // Distributed lock — only one worker instance scans per 5-minute window.
+    const windowId = Math.floor(Date.now() / 300_000);
+    const lockKey = `receipt-scan-lock:${windowId}`;
+    const acquired = await this.redis.set(lockKey, '1', 'EX', 290, 'NX');
+    if (acquired !== 'OK') return;
+
     this.logger.debug('Scanning for pending ZK receipts...');
 
     // Find notifications that were delivered but lack a receipt transaction.
@@ -66,11 +75,6 @@ export class ReceiptService {
     this.logger.log(
       `Found ${pendingNotifications.length} pending receipts. Enqueueing batch job...`,
     );
-
-    // Deterministic jobId keyed to the current 5-minute window so that
-    // multiple worker instances firing at the same cron tick don't enqueue
-    // duplicate batches — BullMQ will silently ignore the second add().
-    const windowId = Math.floor(Date.now() / 300_000);
 
     // Push a single batch job containing up to batchSize notifications
     await this.receiptQueue.add(
