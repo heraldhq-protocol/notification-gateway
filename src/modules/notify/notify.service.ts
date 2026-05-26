@@ -206,7 +206,7 @@ export class NotifyService {
         tier: protocol.tier,
         templateId: dto.templateId,
         telegramTemplateId: dto.telegramTemplateId,
-        templateVariables: dto.templateVariables,
+        templateVariables: dto.variables,
       });
     } catch (error) {
       this.logger.error(
@@ -531,7 +531,7 @@ export class NotifyService {
         tier: protocol.tier,
         templateId: dto.templateId,
         telegramTemplateId: dto.telegramTemplateId,
-        templateVariables: dto.templateVariables,
+        templateVariables: dto.variables,
       });
     } catch (error) {
       this.logger.error(

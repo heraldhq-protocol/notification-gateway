@@ -220,15 +220,13 @@ export class NotifyDto {
       'Key-value pairs injected into template placeholders ({{variable_name}}). ' +
       'All values must be strings.',
     example: {
-      health_factor: '1.03',
-      position_value_usd: '$1,512.50',
-      borrow_value_usd: '$1,400.00',
-      protocol_name: 'MarginFi',
-      action_url: 'https://app.marginfi.com',
+      actionUrl: 'https://app.example.com/positions',
+      actionLabel: 'Manage Position',
+      txHash: '5KJp8nQc...',
     },
   })
   @IsOptional()
-  templateVariables?: Record<string, string>;
+  variables?: Record<string, string>;
 }
 
 /**
