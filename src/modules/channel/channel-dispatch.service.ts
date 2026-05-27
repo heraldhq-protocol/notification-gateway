@@ -225,7 +225,7 @@ export class ChannelDispatchService {
       });
 
       const templateName = this.getTemplateName(job.category);
-      let { html, text } = await this.templateService.render({
+      const rendered = await this.templateService.render({
         template: templateName,
         templateId: job.templateId,
         tier: job.tier ?? 0,
@@ -246,6 +246,8 @@ export class ChannelDispatchService {
           bannerUrl: bannerAsset?.url ?? null,
         },
       });
+      let { html } = rendered;
+      const { text } = rendered;
 
       // ── Engagement tracking injection ─────────────────────────────────────
       if (protocolSettings?.trackEngagement && html) {
