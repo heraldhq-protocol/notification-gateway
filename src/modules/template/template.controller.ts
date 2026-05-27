@@ -55,9 +55,10 @@ export class TemplateController {
       htmlSource,
       textSource,
       previewText,
-      heraldFooter,
       isDefault,
     } = body;
+    // heraldFooter is intentionally NOT read from the request body — the footer
+    // variant is always derived from the protocol's tier at render/send time.
 
     // Validate and sanitize HTML
     const validation = this.templateService.validateCustomTemplate(
@@ -90,7 +91,7 @@ export class TemplateController {
         htmlSource: validation.compiledHtml, // Sanitized
         textSource,
         previewText,
-        heraldFooter: heraldFooter ?? 'full',
+        heraldFooter: 'full', // unused at render time — tier always determines footer
         isDefault: isDefault ?? false,
       },
     });
@@ -151,8 +152,7 @@ export class TemplateController {
     if (body.subjectTemplate !== undefined)
       updates.subjectTemplate = body.subjectTemplate;
     if (body.previewText !== undefined) updates.previewText = body.previewText;
-    if (body.heraldFooter !== undefined)
-      updates.heraldFooter = body.heraldFooter;
+    // heraldFooter intentionally excluded from updates — tier drives footer at render time.
     if (body.isDefault !== undefined) {
       if (body.isDefault) {
         await this.prisma.notificationTemplate.updateMany({
@@ -212,6 +212,44 @@ export class TemplateController {
     });
 
     return { success: true };
+  }
+
+  /**
+   * POST /v1/templates/preview
+   * Render a stored custom template exactly as it will be sent — Herald footer
+   * included — so the protocol can see the final output without actually sending.
+   * The Herald footer is determined by the protocol's tier; it cannot be overridden.
+   */
+  @Post('preview')
+  @ApiOperation({ summary: 'Render full email preview including Herald footer' })
+  async previewTemplate(
+    @ApiKey() protocol: AuthenticatedProtocol,
+    @Body()
+    body: {
+      templateId: string;
+      variables?: Record<string, unknown>;
+    },
+  ) {
+    const template = await this.prisma.notificationTemplate.findFirst({
+      where: {
+        id: body.templateId,
+        protocolId: protocol.protocolId,
+        isActive: true,
+      },
+    });
+    if (!template) {
+      throw new HttpException('Template not found', HttpStatus.NOT_FOUND);
+    }
+
+    const { html, text } = await this.templateService.renderPreview(
+      body.templateId,
+      protocol.protocolId!,
+      protocol.name ?? 'Protocol',
+      protocol.tier,
+      body.variables ?? {},
+    );
+
+    return { html, text };
   }
 
   @Delete('email/:id')

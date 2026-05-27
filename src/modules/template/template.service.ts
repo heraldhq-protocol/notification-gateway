@@ -209,7 +209,9 @@ export class TemplateService {
       const custom = await this.loadCustomTemplate(templateId, protocolId);
       if (custom) {
         hbsSource = custom.htmlSource;
-        footerKey = custom.heraldFooter ?? this.tierToFooterKey(tier);
+        // Footer variant is always determined by the protocol's tier — never by
+        // a user-supplied value. This keeps the Herald footer tamper-proof.
+        footerKey = this.tierToFooterKey(tier);
         storedTextSource = custom.textSource;
         storedPreviewText = custom.previewText;
       }
@@ -222,7 +224,7 @@ export class TemplateService {
       );
       if (custom) {
         hbsSource = custom.htmlSource;
-        footerKey = custom.heraldFooter ?? this.tierToFooterKey(tier);
+        footerKey = this.tierToFooterKey(tier);
         storedTextSource = custom.textSource;
         storedPreviewText = custom.previewText;
       }
@@ -289,6 +291,47 @@ export class TemplateService {
       text: plainText,
       subject: (variables.subject as string) || 'Notification from Herald',
     };
+  }
+
+  /**
+   * Render a full preview of a stored custom template exactly as it will be
+   * sent — including the Herald footer injected for the protocol's tier.
+   * Variables that aren't supplied fall back to placeholder values so the
+   * preview always looks populated rather than blank.
+   */
+  async renderPreview(
+    templateId: string,
+    protocolId: string,
+    protocolName: string,
+    tier: number,
+    variables: Record<string, unknown> = {},
+  ): Promise<{ html: string; text: string }> {
+    const previewVars: Record<string, unknown> = {
+      protocolName,
+      subject: variables.subject ?? `${protocolName} Notification`,
+      body: variables.body ?? '_Preview body — replace with real content._',
+      category: variables.category ?? 'defi',
+      walletAddress: variables.walletAddress ?? '0x0000…0000',
+      unsubscribeUrl: 'https://notify.useherald.xyz/unsubscribe/preview',
+      logoUrl: variables.logoUrl ?? null,
+      websiteUrl: variables.websiteUrl ?? null,
+      bannerUrl: variables.bannerUrl ?? null,
+      ...variables,
+    };
+
+    const category =
+      typeof previewVars.category === 'string' ? previewVars.category : 'defi';
+    const templateName = category === 'defi' ? 'defi-alert' : category;
+
+    const { html, text } = await this.render({
+      template: templateName,
+      templateId,
+      protocolId,
+      tier,
+      variables: previewVars,
+    });
+
+    return { html, text };
   }
 
   /**
