@@ -111,8 +111,14 @@ export class AnalyticsService {
       this.prisma.notificationEngagement.count({
         where: { ...where, eventType: 'unsubscribe' },
       }),
+      // Count only notifications that had tracking enabled at send time.
+      // This prevents untracked historical sends from diluting the rates.
       this.prisma.notification.count({
-        where: { protocolId, queuedAt: { gte: since, lte: until } },
+        where: {
+          protocolId,
+          queuedAt: { gte: since, lte: until },
+          trackingEnabled: true,
+        },
       }),
     ]);
 

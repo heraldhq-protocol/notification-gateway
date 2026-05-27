@@ -250,13 +250,8 @@ export class ChannelDispatchService {
       const { text } = rendered;
 
       // ── Engagement tracking injection ─────────────────────────────────────
-      this.logger.debug('Engagement tracking check', {
-        notificationId: job.notificationId,
-        protocolId: job.protocolId,
-        settingsFound: !!protocolSettings,
-        trackEngagement: protocolSettings?.trackEngagement ?? null,
-      });
-      if (protocolSettings?.trackEngagement && html) {
+      const trackingActive = !!protocolSettings?.trackEngagement;
+      if (trackingActive && html) {
         const pid = encodeURIComponent(job.protocolId);
         const nid = encodeURIComponent(job.notificationId);
         const base = this.trackingBaseUrl;
@@ -275,6 +270,12 @@ export class ChannelDispatchService {
         html = html.includes('</body>')
           ? html.replace('</body>', `${pixel}</body>`)
           : html + pixel;
+
+        // Stamp the notification record so analytics only count tracked sends
+        await this.prisma.notification.update({
+          where: { id: job.notificationId },
+          data: { trackingEnabled: true },
+        }).catch(() => { /* non-fatal — analytics might undercount, but email still sends */ });
       }
 
       this.sesIdentity.ensureVerified(email).catch(() => {});

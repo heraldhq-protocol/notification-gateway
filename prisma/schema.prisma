@@ -141,6 +141,7 @@ model Notification {
   nonce             String?           @map("nonce") @db.VarChar(48)
   riskScore         Int?              @default(0) @map("risk_score") @db.SmallInt
   scanVerdict       String?           @map("scan_verdict") @db.VarChar(20)
+  trackingEnabled   Boolean           @default(false) @map("tracking_enabled")
   emailBounces      EmailBounce[]
   emailSuppressions EmailSuppression[]
   emailDeliveries   EmailDelivery[]
