@@ -21,7 +21,8 @@
         { "name": "SERVICE_NAME",                    "value": "herald-gateway" },
         { "name": "ENCLAVE_MODE",                    "value": "sandbox" },
         { "name": "SECRET_ID",                       "value": "herald-gateway/staging" },
-        { "name": "NODE_TLS_REJECT_UNAUTHORIZED",    "value": "0" }
+        { "name": "NODE_TLS_REJECT_UNAUTHORIZED",    "value": "0" },
+        { "name": "DB_POOL_MAX",                     "value": "10" }
       ],
       "secrets": [
         { "name": "DATABASE_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:DATABASE_URL::" },

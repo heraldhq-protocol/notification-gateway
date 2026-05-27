@@ -53,9 +53,18 @@ export class PrismaService
       connectionString.includes('host.docker.internal');
     const sslDisabled = connectionString.includes('sslmode=disable');
 
+    // DB_POOL_MAX lets each ECS task type cap its own connection usage.
+    // Gateway server default: 10  (handles concurrent HTTP requests)
+    // Gateway worker default:  3  (async cron jobs, no burst concurrency needed)
+    const poolMax = process.env.DB_POOL_MAX
+      ? parseInt(process.env.DB_POOL_MAX, 10)
+      : process.env.SERVICE_TYPE === 'worker'
+        ? 3
+        : 10;
+
     const pool = new Pool({
       connectionString,
-      max: 25,
+      max: poolMax,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 30_000,
       ssl:
