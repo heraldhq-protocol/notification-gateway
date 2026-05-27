@@ -350,6 +350,14 @@ export class TemplateService {
       };
     }
 
+    // Pre-process: convert <Unsubscribe> shorthand to a proper anchor BEFORE
+    // DOMPurify sanitisation — otherwise DOMPurify strips the unknown tag and
+    // the literal text "<Unsubscribe>" ends up visible in the sent email.
+    source = source.replace(
+      /<Unsubscribe\s*\/?>/gi,
+      '<a href="{{unsubscribeUrl}}" style="color:#64748B;text-decoration:none;">Unsubscribe</a>',
+    );
+
     // Basic validation: ensure Handlebars can compile it
     try {
       Handlebars.compile(source);
