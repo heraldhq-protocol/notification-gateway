@@ -397,103 +397,133 @@ export class TemplateService {
    * divider → optional privacy note → logo/Herald/pipe/Unsubscribe[/pipe/site] table.
    */
   /**
-   * Herald brand CSS injected into every custom template <head>.
-   *
-   * Imports the same fonts used by Herald's system templates (Syne + Plus Jakarta Sans)
-   * and defines scoped .herald-footer-* classes so the footer always renders
-   * consistently regardless of what CSS the protocol's own template uses.
-   * Inline styles on each element remain as fallback for clients that strip <style>.
+   * Unique Herald footer CSS — all classes use the `hrl-` prefix so protocol
+   * templates cannot accidentally or deliberately override them.
+   * Every structural rule also has a matching inline style= on the element
+   * (inline styles beat class rules without !important), giving two layers of
+   * protection. The @import brings in the same fonts used by system templates
+   * so the rendered footer is pixel-identical.
    */
   private readonly HERALD_FOOTER_STYLES = `
 <style>
-  /* Herald footer — managed by Herald Protocol, do not remove */
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
-  .herald-footer { padding:28px 8px 8px !important; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif !important; }
-  .herald-footer-divider { height:1px !important; background:#E2E8F0 !important; margin:20px 0 18px !important; border:0 !important; }
-  .herald-footer-privacy { font-size:12.5px !important; line-height:1.65 !important; color:#64748B !important; margin:0 !important; }
-  .herald-footer-privacy strong { color:#475569 !important; font-weight:600 !important; }
-  .herald-footer-table { font-size:12px !important; color:#64748B !important; border-collapse:collapse !important; }
-  .herald-footer-logo { vertical-align:middle !important; padding-right:6px !important; line-height:0 !important; }
-  .herald-footer-logo img { display:block !important; border-radius:5px !important; }
-  .herald-footer-name { vertical-align:middle !important; font-family:'Syne',sans-serif !important; font-weight:700 !important; font-size:12px !important; color:#475569 !important; letter-spacing:-0.01em !important; padding-right:2px !important; }
-  .herald-footer-pipe { vertical-align:middle !important; color:#CBD5E1 !important; padding:0 4px !important; }
-  .herald-footer-link { vertical-align:middle !important; }
-  .herald-footer-link a { color:#64748B !important; text-decoration:none !important; }
+  /* Herald Protocol footer — do not modify. Classes are scoped with hrl- prefix. */
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Plus+Jakarta+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap');
+  .hrl-footer        { padding:28px 8px 8px !important; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif !important; }
+  .hrl-meta          { font-size:12.5px !important; line-height:1.65 !important; color:#64748B !important; margin:0 !important; }
+  .hrl-delivered-lbl { display:block !important; font-size:11px !important; text-transform:uppercase !important; letter-spacing:0.12em !important; font-weight:600 !important; color:#64748B !important; margin-bottom:6px !important; }
+  .hrl-wallet        { font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace !important; font-size:12px !important; color:#475569 !important; word-break:break-all !important; }
+  .hrl-divider       { height:1px !important; background:#E2E8F0 !important; margin:20px 0 18px !important; border:0 !important; }
+  .hrl-brand-tbl     { font-size:12px !important; color:#64748B !important; border-collapse:collapse !important; }
+  .hrl-brand-tbl td  { vertical-align:middle !important; }
+  .hrl-logo-td       { padding-right:6px !important; line-height:0 !important; }
+  .hrl-logo-td img   { display:block !important; border-radius:5px !important; }
+  .hrl-name-td       { font-family:'Syne',sans-serif !important; font-weight:700 !important; font-size:12px !important; color:#475569 !important; letter-spacing:-0.01em !important; padding-right:2px !important; }
+  .hrl-pipe-td       { color:#CBD5E1 !important; padding:0 4px !important; }
+  .hrl-link-td a     { color:#64748B !important; text-decoration:none !important; }
 </style>`.trim();
+
+  // Sentinel: present in every injected Herald footer — used to skip re-injection.
+  private static readonly HRL_SENTINEL = 'data-hrl-footer="1"';
 
   private injectHeraldFooter(
     html: string,
     variables: Record<string, unknown>,
     footerKey: string | null,
   ): string {
-    // System templates carry a footer-brand element — skip to avoid duplication.
-    if (footerKey === null || html.includes('footer-brand')) {
+    // System templates already have a built-in footer — skip.
+    if (footerKey === null || html.includes('class="footer-brand"')) {
+      return html;
+    }
+    // Already injected (e.g. called twice) — skip.
+    if (html.includes(TemplateService.HRL_SENTINEL)) {
       return html;
     }
 
-    const unsub = (variables.unsubscribeUrl as string) || '#';
-    const protocolName = (variables.protocolName as string) || '';
-    const logo = HERALD_LOGO_URL;
+    const unsub         = (variables.unsubscribeUrl as string) || '#';
+    const protocolName  = (variables.protocolName  as string) || '';
+    const walletAddress = (variables.walletAddress as string) || '';
+    const websiteUrl    = (variables.websiteUrl    as string) || '';
+    const logo          = HERALD_LOGO_URL;
+    const fontStack     = `'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`;
+    const monoStack     = `'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace`;
 
-    // ── Footer HTML (classes + inline fallbacks for clients that strip <style>) ──
+    // ── "Delivered to" + wallet ───────────────────────────────────────────────
+    const deliveredTo = walletAddress
+      ? `<p class="hrl-meta" style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0;">` +
+          `<span class="hrl-delivered-lbl" style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.12em;font-weight:600;color:#64748B;margin-bottom:6px;">Delivered to</span>` +
+          `<span class="hrl-wallet" style="font-family:${monoStack};font-size:12px;color:#475569;word-break:break-all;">${walletAddress}</span>` +
+        `</p>`
+      : '';
 
-    const wrapOpen = `<div class="herald-footer footer-brand" style="padding:28px 8px 8px;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">`;
-    const wrapClose = `</div>`;
+    // ── Privacy note ──────────────────────────────────────────────────────────
+    const protocolRef = websiteUrl
+      ? `<a href="${websiteUrl}" style="color:#475569;font-weight:600;text-decoration:none;">${protocolName}</a>`
+      : `<strong style="color:#475569;font-weight:600;">${protocolName || 'The sending protocol'}</strong>`;
+    const privacyNote =
+      `<p class="hrl-meta" style="font-size:12.5px;line-height:1.65;color:#64748B;margin:${walletAddress ? '14px' : '0'} 0 0;">` +
+        `Delivered securely by Herald Protocol. ${protocolRef} does not have access to your email address.` +
+      `</p>`;
 
-    const divider = `<hr class="herald-footer-divider" style="height:1px;background:#E2E8F0;margin:20px 0 18px;border:0;">`;
+    // ── Divider ───────────────────────────────────────────────────────────────
+    const divider = `<hr class="hrl-divider" style="height:1px;background:#E2E8F0;margin:20px 0 18px;border:0;">`;
 
-    const privacy = protocolName
-      ? `<p class="herald-footer-privacy" style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">${protocolName}</strong> does not have access to your email address.</p>`
-      : `<p class="herald-footer-privacy" style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0;">Delivered securely by Herald Protocol. Your email address is never shared with the sending protocol.</p>`;
-
-    const tbl = (cells: string) =>
-      `<table class="herald-footer-table" cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">` +
-      `<tr>${cells}</tr></table>`;
-
+    // ── Brand table cells (exact structure from defi-alert/index.hbs) ─────────
     const logoTd =
-      `<td class="herald-footer-logo" style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle">` +
-      `<img src="${logo}" width="20" height="20" alt="" style="display:block;border-radius:5px;"></td>`;
+      `<td class="hrl-logo-td" style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle">` +
+        `<img src="${logo}" width="20" height="20" alt="" style="display:block;border-radius:5px;">` +
+      `</td>`;
     const nameTd =
-      `<td class="herald-footer-name" style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
+      `<td class="hrl-name-td" style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
     const pipeTd =
-      `<td class="herald-footer-pipe" style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
+      `<td class="hrl-pipe-td" style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
     const unsubTd =
-      `<td class="herald-footer-link" style="vertical-align:middle;" valign="middle">` +
-      `<a href="${unsub}" style="color:#64748B;text-decoration:none;">Unsubscribe</a></td>`;
+      `<td class="hrl-link-td" style="vertical-align:middle;" valign="middle">` +
+        `<a href="${unsub}" style="color:#64748B;text-decoration:none;">Unsubscribe</a>` +
+      `</td>`;
     const siteTd =
-      `<td class="herald-footer-link" style="vertical-align:middle;" valign="middle">` +
-      `<a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>`;
+      `<td class="hrl-link-td" style="vertical-align:middle;" valign="middle">` +
+        `<a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a>` +
+      `</td>`;
 
-    const fullRow = tbl(logoTd + nameTd + pipeTd + unsubTd + pipeTd + siteTd);
-    const shortRow = tbl(logoTd + nameTd + pipeTd + unsubTd);
+    const mkTable = (cells: string) =>
+      `<table class="hrl-brand-tbl" cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">` +
+        `<tr>${cells}</tr>` +
+      `</table>`;
 
+    const fullBrandRow  = mkTable(logoTd + nameTd + pipeTd + unsubTd + pipeTd + siteTd);
+    const shortBrandRow = mkTable(logoTd + nameTd + pipeTd + unsubTd);
+
+    // ── Outer wrapper (sentinel attribute makes re-injection detection reliable) ─
+    const wrap = (inner: string, extraStyle = '') =>
+      `<div class="hrl-footer" ${TemplateService.HRL_SENTINEL} style="padding:28px 8px 8px;font-family:${fontStack};${extraStyle}">` +
+        inner +
+      `</div>`;
+
+    // ── Tier variants — structure matches system template footer exactly ───────
     const footers: Record<string, string> = {
-      // Developer (0) — privacy note + full brand row
-      full: `${wrapOpen}${privacy}${divider}${fullRow}${wrapClose}`,
-      // Growth (1) — full brand row, no privacy note
-      small: `${wrapOpen}${divider}${fullRow}${wrapClose}`,
-      // Scale (2) — short brand row (no site link)
-      minimal: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
-      // Enterprise (3) — same as minimal
-      enterprise: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
-      // No Herald branding — plain unsubscribe centred
-      none:
-        `<div class="herald-footer footer-brand" style="padding:12px 8px 8px;text-align:center;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">` +
-        `<a href="${unsub}" style="font-size:12px;color:#64748B;text-decoration:none;">Unsubscribe</a>` +
-        `</div>`,
+      // Developer (0): wallet + privacy note + divider + full brand row
+      full:       wrap(deliveredTo + privacyNote + divider + fullBrandRow),
+      // Growth (1): wallet + divider + full brand row (no privacy note)
+      small:      wrap(deliveredTo + divider + fullBrandRow),
+      // Scale (2): wallet + divider + short brand row (no useherald.xyz)
+      minimal:    wrap(deliveredTo + divider + shortBrandRow),
+      // Enterprise (3): same as minimal
+      enterprise: wrap(deliveredTo + divider + shortBrandRow),
+      // No branding: centred unsubscribe only
+      none:       wrap(`<a href="${unsub}" style="font-size:12px;color:#64748B;text-decoration:none;">Unsubscribe</a>`, 'text-align:center;padding:12px 8px 8px;'),
     };
 
     const footerHtml = footers[footerKey] ?? footers['full'];
 
-    // Inject brand styles into <head> if not already present, then append footer before </body>.
+    // Inject font + CSS into <head> once, then append footer before </body>.
     let result = html;
-    if (!result.includes('herald-footer-name')) {
+    if (!result.includes('data-hrl-footer')) {
       result = result.includes('</head>')
         ? result.replace('</head>', `${this.HERALD_FOOTER_STYLES}\n</head>`)
         : this.HERALD_FOOTER_STYLES + result;
     }
     result = result.includes('</body>')
-      ? result.replace('</body>', `${footerHtml}</body>`)
+      ? result.replace('</body>', `${footerHtml}\n</body>`)
       : result + footerHtml;
 
     return result;
