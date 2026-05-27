@@ -234,6 +234,13 @@ export class TemplateService {
       footerKey = null;
     }
 
+    // Pre-process: replace <Unsubscribe> placeholder tags with a proper HBS variable
+    // so protocols can use <Unsubscribe> in their custom templates as a shorthand.
+    hbsSource = hbsSource.replace(
+      /<Unsubscribe\s*\/?>/gi,
+      '<a href="{{unsubscribeUrl}}" style="color:#64748B;text-decoration:none;">Unsubscribe</a>',
+    );
+
     // Handlebars: variable injection
     const compiled = this.getCompiledTemplate(hbsSource);
 
@@ -264,7 +271,8 @@ export class TemplateService {
       previewTextValue,
     );
 
-    // Inject Herald footer for custom templates only
+    // Inject Herald footer for custom templates only (always-on, mandatory).
+    // System templates carry their own footer so footerKey is null for those.
     const htmlWithFooter = this.injectHeraldFooter(
       htmlWithPreheader,
       variables,
@@ -345,6 +353,31 @@ export class TemplateService {
    * HTML structure mirrors the defi-alert system template footer exactly:
    * divider → optional privacy note → logo/Herald/pipe/Unsubscribe[/pipe/site] table.
    */
+  /**
+   * Herald brand CSS injected into every custom template <head>.
+   *
+   * Imports the same fonts used by Herald's system templates (Syne + Plus Jakarta Sans)
+   * and defines scoped .herald-footer-* classes so the footer always renders
+   * consistently regardless of what CSS the protocol's own template uses.
+   * Inline styles on each element remain as fallback for clients that strip <style>.
+   */
+  private readonly HERALD_FOOTER_STYLES = `
+<style>
+  /* Herald footer — managed by Herald Protocol, do not remove */
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Plus+Jakarta+Sans:wght@400;600&display=swap');
+  .herald-footer { padding:28px 8px 8px !important; font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif !important; }
+  .herald-footer-divider { height:1px !important; background:#E2E8F0 !important; margin:20px 0 18px !important; border:0 !important; }
+  .herald-footer-privacy { font-size:12.5px !important; line-height:1.65 !important; color:#64748B !important; margin:0 !important; }
+  .herald-footer-privacy strong { color:#475569 !important; font-weight:600 !important; }
+  .herald-footer-table { font-size:12px !important; color:#64748B !important; border-collapse:collapse !important; }
+  .herald-footer-logo { vertical-align:middle !important; padding-right:6px !important; line-height:0 !important; }
+  .herald-footer-logo img { display:block !important; border-radius:5px !important; }
+  .herald-footer-name { vertical-align:middle !important; font-family:'Syne',sans-serif !important; font-weight:700 !important; font-size:12px !important; color:#475569 !important; letter-spacing:-0.01em !important; padding-right:2px !important; }
+  .herald-footer-pipe { vertical-align:middle !important; color:#CBD5E1 !important; padding:0 4px !important; }
+  .herald-footer-link { vertical-align:middle !important; }
+  .herald-footer-link a { color:#64748B !important; text-decoration:none !important; }
+</style>`.trim();
+
   private injectHeraldFooter(
     html: string,
     variables: Record<string, unknown>,
@@ -359,58 +392,68 @@ export class TemplateService {
     const protocolName = (variables.protocolName as string) || '';
     const logo = HERALD_LOGO_URL;
 
-    // Outer wrapper — matches .footer padding from defi-alert
-    const wrapOpen = `<div class="footer-brand" style="padding:28px 8px 8px;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">`;
+    // ── Footer HTML (classes + inline fallbacks for clients that strip <style>) ──
+
+    const wrapOpen = `<div class="herald-footer footer-brand" style="padding:28px 8px 8px;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">`;
     const wrapClose = `</div>`;
 
-    // Divider — matches .footer-divider
-    const divider = `<hr style="height:1px;background:#E2E8F0;margin:20px 0 18px;border:0;">`;
+    const divider = `<hr class="herald-footer-divider" style="height:1px;background:#E2E8F0;margin:20px 0 18px;border:0;">`;
 
-    // Privacy line — matches the second .footer-meta paragraph in defi-alert
     const privacy = protocolName
-      ? `<p style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0 0 0;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">${protocolName}</strong> does not have access to your email address.</p>`
-      : `<p style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0 0 0;">Delivered securely by Herald Protocol. Your email address is never shared with the sending protocol.</p>`;
+      ? `<p class="herald-footer-privacy" style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0;">Delivered securely by Herald Protocol. <strong style="color:#475569;font-weight:600;">${protocolName}</strong> does not have access to your email address.</p>`
+      : `<p class="herald-footer-privacy" style="font-size:12.5px;line-height:1.65;color:#64748B;margin:0;">Delivered securely by Herald Protocol. Your email address is never shared with the sending protocol.</p>`;
 
-    // Brand row cells — exact style match with rendered defi-alert footer table
     const tbl = (cells: string) =>
-      `<table cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">` +
+      `<table class="herald-footer-table" cellpadding="0" cellspacing="0" style="font-size:12px;color:#64748B;">` +
       `<tr>${cells}</tr></table>`;
 
-    const logoTd = `<td style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle"><img src="${logo}" width="20" height="20" style="display:block;border-radius:5px;"></td>`;
-    const nameTd = `<td style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
-    const pipeTd = `<td style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
-    const unsubTd = `<td style="vertical-align:middle;" valign="middle"><a href="${unsub}" style="color:#64748B;text-decoration:none;">Unsubscribe</a></td>`;
-    const siteTd = `<td style="vertical-align:middle;" valign="middle"><a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>`;
+    const logoTd =
+      `<td class="herald-footer-logo" style="vertical-align:middle;padding-right:6px;line-height:0;" valign="middle">` +
+      `<img src="${logo}" width="20" height="20" alt="" style="display:block;border-radius:5px;"></td>`;
+    const nameTd =
+      `<td class="herald-footer-name" style="vertical-align:middle;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#475569;letter-spacing:-0.01em;padding-right:2px;" valign="middle">Herald</td>`;
+    const pipeTd =
+      `<td class="herald-footer-pipe" style="vertical-align:middle;color:#CBD5E1;padding:0 4px;" valign="middle">|</td>`;
+    const unsubTd =
+      `<td class="herald-footer-link" style="vertical-align:middle;" valign="middle">` +
+      `<a href="${unsub}" style="color:#64748B;text-decoration:none;">Unsubscribe</a></td>`;
+    const siteTd =
+      `<td class="herald-footer-link" style="vertical-align:middle;" valign="middle">` +
+      `<a href="https://useherald.xyz" style="color:#64748B;text-decoration:none;">useherald.xyz</a></td>`;
 
-    // Full brand row (logo + name + | + unsub + | + site)
     const fullRow = tbl(logoTd + nameTd + pipeTd + unsubTd + pipeTd + siteTd);
-    // Short brand row (logo + name + | + unsub — no site link)
     const shortRow = tbl(logoTd + nameTd + pipeTd + unsubTd);
 
     const footers: Record<string, string> = {
       // Developer (0) — privacy note + full brand row
       full: `${wrapOpen}${privacy}${divider}${fullRow}${wrapClose}`,
-
       // Growth (1) — full brand row, no privacy note
       small: `${wrapOpen}${divider}${fullRow}${wrapClose}`,
-
       // Scale (2) — short brand row (no site link)
       minimal: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
-
-      // Enterprise (3) — same as minimal: logo + unsubscribe, Herald retained
+      // Enterprise (3) — same as minimal
       enterprise: `${wrapOpen}${divider}${shortRow}${wrapClose}`,
-
-      // No Herald branding — plain unsubscribe link centred
+      // No Herald branding — plain unsubscribe centred
       none:
-        `<div class="footer-brand" style="padding:12px 8px 8px;text-align:center;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">` +
+        `<div class="herald-footer footer-brand" style="padding:12px 8px 8px;text-align:center;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">` +
         `<a href="${unsub}" style="font-size:12px;color:#64748B;text-decoration:none;">Unsubscribe</a>` +
         `</div>`,
     };
 
-    const footer = footers[footerKey] ?? footers['full'];
-    return html.includes('</body>')
-      ? html.replace('</body>', `${footer}</body>`)
-      : html + footer;
+    const footerHtml = footers[footerKey] ?? footers['full'];
+
+    // Inject brand styles into <head> if not already present, then append footer before </body>.
+    let result = html;
+    if (!result.includes('herald-footer-name')) {
+      result = result.includes('</head>')
+        ? result.replace('</head>', `${this.HERALD_FOOTER_STYLES}\n</head>`)
+        : this.HERALD_FOOTER_STYLES + result;
+    }
+    result = result.includes('</body>')
+      ? result.replace('</body>', `${footerHtml}</body>`)
+      : result + footerHtml;
+
+    return result;
   }
 
   // ── Template loading ─────────────────────────────────────────────────────
@@ -598,12 +641,26 @@ export class TemplateService {
     Handlebars.registerHelper('truncate', (str: string, len: number) =>
       str?.length > len ? str.slice(0, len) + '...' : str,
     );
-    Handlebars.registerHelper('formatDate', (ts: number) =>
-      new Date(ts * 1000).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
+    Handlebars.registerHelper(
+      'formatDate',
+      (ts: number | string | undefined) => {
+        if (ts === undefined || ts === null || ts === '') return '';
+        // Accept Unix seconds (number), Unix ms (large number), or ISO strings
+        let ms: number;
+        if (typeof ts === 'string') {
+          ms = Date.parse(ts);
+        } else {
+          // Heuristic: if the value is under 1e10 it's Unix seconds, otherwise ms
+          ms = ts < 1e10 ? ts * 1000 : ts;
+        }
+        const d = new Date(ms);
+        if (isNaN(d.getTime())) return String(ts); // show raw value rather than "Invalid Date"
+        return d.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      },
     );
     Handlebars.registerHelper(
       'categoryColor',
