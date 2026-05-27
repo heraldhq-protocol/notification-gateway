@@ -25,6 +25,7 @@ export class ChannelDispatchService {
   private readonly isProduction: boolean;
   private readonly unsubscribeSecret: string;
   private readonly unsubscribeBaseUrl: string;
+  private readonly trackingBaseUrl: string;
 
   constructor(
     private readonly mailService: MailService,
@@ -44,6 +45,10 @@ export class ChannelDispatchService {
     this.unsubscribeBaseUrl = this.config.get<string>(
       'UNSUBSCRIBE_BASE_URL',
       'https://notify.useherald.xyz',
+    );
+    this.trackingBaseUrl = this.config.get<string>(
+      'GATEWAY_PUBLIC_URL',
+      'https://api.useherald.xyz',
     );
   }
 
@@ -216,11 +221,11 @@ export class ChannelDispatchService {
 
       const protocolSettings = await this.prisma.protocolSettings.findUnique({
         where: { protocolId: job.protocolId },
-        select: { websiteUrl: true },
+        select: { websiteUrl: true, trackEngagement: true },
       });
 
       const templateName = this.getTemplateName(job.category);
-      const { html, text } = await this.templateService.render({
+      let { html, text } = await this.templateService.render({
         template: templateName,
         templateId: job.templateId,
         tier: job.tier ?? 0,
@@ -241,6 +246,28 @@ export class ChannelDispatchService {
           bannerUrl: bannerAsset?.url ?? null,
         },
       });
+
+      // ── Engagement tracking injection ─────────────────────────────────────
+      if (protocolSettings?.trackEngagement && html) {
+        const pid = encodeURIComponent(job.protocolId);
+        const nid = encodeURIComponent(job.notificationId);
+        const base = this.trackingBaseUrl;
+
+        // Wrap href links (excluding unsubscribe URLs) with click-tracking
+        html = html.replace(
+          /href="(https?:\/\/(?!notify\.useherald\.xyz)[^"]+)"/g,
+          (_match, url) => {
+            const encoded = Buffer.from(url).toString('base64url');
+            return `href="${base}/v1/track/click/${nid}?p=${pid}&url=${encoded}"`;
+          },
+        );
+
+        // Inject 1×1 open-tracking pixel before </body>
+        const pixel = `<img src="${base}/v1/track/open/${nid}?p=${pid}" width="1" height="1" style="display:none;border:0;" alt="" />`;
+        html = html.includes('</body>')
+          ? html.replace('</body>', `${pixel}</body>`)
+          : html + pixel;
+      }
 
       this.sesIdentity.ensureVerified(email).catch(() => {});
 
