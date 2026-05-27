@@ -24,13 +24,25 @@ export interface StorageReceipt {
 @Injectable()
 export class ArweaveStorageService implements OnModuleInit {
   private readonly logger = new Logger(ArweaveStorageService.name);
-  private irys: Irys;
+  // null when ARWEAVE_PAYER_SECRET is not configured — uploads are skipped gracefully
+  private irys: Irys | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
+    // ARWEAVE_PAYER_SECRET is a dedicated Solana keypair (base58) used to fund
+    // Irys/Arweave uploads. It is intentionally separate from the on-chain
+    // authority key. If not set, Arweave storage is disabled (non-fatal).
+    const secretB58 = this.config.get<string>('ARWEAVE_PAYER_SECRET');
+
+    if (!secretB58) {
+      this.logger.warn(
+        'ARWEAVE_PAYER_SECRET not configured — Arweave notification storage disabled.',
+      );
+      return;
+    }
+
     const network = this.config.get<string>('IRYS_NETWORK', 'devnet');
-    const secretB58 = this.config.getOrThrow<string>('HERALD_AUTHORITY_SECRET');
     const keyBuffer = Buffer.from(bs58.decode(secretB58));
     const providerUrl =
       this.config.get<string>('HELIUS_RPC_URL') ??
@@ -47,9 +59,17 @@ export class ArweaveStorageService implements OnModuleInit {
     this.logger.log(`Irys node connected (SOL payer): ${this.irys.address}`);
   }
 
+  get isEnabled(): boolean {
+    return this.irys !== null;
+  }
+
   async storeNotificationPayload(
     payload: NotificationPayload,
   ): Promise<StorageReceipt> {
+    if (!this.irys) {
+      throw new Error('Arweave storage is not configured (ARWEAVE_PAYER_SECRET missing).');
+    }
+
     const data = Buffer.from(JSON.stringify(payload));
 
     const tags = [
@@ -96,11 +116,13 @@ export class ArweaveStorageService implements OnModuleInit {
   }
 
   async getBalance(): Promise<string> {
+    if (!this.irys) return '0';
     const balance = await this.irys.getLoadedBalance();
     return this.irys.utils.fromAtomic(balance).toString();
   }
 
   private async ensureFunded(dataSize: number): Promise<void> {
+    if (!this.irys) return;
     const cost = await this.irys.getPrice(dataSize);
     const balance = await this.irys.getLoadedBalance();
 
