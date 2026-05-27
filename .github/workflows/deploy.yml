@@ -122,6 +122,23 @@ jobs:
           container-name:   gateway
           image:            ${{ env.ECR_GATEWAY_REPO }}:${{ needs.build-push-ecr.outputs.image-tag }}
 
+      - name: Scale worker down before deploying (prevents RDS connection exhaustion)
+        run: |
+          # The worker holds up to 2×25=50 RDS connections under the old pool
+          # setting. Scaling to 0 first frees those slots so the new gateway
+          # task can connect. Worker is restored after gateway is stable.
+          # Gateway itself keeps running throughout — no user-facing downtime.
+          WORKER_SVC="${{ env.ECS_WORKER_SERVICE }}"
+          if [ -n "$WORKER_SVC" ]; then
+            echo "Scaling worker to 0 to free RDS connections..."
+            aws ecs update-service \
+              --cluster "${{ env.ECS_CLUSTER }}" \
+              --service "$WORKER_SVC" \
+              --desired-count 0 \
+              --no-cli-pager > /dev/null
+            sleep 15
+          fi
+
       - name: Deploy to ECS and wait for stability
         id: deploy
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -130,7 +147,20 @@ jobs:
           service:                    ${{ env.ECS_SERVICE }}
           cluster:                    ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
-          wait-for-minutes:           10
+          wait-for-minutes:           15
+
+      - name: Restore worker after gateway is stable
+        if: always()
+        run: |
+          WORKER_SVC="${{ env.ECS_WORKER_SERVICE }}"
+          if [ -n "$WORKER_SVC" ]; then
+            echo "Restoring worker desired count to 1..."
+            aws ecs update-service \
+              --cluster "${{ env.ECS_CLUSTER }}" \
+              --service "$WORKER_SVC" \
+              --desired-count 1 \
+              --no-cli-pager > /dev/null
+          fi
 
       - name: Tail CloudWatch logs (always — catches DB/Redis errors post-start)
         if: always()
