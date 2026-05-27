@@ -19,6 +19,33 @@ import {
 } from '@herald-protocol/sdk';
 import bs58 from 'bs58';
 
+// ─── KMS Ed25519 helper ────────────────────────────────────────────────────────
+// Mirrors KmsSignerService in admin-api. Used when HERALD_AUTHORITY_KMS_KEY_ID
+// is set without a ciphertext (direct KMS Ed25519 signing — private key never
+// leaves KMS hardware).
+
+async function kmsGetPublicKey(keyId: string, region: string): Promise<PublicKey> {
+  const { KMSClient, GetPublicKeyCommand } = await import('@aws-sdk/client-kms');
+  const kms = new KMSClient({ region });
+  const res = await kms.send(new GetPublicKeyCommand({ KeyId: keyId }));
+  if (!res.PublicKey) throw new Error('KMS did not return a public key');
+  // Ed25519 DER: 30 2a 30 05 06 03 2b 65 70 03 21 00 <32 bytes>
+  const raw = res.PublicKey.slice(-32);
+  return new PublicKey(raw);
+}
+
+async function kmsSign(keyId: string, region: string, message: Uint8Array): Promise<Uint8Array> {
+  const { KMSClient, SignCommand } = await import('@aws-sdk/client-kms');
+  const kms = new KMSClient({ region });
+  const res = await kms.send(new SignCommand({
+    KeyId: keyId,
+    Message: message,
+    SigningAlgorithm: 'ED25519_SHA_512' as any,
+  }));
+  if (!res.Signature) throw new Error('KMS did not return a signature');
+  return res.Signature;
+}
+
 /**
  * Category string → on-chain NotificationCategory mapping.
  * Must match the Herald SDK's NOTIFICATION_CATEGORIES enum.
@@ -46,6 +73,12 @@ export class ReceiptWorker extends WorkerHost {
   private readonly logger = new Logger(ReceiptWorker.name);
   private authorityClient: AuthorityClient | null = null;
   private authorityKeypair: Keypair | null = null;
+  // KMS Ed25519 mode — set when HERALD_AUTHORITY_KMS_KEY_ID is configured
+  // without a ciphertext. Private key never leaves KMS.
+  private kmsMode = false;
+  private kmsKeyId: string | null = null;
+  private kmsRegion: string = 'eu-north-1';
+  private authorityPubkey: PublicKey | null = null;
   private clusterType: 'local' | 'devnet' | 'mainnet' = 'local';
 
   constructor(
@@ -69,21 +102,43 @@ export class ReceiptWorker extends WorkerHost {
         commitment: 'confirmed',
       });
 
-      // Decode the authority keypair from the base58 secret in env
+      // Authority key loading — three modes in priority order:
+      //
+      // 1. KMS Ed25519 direct (HERALD_AUTHORITY_KMS_KEY_ID set, no ciphertext)
+      //    Private key never leaves KMS. Must match GlobalConfig.authority on-chain.
+      //    Same approach as admin-api KmsSignerService.
+      //
+      // 2. KMS-encrypted plaintext (HERALD_AUTHORITY_KMS_KEY_ID + HERALD_AUTHORITY_SECRET_CIPHERTEXT)
+      //    KMS decrypts the ciphertext to recover the base58 secret, then signs locally.
+      //
+      // 3. Plaintext secret (HERALD_AUTHORITY_SECRET)
+      //    Local dev / staging fallback.
       const plainSecret = this.config.get<string>('HERALD_AUTHORITY_SECRET');
       const kmsKeyId = this.config.get<string>('HERALD_AUTHORITY_KMS_KEY_ID');
-      const encryptedSecretHex = this.config.get<string>(
-        'HERALD_AUTHORITY_SECRET_CIPHERTEXT',
-      );
+      const encryptedSecretHex = this.config.get<string>('HERALD_AUTHORITY_SECRET_CIPHERTEXT');
+      const awsRegion = this.config.get<string>('AWS_REGION', 'eu-north-1');
 
-      if (kmsKeyId && encryptedSecretHex) {
-        // Load KMS dynamically
+      if (kmsKeyId && !encryptedSecretHex) {
+        // Mode 1: KMS Ed25519 direct signing
+        this.kmsMode = true;
+        this.kmsKeyId = kmsKeyId;
+        this.kmsRegion = awsRegion;
+        kmsGetPublicKey(kmsKeyId, awsRegion)
+          .then((pubkey) => {
+            this.authorityPubkey = pubkey;
+            this.logger.log(
+              `Authority pubkey loaded from KMS: ${pubkey.toBase58().slice(0, 8)}...`,
+            );
+          })
+          .catch((err) => {
+            this.logger.error(`Failed to load KMS authority pubkey: ${err.message}`);
+          });
+      } else if (kmsKeyId && encryptedSecretHex) {
+        // Mode 2: KMS-encrypted plaintext keypair
         import('@aws-sdk/client-kms')
           .then(async ({ KMSClient, DecryptCommand }) => {
             this.logger.log('Unwrapping authority key via AWS KMS...');
-            const kms = new KMSClient({
-              region: this.config.get<string>('AWS_REGION'),
-            });
+            const kms = new KMSClient({ region: awsRegion });
             const response = await kms.send(
               new DecryptCommand({
                 CiphertextBlob: Buffer.from(encryptedSecretHex, 'hex'),
@@ -92,28 +147,27 @@ export class ReceiptWorker extends WorkerHost {
             );
             if (!response.Plaintext)
               throw new Error('No plaintext returned from KMS');
-            // Decode the plaintext as UTF-8 then base58
             const secretString = new TextDecoder().decode(response.Plaintext);
             const secretBytes = bs58.decode(secretString);
             this.authorityKeypair = Keypair.fromSecretKey(secretBytes);
-            // Wipe response buffer
+            this.authorityPubkey = this.authorityKeypair.publicKey;
             response.Plaintext.fill(0);
             this.logger.log(
               `Authority keypair unwrapped from KMS: ${this.authorityKeypair.publicKey.toBase58().slice(0, 8)}...`,
             );
           })
           .catch((err) => {
-            this.logger.error(
-              `Failed to unwrap authority key via KMS: ${err.message}`,
-            );
+            this.logger.error(`Failed to unwrap authority key via KMS: ${err.message}`);
           });
       } else if (
         plainSecret &&
         plainSecret !== 'base58-encoded-secret-key' &&
         plainSecret !== 'your-local-keypair-secret'
       ) {
+        // Mode 3: Plaintext
         const secretBytes = bs58.decode(plainSecret);
         this.authorityKeypair = Keypair.fromSecretKey(secretBytes);
+        this.authorityPubkey = this.authorityKeypair.publicKey;
         this.logger.log(
           `Authority keypair loaded: ${this.authorityKeypair.publicKey.toBase58().slice(0, 8)}...`,
         );
@@ -157,7 +211,14 @@ export class ReceiptWorker extends WorkerHost {
       throw new Error('AuthorityClient missing');
     }
 
-    if (!this.authorityKeypair) {
+    if (!this.authorityPubkey) {
+      this.logger.error(
+        'Authority pubkey not loaded yet. Cannot sign receipt transactions.',
+      );
+      throw new Error('Authority pubkey missing');
+    }
+
+    if (!this.kmsMode && !this.authorityKeypair) {
       this.logger.error(
         'Authority keypair not configured. Cannot sign receipt transactions.',
       );
@@ -218,7 +279,7 @@ export class ReceiptWorker extends WorkerHost {
 
         // 5. Build the write_receipt instruction
         const ix = await this.authorityClient.writeReceipt({
-          authority: this.authorityKeypair.publicKey,
+          authority: this.authorityPubkey,
           protocolOwner: protocolOwnerPubkey,
           proof: validityProof.proof,
           outputTreeIndex: validityProof.outputTreeIndex,
@@ -230,19 +291,26 @@ export class ReceiptWorker extends WorkerHost {
           ),
         });
 
-        // 5. Send Transaction
+        // 6. Build and sign the transaction
         const connection = this.authorityClient.connection;
-        const latestBlockhash =
-          await connection.getLatestBlockhash('confirmed');
+        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
 
         const messageV0 = new TransactionMessage({
-          payerKey: this.authorityKeypair.publicKey,
+          payerKey: this.authorityPubkey,
           recentBlockhash: latestBlockhash.blockhash,
           instructions: [ix],
         }).compileToV0Message();
 
         const transaction = new VersionedTransaction(messageV0);
-        transaction.sign([this.authorityKeypair]);
+
+        if (this.kmsMode) {
+          // KMS Ed25519 direct signing — private key never leaves KMS
+          const messageBytes = transaction.message.serialize();
+          const signature = await kmsSign(this.kmsKeyId!, this.kmsRegion, messageBytes);
+          transaction.addSignature(this.authorityPubkey, Buffer.from(signature));
+        } else {
+          transaction.sign([this.authorityKeypair!]);
+        }
 
         const txId = await connection.sendTransaction(transaction);
 
