@@ -51,7 +51,8 @@
         { "name": "IRYS_NETWORK",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:IRYS_NETWORK::" },
         { "name": "LIGHT_OUTPUT_TREE",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_OUTPUT_TREE::" },
         { "name": "LIGHT_RPC_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_RPC_URL::" },
-        { "name": "HERALD_X25519_PRIV_HEX",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_X25519_PRIV_HEX::" }
+        { "name": "HERALD_X25519_PRIV_HEX",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_X25519_PRIV_HEX::" },
+        { "name": "ARWEAVE_PAYER_SECRET",         "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:ARWEAVE_PAYER_SECRET::" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
