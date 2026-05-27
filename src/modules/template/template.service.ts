@@ -515,6 +515,16 @@ export class TemplateService {
 
     const footerHtml = footers[footerKey] ?? footers['full'];
 
+    // Wrap the footer in a full-width outer shell that centres content at
+    // max-width 600px — identical to the email body container — so the footer
+    // never bleeds to the edge of the viewport in wide-windowed email clients.
+    const containedFooter =
+      `<div style="width:100%;background:#F8FAFC;">` +
+        `<div style="max-width:600px;margin:0 auto;padding:0 16px 32px;box-sizing:border-box;">` +
+          footerHtml +
+        `</div>` +
+      `</div>`;
+
     // Inject font + CSS into <head> once, then append footer before </body>.
     let result = html;
     if (!result.includes('data-hrl-footer')) {
@@ -523,8 +533,8 @@ export class TemplateService {
         : this.HERALD_FOOTER_STYLES + result;
     }
     result = result.includes('</body>')
-      ? result.replace('</body>', `${footerHtml}\n</body>`)
-      : result + footerHtml;
+      ? result.replace('</body>', `${containedFooter}\n</body>`)
+      : result + containedFooter;
 
     return result;
   }

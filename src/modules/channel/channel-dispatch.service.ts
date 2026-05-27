@@ -250,6 +250,12 @@ export class ChannelDispatchService {
       const { text } = rendered;
 
       // ── Engagement tracking injection ─────────────────────────────────────
+      this.logger.debug('Engagement tracking check', {
+        notificationId: job.notificationId,
+        protocolId: job.protocolId,
+        settingsFound: !!protocolSettings,
+        trackEngagement: protocolSettings?.trackEngagement ?? null,
+      });
       if (protocolSettings?.trackEngagement && html) {
         const pid = encodeURIComponent(job.protocolId);
         const nid = encodeURIComponent(job.notificationId);
