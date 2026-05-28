@@ -211,17 +211,23 @@ model WebhookDelivery {
 }
 
 model DkimKey {
-  id          String    @id @default(uuid()) @db.Uuid
-  protocolId  String?   @map("protocol_id") @db.Uuid
-  domain      String    @db.VarChar(255)
-  selector    String    @db.VarChar(63)
-  publicKey   String    @map("public_key")
-  kmsKeyId    String    @map("kms_key_id") @db.VarChar(255)
-  dnsVerified Boolean   @default(false) @map("dns_verified")
-  verifiedAt  DateTime? @map("verified_at") @db.Timestamptz(6)
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  protocol    Protocol? @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid()) @db.Uuid
+  protocolId       String?   @map("protocol_id") @db.Uuid
+  domain           String    @db.VarChar(255)
+  selector         String    @db.VarChar(63)
+  publicKey        String    @map("public_key")
+  kmsKeyId         String    @map("kms_key_id") @db.VarChar(255)
+  dnsVerified      Boolean   @default(false) @map("dns_verified")
+  verifiedAt       DateTime? @map("verified_at") @db.Timestamptz(6)
+  isActive         Boolean   @default(true) @map("is_active")
+  // Provider registration
+  sesVerified      Boolean   @default(false) @map("ses_verified")
+  sesCnameRecords  Json?     @map("ses_cname_records")
+  resendDomainId   String?   @map("resend_domain_id") @db.VarChar(255)
+  resendVerified   Boolean   @default(false) @map("resend_verified")
+  resendDnsRecords Json?     @map("resend_dns_records")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  protocol         Protocol? @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@unique([domain, selector])
   @@map("dkim_keys")

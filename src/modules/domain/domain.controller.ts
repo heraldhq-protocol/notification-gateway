@@ -67,6 +67,15 @@ export class DkimKeyResponseDto {
   @ApiProperty() instructions: string;
 }
 
+/**
+ * Domain controller — gateway-side (SDK / API key auth).
+ *
+ * Full domain management is available here for SDK users who interact with
+ * the gateway directly using their API keys.
+ *
+ * The admin-registration-api mirrors these endpoints for the dev dashboard
+ * (session auth), operating on the same database.
+ */
 @ApiTags('Domains')
 @ApiBearerAuth()
 @UseGuards(AuthGuard)
@@ -78,9 +87,11 @@ export class DomainController {
     private readonly prisma: PrismaService,
   ) {}
 
+  // ── Domain CRUD ────────────────────────────────────────────────────────────
+
   @Post()
   @ApiOperation({
-    summary: 'Add a custom domain and generate DKIM configuration',
+    summary: 'Add a custom domain and generate DKIM TXT record',
   })
   @ApiResponse({ status: 201, type: DkimKeyResponseDto })
   async create(
@@ -99,13 +110,12 @@ export class DomainController {
   async list(@ApiKey() protocol: AuthenticatedProtocol) {
     const keys = await this.dkimService.getDomainKeys(protocol.protocolId);
     return keys.map((k) => {
-      const publicKey = k.publicKey || '';
-      const base64Match = publicKey.match(
+      const base64Match = k.publicKey.match(
         /-----BEGIN PUBLIC KEY-----([A-Za-z0-9+/=\n]+)-----END PUBLIC KEY-----/,
       );
       const base64Key = base64Match
         ? base64Match[1].replace(/\n/g, '')
-        : publicKey.replace(
+        : k.publicKey.replace(
             /-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|[\n]/g,
             '',
           );
@@ -114,19 +124,35 @@ export class DomainController {
         domain: k.domain,
         selector: k.selector,
         dns_verified: k.dnsVerified,
+        ses_verified: k.sesVerified,
+        resend_verified: k.resendVerified,
+        registered: k.sesVerified || !!k.resendDomainId,
         dnsRecordName: `${k.selector}._domainkey.${k.domain}`,
         dnsRecordValue: base64Key ? `v=DKIM1; k=rsa; p=${base64Key}` : '',
+        ses_cname_records: k.sesCnameRecords ?? null,
+        resend_dns_records: k.resendDnsRecords ?? null,
         created_at: k.createdAt,
       };
     });
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a custom domain (also deregisters from Resend)' })
+  async remove(
+    @Param('id') id: string,
+    @ApiKey() protocol: AuthenticatedProtocol,
+  ) {
+    await this.dkimService.deleteDomainKey(id, protocol.protocolId);
+  }
+
+  // ── DNS Verification ───────────────────────────────────────────────────────
+
   @Post(':id/verify')
-  @ApiOperation({ summary: 'Verify DNS TXT record is live for a domain' })
+  @ApiOperation({ summary: 'Verify DKIM TXT DNS record is live for a domain' })
   @ApiResponse({
     status: 200,
-    description:
-      'Returns dns_verified=true if the DKIM TXT record resolves correctly',
+    description: 'Returns dns_verified=true if the DKIM TXT record resolves correctly',
   })
   async verify(
     @Param('id') id: string,
@@ -135,35 +161,26 @@ export class DomainController {
     return this.dkimService.verifyDomain(id, protocol.protocolId);
   }
 
-  @Post(':id/ses-register')
+  // ── Provider Registration (unified) ───────────────────────────────────────
+
+  @Post(':id/register')
   @ApiOperation({
-    summary: 'Register domain as SES email identity and enable DKIM signing',
+    summary:
+      'Register domain with AWS SES and Resend in one call. ' +
+      'Returns all DNS records to add (SES CNAME × 3 + Resend SPF/DKIM). ' +
+      'Idempotent — safe to call multiple times.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns SES verification status and DKIM signing state',
-  })
-  async sesRegister(
+  async register(
     @Param('id') id: string,
     @ApiKey() protocol: AuthenticatedProtocol,
   ) {
-    return this.dkimService.registerWithSes(id, protocol.protocolId);
+    return this.dkimService.registerDomain(id, protocol.protocolId);
   }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove a custom domain' })
-  async remove(
-    @Param('id') id: string,
-    @ApiKey() protocol: AuthenticatedProtocol,
-  ) {
-    await this.dkimService.deleteDomainKey(id, protocol.protocolId);
-  }
-
-  // ── BIMI Endpoints ──────────────────────────────────────────
+  // ── BIMI ───────────────────────────────────────────────────────────────────
 
   @Get(':id/bimi/check')
-  @ApiOperation({ summary: 'Check domain eligibility for BIMI (DMARC check)' })
+  @ApiOperation({ summary: 'Check domain DMARC eligibility for BIMI' })
   async checkBimi(
     @Param('id') id: string,
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -172,7 +189,6 @@ export class DomainController {
       where: { id, protocolId: protocol.protocolId },
     });
     if (!domainKey) throw new NotFoundException('Domain not found');
-
     return this.bimiService.checkEligibility(domainKey.domain);
   }
 
@@ -188,17 +204,11 @@ export class DomainController {
     });
     if (!domainKey) throw new NotFoundException('Domain not found');
 
-    // 1. Validate logo format
     const validation = await this.bimiService.validateLogo(dto.logo_url);
     if (!validation.valid) {
-      return {
-        success: false,
-        message: 'Logo validation failed',
-        errors: validation.errors,
-      };
+      return { success: false, message: 'Logo validation failed', errors: validation.errors };
     }
 
-    // 2. Save or update BIMI record
     const bimi = await this.prisma.bimi_records.upsert({
       where: {
         protocol_id_domain: {
@@ -206,11 +216,7 @@ export class DomainController {
           domain: domainKey.domain,
         },
       },
-      update: {
-        logo_url: dto.logo_url,
-        vmc_url: dto.vmc_url,
-        selector: dto.selector,
-      },
+      update: { logo_url: dto.logo_url, vmc_url: dto.vmc_url, selector: dto.selector },
       create: {
         protocol_id: protocol.protocolId,
         domain: domainKey.domain,
@@ -224,12 +230,8 @@ export class DomainController {
       success: true,
       bimi_id: bimi.id,
       dns_record_name: `${bimi.selector}._bimi.${bimi.domain}`,
-      dns_record_value: this.bimiService.generateDnsRecord(
-        bimi.logo_url,
-        bimi.vmc_url ?? undefined,
-      ),
-      validation_details: validation.details,
-      instructions: `Add a TXT record to your DNS: ${bimi.selector}._bimi.${bimi.domain} with the generated value.`,
+      dns_record_value: this.bimiService.generateDnsRecord(bimi.logo_url, bimi.vmc_url ?? undefined),
+      instructions: `Add a TXT record: Name: ${bimi.selector}._bimi.${bimi.domain} | Value: ${this.bimiService.generateDnsRecord(bimi.logo_url, bimi.vmc_url ?? undefined)}`,
     };
   }
 
@@ -256,12 +258,10 @@ export class DomainController {
     if (!bimi) return { bimi_enabled: false };
 
     return {
+      bimi_enabled: true,
       ...bimi,
       dns_record_name: `${bimi.selector}._bimi.${bimi.domain}`,
-      dns_record_value: this.bimiService.generateDnsRecord(
-        bimi.logo_url,
-        bimi.vmc_url ?? undefined,
-      ),
+      dns_record_value: this.bimiService.generateDnsRecord(bimi.logo_url, bimi.vmc_url ?? undefined),
     };
   }
 
@@ -275,10 +275,6 @@ export class DomainController {
       where: { id, protocolId: protocol.protocolId },
     });
     if (!domainKey) throw new NotFoundException('Domain not found');
-
-    return this.bimiService.syncBimiStatus(
-      protocol.protocolId,
-      domainKey.domain,
-    );
+    return this.bimiService.syncBimiStatus(protocol.protocolId, domainKey.domain);
   }
 }

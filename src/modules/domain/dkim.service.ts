@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import {
   KMSClient,
@@ -15,6 +16,7 @@ import {
   CreateEmailIdentityCommand,
   GetEmailIdentityCommand,
 } from '@aws-sdk/client-sesv2';
+import { Resend } from 'resend';
 import { promises as dns } from 'dns';
 
 @Injectable()
@@ -22,12 +24,17 @@ export class DkimService {
   private readonly logger = new Logger(DkimService.name);
   private readonly kms: KMSClient;
   private readonly ses: SESv2Client;
+  private readonly resend: Resend;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {
     const region =
       process.env.SES_REGION || process.env.AWS_REGION || 'us-east-1';
     this.kms = new KMSClient({ region });
     this.ses = new SESv2Client({ region });
+    this.resend = new Resend(config.get<string>('RESEND_API_KEY'));
   }
 
   /**
@@ -231,6 +238,103 @@ export class DkimService {
     }
   }
 
+  /**
+   * Registers the domain with AWS SES and Resend in a single call.
+   * Both providers run in parallel; partial success is tolerated.
+   * All DNS records (SES CNAME × 3 + Resend SPF/DKIM) are returned
+   * and persisted so they can be shown in the dashboard without re-fetching.
+   */
+  async registerDomain(id: string, protocolId: string) {
+    const key = await this.prisma.dkimKey.findFirst({
+      where: { id, protocolId },
+    });
+    if (!key) throw new NotFoundException('Domain not found');
+
+    const [sesResult, resendResult] = await Promise.allSettled([
+      this.registerWithSes(key.domain),
+      this.registerWithResend(key.domain, key.resendDomainId),
+    ]);
+
+    const sesCnameRecords =
+      sesResult.status === 'fulfilled' ? sesResult.value.cnameRecords : null;
+    const resendData =
+      resendResult.status === 'fulfilled' ? resendResult.value : null;
+
+    await this.prisma.dkimKey.update({
+      where: { id },
+      data: {
+        ...(sesCnameRecords && { sesCnameRecords, sesVerified: true }),
+        ...(resendData && {
+          resendDomainId: resendData.id,
+          resendDnsRecords: resendData.records as any,
+        }),
+      },
+    });
+
+    return {
+      domain: key.domain,
+      ses: {
+        success: sesResult.status === 'fulfilled',
+        cnameRecords: sesCnameRecords,
+        error:
+          sesResult.status === 'rejected'
+            ? String((sesResult as PromiseRejectedResult).reason?.message ?? sesResult.reason)
+            : null,
+      },
+      resend: {
+        success: resendResult.status === 'fulfilled',
+        domainId: resendData?.id ?? null,
+        records: resendData?.records ?? null,
+        error:
+          resendResult.status === 'rejected'
+            ? String((resendResult as PromiseRejectedResult).reason?.message ?? resendResult.reason)
+            : null,
+      },
+    };
+  }
+
+  private async registerWithSes(domain: string) {
+    try {
+      await this.ses.send(new CreateEmailIdentityCommand({ EmailIdentity: domain }));
+    } catch (err: any) {
+      if (err.name !== 'AlreadyExistsException') throw err;
+      this.logger.log(`SES identity for ${domain} already exists, fetching status.`);
+    }
+
+    const status = await this.ses.send(
+      new GetEmailIdentityCommand({ EmailIdentity: domain }),
+    );
+    const tokens = status.DkimAttributes?.Tokens ?? [];
+
+    return {
+      cnameRecords: tokens.map((token) => ({
+        type: 'CNAME',
+        name: `${token}._domainkey.${domain}`,
+        value: `${token}.dkim.amazonses.com`,
+      })),
+    };
+  }
+
+  private async registerWithResend(domain: string, existingResendId: string | null) {
+    // Try create first — if domain already exists, Resend returns an error
+    const { data, error } = await this.resend.domains.create({ name: domain });
+    if (data) return { id: data.id, records: (data as any).records ?? [] };
+
+    // Domain already registered — find it via list (compatible with Resend v3+)
+    if (error) {
+      this.logger.log(`Resend create returned error for ${domain}: ${error.message}. Checking existing domains.`);
+      const { data: list } = await this.resend.domains.list();
+      const existing = (list as any)?.data?.find((d: any) => d.name === domain)
+        ?? (list as any)?.find?.((d: any) => d.name === domain);
+      if (existing) {
+        return { id: existing.id, records: existing.records ?? [] };
+      }
+      throw new Error(`Resend domain registration failed: ${error.message}`);
+    }
+
+    throw new Error('Resend domain registration failed: unknown error');
+  }
+
   async getDomainKeys(protocolId: string) {
     return this.prisma.dkimKey.findMany({
       where: { protocolId },
@@ -239,8 +343,17 @@ export class DkimService {
   }
 
   async deleteDomainKey(id: string, protocolId: string) {
-    return this.prisma.dkimKey.deleteMany({
-      where: { id, protocolId },
-    });
+    const key = await this.prisma.dkimKey.findFirst({ where: { id, protocolId } });
+
+    // Best-effort Resend cleanup
+    if (key?.resendDomainId) {
+      try {
+        await this.resend.domains.remove(key.resendDomainId);
+      } catch (err: any) {
+        this.logger.warn(`Could not remove Resend domain ${key.resendDomainId}: ${err.message}`);
+      }
+    }
+
+    return this.prisma.dkimKey.deleteMany({ where: { id, protocolId } });
   }
 }
