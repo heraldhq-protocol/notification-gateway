@@ -111,7 +111,7 @@ import { RedisModule } from './modules/redis/redis.module';
           }
         }
 
-        console.log('BullModule connection options:', connectionOptions);
+        // Intentionally not logging connection details — may contain Redis password.
 
         return {
           connection: connectionOptions,
@@ -151,6 +151,8 @@ import { RedisModule } from './modules/redis/redis.module';
           process.env.NODE_ENV === 'development'
             ? { target: 'pino-pretty' }
             : undefined,
+        // 'warn' in prod cuts CloudWatch log volume ~70% vs default 'info'
+        level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
         autoLogging: {
           ignore: (req) => ['/health', '/metrics'].includes(req.url || ''),
         },

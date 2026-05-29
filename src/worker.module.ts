@@ -93,6 +93,7 @@ import { DigestWorker } from './modules/queue/workers/digest.worker';
           process.env.NODE_ENV === 'development'
             ? { target: 'pino-pretty' }
             : undefined,
+        level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
         autoLogging: {
           ignore: (req) => ['/health', '/metrics'].includes(req.url || ''),
         },

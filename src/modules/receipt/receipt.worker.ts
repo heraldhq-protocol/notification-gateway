@@ -23,10 +23,33 @@ import bs58 from 'bs58';
 // Mirrors KmsSignerService in admin-api. Used when HERALD_AUTHORITY_KMS_KEY_ID
 // is set without a ciphertext (direct KMS Ed25519 signing — private key never
 // leaves KMS hardware).
+//
+// NOTE: A single KMSClient is instantiated once (singleton per worker) and
+// reused across all sign calls to avoid per-call connection overhead and keep
+// AWS SDK HTTP keep-alive connections alive. This reduces latency and avoids
+// unnecessarily churning HTTP connections toward the KMS regional endpoint.
+
+import {
+  KMSClient,
+  GetPublicKeyCommand,
+  SignCommand,
+} from '@aws-sdk/client-kms';
+
+// Module-level singleton — initialised lazily on first use so the region is
+// known by the time the first sign request arrives.
+let _kmsClient: KMSClient | null = null;
+let _kmsRegionInUse: string | null = null;
+
+function getKmsClient(region: string): KMSClient {
+  if (!_kmsClient || _kmsRegionInUse !== region) {
+    _kmsClient = new KMSClient({ region });
+    _kmsRegionInUse = region;
+  }
+  return _kmsClient;
+}
 
 async function kmsGetPublicKey(keyId: string, region: string): Promise<PublicKey> {
-  const { KMSClient, GetPublicKeyCommand } = await import('@aws-sdk/client-kms');
-  const kms = new KMSClient({ region });
+  const kms = getKmsClient(region);
   const res = await kms.send(new GetPublicKeyCommand({ KeyId: keyId }));
   if (!res.PublicKey) throw new Error('KMS did not return a public key');
   // Ed25519 DER: 30 2a 30 05 06 03 2b 65 70 03 21 00 <32 bytes>
@@ -35,8 +58,7 @@ async function kmsGetPublicKey(keyId: string, region: string): Promise<PublicKey
 }
 
 async function kmsSign(keyId: string, region: string, message: Uint8Array): Promise<Uint8Array> {
-  const { KMSClient, SignCommand } = await import('@aws-sdk/client-kms');
-  const kms = new KMSClient({ region });
+  const kms = getKmsClient(region);
   const res = await kms.send(new SignCommand({
     KeyId: keyId,
     Message: message,
