@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
+import { Redis } from 'ioredis';
 import { decryptAes256Gcm } from '../../common/utils/crypto.util';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import type {
   DecryptedChannels,
   ChannelDeliveryOutcome,
@@ -36,6 +38,7 @@ export class ChannelDispatchService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly sesIdentity: SesIdentityService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     this.isProduction =
       this.config.get<string>('NODE_ENV', 'development') === 'production';
@@ -357,6 +360,32 @@ export class ChannelDispatchService {
         }
       }
 
+      // Check per-protocol mute (user tapped "Mute this protocol" button)
+      const protocolMuteKey = `tg:mute:${chatId}:${job.protocolId}`;
+      const protocolMuted = await this.redis
+        .get(protocolMuteKey)
+        .catch(() => null);
+      if (protocolMuted) {
+        return {
+          channel: 'telegram',
+          success: false,
+          error: 'muted_by_user',
+        };
+      }
+
+      // Check per-category mute (/mute <category> command)
+      const categoryMuteKey = `tg:mute_cat:${chatId}:${job.category}`;
+      const categoryMuted = await this.redis
+        .get(categoryMuteKey)
+        .catch(() => null);
+      if (categoryMuted) {
+        return {
+          channel: 'telegram',
+          success: false,
+          error: `muted_category:${job.category}`,
+        };
+      }
+
       const sendParams = {
         protocolName: job.protocolName,
         protocolId: job.protocolId,
@@ -381,14 +410,23 @@ export class ChannelDispatchService {
       });
       this.logDelivery('telegram', job.notificationId, result.messageId);
 
-      // Also broadcast to protocol's group/channel if configured
+      // Group/channel delivery — deduplicated per notification (not per subscriber)
       if (groupChatId) {
-        await this.telegramService.sendNotification({
-          chatId: groupChatId,
-          ...sendParams,
-        }).catch((err: Error) => {
-          this.logger.warn(`Group Telegram delivery failed for ${job.protocolId}: ${err.message}`);
-        });
+        const groupSentKey = `tg:group_sent:${job.notificationId}:${groupChatId}`;
+        const alreadySent = await this.redis
+          .get(groupSentKey)
+          .catch(() => null);
+
+        if (!alreadySent) {
+          await this.telegramService
+            .sendNotification({ chatId: groupChatId, ...sendParams })
+            .then(() => this.redis.setex(groupSentKey, 86400, '1'))
+            .catch((err: Error) => {
+              this.logger.warn(
+                `Group Telegram delivery failed for protocol=${job.protocolId}: ${err.message}`,
+              );
+            });
+        }
       }
 
       return {

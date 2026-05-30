@@ -98,28 +98,40 @@ export class DigestWorker extends WorkerHost {
         tier: protocol?.tier ?? 0,
       };
 
-      // For digest, we need to find the wallet pubkey to resolve channels.
-      // Since we only have the hash, we look up the portal user's registered channels.
-      const portalUser = await this.prisma.portalUser.findUnique({
-        where: { walletHash },
+      // Find walletPubkey from a subscription record (needed to resolve on-chain identity).
+      // ProtocolSubscription stores walletPubkey alongside walletHash for active subs.
+      const subscription = await this.prisma.protocolSubscription.findFirst({
+        where: { walletHash, status: 'active', walletPubkey: { not: null } },
+        select: { walletPubkey: true },
+        orderBy: { subscribedAt: 'desc' },
       });
 
-      if (!portalUser) {
+      if (!subscription?.walletPubkey) {
         this.logger.warn(
-          `Portal user not found for digest wallet ${walletHash.slice(0, 8)}...`,
+          `No walletPubkey found for digest wallet ${walletHash.slice(0, 8)}... — cannot resolve channels`,
         );
         await this.digestService.markAsSent(entries.map((e) => e.id));
         return;
       }
 
-      // Dispatch via email only for digest (primary digest channel)
-      // The channel dispatch will handle template rendering
+      // Resolve on-chain identity and decrypt all channels (email, telegram, sms)
+      const identity = await this.routingService.resolveIdentity(
+        subscription.walletPubkey,
+      );
+
+      if (!identity) {
+        this.logger.warn(
+          `Identity not found on-chain for digest wallet ${walletHash.slice(0, 8)}...`,
+        );
+        await this.digestService.markAsSent(entries.map((e) => e.id));
+        return;
+      }
+
+      const decryptedChannels =
+        await this.routingService.decryptAllChannelsInEnclave(identity);
+
       const result = await this.channelDispatch.dispatch(
-        {
-          email: undefined, // Will be resolved via routing service if possible
-          telegramChatId: undefined,
-          phone: undefined,
-        },
+        decryptedChannels,
         syntheticJob,
       );
 

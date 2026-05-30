@@ -1,6 +1,8 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Redis } from 'ioredis';
 import { PrismaService } from '../../../database/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.module';
 import {
   parseMarkdownLinks,
   injectVariables,
@@ -96,6 +98,7 @@ export class TelegramService implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     this.maxButtons = this.config.get<number>(
       'TELEGRAM_MAX_BUTTONS',
@@ -404,6 +407,8 @@ export class TelegramService implements OnModuleInit {
           messageText.slice(0, TELEGRAM_MAX_CAPTION_LENGTH - 1) + '…';
       }
 
+      await this.rateLimit(params.chatId);
+
       if (media.type === 'video' && bot.sendVideo) {
         const result = await bot.sendVideo(
           params.chatId,
@@ -424,12 +429,38 @@ export class TelegramService implements OnModuleInit {
         messageText =
           messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
       }
+
+      await this.rateLimit(params.chatId);
+
       const result = await bot.sendMessage(
         params.chatId,
         messageText,
         options,
       );
       return { messageId: String(result.message_id) };
+    }
+  }
+
+  /**
+   * Per-chat rate limiter — Telegram allows ~1 message/second per chat.
+   * Uses a Redis sliding-window counter keyed by chat + second.
+   * If more than 1 message is attempted in the same second, waits out the remainder.
+   */
+  private async rateLimit(chatId: string): Promise<void> {
+    try {
+      const second = Math.floor(Date.now() / 1000);
+      const key = `tg:rate:${chatId}:${second}`;
+      const count = await this.redis.incr(key);
+      if (count === 1) {
+        await this.redis.expire(key, 2); // Expire after 2 seconds to self-clean
+      }
+      if (count > 1) {
+        // Wait the remaining time in this second + 50ms buffer
+        const remainingMs = 1000 - (Date.now() % 1000) + 50;
+        await new Promise<void>((r) => setTimeout(r, remainingMs));
+      }
+    } catch {
+      // Redis failure is non-fatal — proceed without rate limiting
     }
   }
 

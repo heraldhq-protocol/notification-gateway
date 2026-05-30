@@ -6,9 +6,11 @@ import {
   Param,
   Query,
   Res,
+  Headers,
   Logger,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { TelegramWebhookService } from './telegram-webhook.service';
@@ -21,7 +23,14 @@ export class TelegramWebhookController {
 
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
-  async handleWebhook(@Body() update: Record<string, any>): Promise<void> {
+  async handleWebhook(
+    @Body() update: Record<string, any>,
+    @Headers('x-telegram-bot-api-secret-token') secret?: string,
+  ): Promise<void> {
+    if (!this.webhookService.verifySecret(secret)) {
+      throw new ForbiddenException('Invalid webhook secret');
+    }
+
     try {
       await this.webhookService.handleUpdate(update);
     } catch (err) {
@@ -41,7 +50,6 @@ export class TelegramWebhookController {
     if (urlB64) {
       try {
         destination = Buffer.from(urlB64, 'base64url').toString('utf8');
-        // Validate it's an http/https URL before redirecting
         const parsed = new URL(destination);
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
           destination = 'https://useherald.xyz';

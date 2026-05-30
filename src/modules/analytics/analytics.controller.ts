@@ -121,6 +121,24 @@ export class AnalyticsController {
     return this.analyticsService.getAudienceAnalytics(protocol.protocolId);
   }
 
+  @Get('analytics/telegram')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('analytics:read')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Telegram analytics — subscribers, delivery rate, click rate, top links',
+  })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  async getTelegramAnalytics(
+    @ApiKey() protocol: AuthenticatedProtocol,
+    @Query('period') period: '7d' | '30d' | '90d' = '30d',
+  ) {
+    return this.analyticsService.getTelegramAnalytics(
+      protocol.protocolId,
+      period,
+    );
+  }
+
   @Get('requests')
   @UseGuards(AuthGuard, ScopeGuard)
   @RequiredScopes('analytics:read')

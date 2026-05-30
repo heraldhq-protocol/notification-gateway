@@ -268,4 +268,89 @@ export class AnalyticsService {
       registrationTrend: trend,
     };
   }
+
+  async getTelegramAnalytics(
+    protocolId: string,
+    period: '7d' | '30d' | '90d' = '30d',
+  ) {
+    const days = { '7d': 7, '30d': 30, '90d': 90 }[period];
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [
+      subscribers,
+      delivered,
+      failed,
+      clicks,
+      topLinks,
+    ] = await Promise.all([
+      // Active telegram subscribers
+      this.prisma.protocolSubscription.count({
+        where: {
+          protocolId,
+          status: 'active',
+          channels: { has: 'telegram' },
+        },
+      }),
+      // Successful telegram channel deliveries in period
+      this.prisma.channelDelivery.count({
+        where: {
+          channel: 'telegram',
+          success: true,
+          notification: {
+            protocolId,
+            queuedAt: { gte: since },
+          },
+        },
+      }),
+      // Failed telegram deliveries in period
+      this.prisma.channelDelivery.count({
+        where: {
+          channel: 'telegram',
+          success: false,
+          notification: {
+            protocolId,
+            queuedAt: { gte: since },
+          },
+        },
+      }),
+      // tg_click engagement events
+      this.prisma.notificationEngagement.count({
+        where: {
+          protocolId,
+          eventType: 'tg_click',
+          createdAt: { gte: since },
+        },
+      }),
+      // Top clicked links
+      this.prisma.notificationEngagement.groupBy({
+        by: ['linkUrl'],
+        where: {
+          protocolId,
+          eventType: 'tg_click',
+          createdAt: { gte: since },
+          linkUrl: { not: null },
+        },
+        _count: { linkUrl: true },
+        orderBy: { _count: { linkUrl: 'desc' } },
+        take: 10,
+      }),
+    ]);
+
+    const totalSent = delivered + failed;
+    const deliveryRate = totalSent > 0 ? delivered / totalSent : 0;
+    const clickRate = delivered > 0 ? clicks / delivered : 0;
+
+    return {
+      period,
+      subscribers,
+      deliveries: { sent: totalSent, delivered, failed },
+      deliveryRate: +deliveryRate.toFixed(4),
+      clicks,
+      clickRate: +clickRate.toFixed(4),
+      topLinks: topLinks.map((row) => ({
+        url: row.linkUrl,
+        clicks: row._count.linkUrl,
+      })),
+    };
+  }
 }
