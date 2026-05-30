@@ -298,6 +298,7 @@ export class TelegramService implements OnModuleInit {
     bannerUrl?: string;
     videoUrl?: string;
     customBotToken?: string;
+    messageThreadId?: string;
     trackEngagement?: boolean;
     trackingBaseUrl?: string;
   }): Promise<{ messageId: string }> {
@@ -396,6 +397,7 @@ export class TelegramService implements OnModuleInit {
       parse_mode: 'HTML',
       reply_markup: { inline_keyboard: inlineKeyboard },
       disable_web_page_preview: false,
+      ...(params.messageThreadId && { message_thread_id: parseInt(params.messageThreadId, 10) }),
     };
 
     if (media) {

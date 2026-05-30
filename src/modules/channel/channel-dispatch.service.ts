@@ -329,9 +329,10 @@ export class ChannelDispatchService {
       const bannerAsset = assets.find((a) => a.assetType === 'banner');
       const videoAsset = assets.find((a) => a.assetType === 'video');
 
-      // Resolve custom bot token, group chat ID, and engagement tracking for Growth+ protocols (tier >= 2)
+      // Resolve custom bot token, group chat ID, thread ID, and engagement tracking for Growth+ protocols (tier >= 2)
       let customBotToken: string | undefined;
       let groupChatId: string | undefined;
+      let messageThreadId: string | undefined;
       let trackEngagement = false;
 
       if (job.protocolId) {
@@ -340,6 +341,7 @@ export class ChannelDispatchService {
           select: {
             telegramBotTokenEncrypted: true,
             telegramGroupChatId: true,
+            telegramThreadIds: true,
             trackEngagement: true,
           },
         });
@@ -357,6 +359,12 @@ export class ChannelDispatchService {
             }
           }
           groupChatId = settings?.telegramGroupChatId ?? undefined;
+
+          // Resolve topic thread ID for this notification's category
+          if (settings?.telegramThreadIds && job.category) {
+            const threadMap = settings.telegramThreadIds as Record<string, string>;
+            messageThreadId = threadMap[job.category] ?? undefined;
+          }
         }
       }
 
@@ -399,6 +407,7 @@ export class ChannelDispatchService {
         bannerUrl: bannerAsset?.url,
         videoUrl: videoAsset?.url,
         customBotToken,
+        messageThreadId,
         trackEngagement,
         trackingBaseUrl: this.trackingBaseUrl,
       };

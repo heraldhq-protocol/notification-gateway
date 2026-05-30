@@ -386,6 +386,9 @@ model ProtocolSettings {
   telegramBotTokenEncrypted Bytes?    @map("telegram_bot_token_encrypted")
   telegramBotUsername       String?   @map("telegram_bot_username") @db.VarChar(64)
   telegramGroupChatId       String?   @map("telegram_group_chat_id") @db.VarChar(30)
+  // Topic thread routing: maps category → message_thread_id for forum supergroups
+  // e.g. {"defi": "123", "governance": "456"}
+  telegramThreadIds         Json?     @map("telegram_thread_ids")
   protocol                  Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@map("protocol_settings")
