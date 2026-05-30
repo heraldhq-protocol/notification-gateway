@@ -294,8 +294,16 @@ export class TelegramService implements OnModuleInit {
     templateVariables?: Record<string, string>;
     bannerUrl?: string;
     videoUrl?: string;
+    customBotToken?: string;
   }): Promise<{ messageId: string }> {
-    if (!this.enabled || !this.bot) {
+    // Use per-request custom bot when provided (Growth+ / Tier 2+)
+    let bot = this.bot;
+    if (params.customBotToken) {
+      const TelegramBot = (await import('node-telegram-bot-api')).default;
+      bot = new TelegramBot(params.customBotToken, { polling: false });
+    }
+
+    if (!bot) {
       throw new Error('Telegram bot not initialized');
     }
 
@@ -387,15 +395,15 @@ export class TelegramService implements OnModuleInit {
           messageText.slice(0, TELEGRAM_MAX_CAPTION_LENGTH - 1) + '…';
       }
 
-      if (media.type === 'video' && this.bot.sendVideo) {
-        const result = await this.bot.sendVideo(
+      if (media.type === 'video' && bot.sendVideo) {
+        const result = await bot.sendVideo(
           params.chatId,
           media.media,
           options,
         );
         return { messageId: String(result.message_id) };
       } else {
-        const result = await this.bot.sendPhoto(
+        const result = await bot.sendPhoto(
           params.chatId,
           media.media,
           options,
@@ -407,7 +415,7 @@ export class TelegramService implements OnModuleInit {
         messageText =
           messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
       }
-      const result = await this.bot.sendMessage(
+      const result = await bot.sendMessage(
         params.chatId,
         messageText,
         options,

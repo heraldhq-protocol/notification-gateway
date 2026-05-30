@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
+import { decryptAes256Gcm } from '../../common/utils/crypto.util';
 import type {
   DecryptedChannels,
   ChannelDeliveryOutcome,
@@ -325,8 +326,33 @@ export class ChannelDispatchService {
       const bannerAsset = assets.find((a) => a.assetType === 'banner');
       const videoAsset = assets.find((a) => a.assetType === 'video');
 
-      const result = await this.telegramService.sendNotification({
-        chatId,
+      // Resolve custom bot token and group chat ID for Growth+ protocols (tier >= 2)
+      let customBotToken: string | undefined;
+      let groupChatId: string | undefined;
+
+      if ((job.tier ?? 0) >= 2 && job.protocolId) {
+        const settings = await this.prisma.protocolSettings.findUnique({
+          where: { protocolId: job.protocolId },
+          select: {
+            telegramBotTokenEncrypted: true,
+            telegramGroupChatId: true,
+          },
+        });
+
+        if (settings?.telegramBotTokenEncrypted) {
+          const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
+          if (encKey) {
+            customBotToken = decryptAes256Gcm(
+              settings.telegramBotTokenEncrypted,
+              encKey,
+            );
+          }
+        }
+
+        groupChatId = settings?.telegramGroupChatId ?? undefined;
+      }
+
+      const sendParams = {
         protocolName: job.protocolName,
         protocolId: job.protocolId,
         subject: job.subject,
@@ -338,9 +364,25 @@ export class ChannelDispatchService {
         templateVariables: job.templateVariables,
         bannerUrl: bannerAsset?.url,
         videoUrl: videoAsset?.url,
-      });
+        customBotToken,
+      };
 
+      // Deliver to subscriber's personal chat
+      const result = await this.telegramService.sendNotification({
+        chatId,
+        ...sendParams,
+      });
       this.logDelivery('telegram', job.notificationId, result.messageId);
+
+      // Also broadcast to protocol's group/channel if configured
+      if (groupChatId) {
+        await this.telegramService.sendNotification({
+          chatId: groupChatId,
+          ...sendParams,
+        }).catch((err: Error) => {
+          this.logger.warn(`Group Telegram delivery failed for ${job.protocolId}: ${err.message}`);
+        });
+      }
 
       return {
         channel: 'telegram',
