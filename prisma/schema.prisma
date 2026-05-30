@@ -377,14 +377,36 @@ model ProtocolSettings {
   retryMaxAttempts       Int       @default(3) @map("retry_max_attempts") @db.SmallInt
   retryWindowHours       Int       @default(6) @map("retry_window_hours") @db.SmallInt
   retryBackoff           String    @default("exponential") @map("retry_backoff") @db.VarChar(20)
-  criticalCategories     String[]  @default([]) @map("critical_categories")
-  trackEngagement        Boolean   @default(false) @map("track_engagement")
-  testEmail              String?   @map("test_email") @db.VarChar(100)
-  testTelegramId         String?   @map("test_telegram_id") @db.VarChar(100)
-  testPhone              String?   @map("test_phone") @db.VarChar(30)
-  protocol               Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  criticalCategories        String[]  @default([]) @map("critical_categories")
+  trackEngagement           Boolean   @default(false) @map("track_engagement")
+  testEmail                 String?   @map("test_email") @db.VarChar(100)
+  testTelegramId            String?   @map("test_telegram_id") @db.VarChar(100)
+  testPhone                 String?   @map("test_phone") @db.VarChar(30)
+  // Telegram custom bot (Growth+, Tier 2+)
+  telegramBotTokenEncrypted Bytes?    @map("telegram_bot_token_encrypted")
+  telegramBotUsername       String?   @map("telegram_bot_username") @db.VarChar(64)
+  telegramGroupChatId       String?   @map("telegram_group_chat_id") @db.VarChar(30)
+  protocol                  Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@map("protocol_settings")
+}
+
+// ── telegram_pending_connections ─────────────────────────────────────────────
+// Temporary table: Herald bot stores chat_id after /start <wallet_pubkey>.
+// The user portal polls for this and includes it in their on-chain identity tx.
+// Expires after 10 minutes; auto-cleaned by a cron on the gateway.
+
+model TelegramPendingConnection {
+  id               String    @id @default(uuid()) @db.Uuid
+  walletPubkey     String    @map("wallet_pubkey") @db.VarChar(44)
+  chatId           String    @map("chat_id") @db.VarChar(30)
+  telegramUsername String?   @map("telegram_username") @db.VarChar(50)
+  claimed          Boolean   @default(false)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([walletPubkey, claimed], map: "idx_tg_pending_wallet")
+  @@map("telegram_pending_connections")
 }
 
 model TeamMember {
