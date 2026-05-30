@@ -28,6 +28,7 @@ import { SandboxModule } from './modules/sandbox/sandbox.module';
 import { EnclaveModule } from './modules/enclave/enclave.module';
 import { ArweaveStorageModule } from './storage/arweave-storage.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -143,6 +144,7 @@ import { RedisModule } from './modules/redis/redis.module';
     AdminModule,
     RoutingModule,
     ChannelModule,
+    TelegramModule,
     EnclaveModule,
     ArweaveStorageModule,
     LoggerModule.forRoot({
