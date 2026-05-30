@@ -52,11 +52,11 @@ export class TelegramWebhookController {
   }
 
   @Get('c/:notifId')
-  async trackClick(
+  trackClick(
     @Param('notifId') notifId: string,
     @Query('url') urlB64: string,
     @Res() res: Response,
-  ): Promise<void> {
+  ): void {
     let destination = 'https://useherald.xyz';
     if (urlB64) {
       try {
