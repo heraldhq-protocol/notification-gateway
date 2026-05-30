@@ -295,6 +295,8 @@ export class TelegramService implements OnModuleInit {
     bannerUrl?: string;
     videoUrl?: string;
     customBotToken?: string;
+    trackEngagement?: boolean;
+    trackingBaseUrl?: string;
   }): Promise<{ messageId: string }> {
     // Use per-request custom bot when provided (Growth+ / Tier 2+)
     let bot = this.bot;
@@ -368,10 +370,17 @@ export class TelegramService implements OnModuleInit {
       );
     }
 
-    const inlineLinks = links.map((link) => ({
-      text: link.label,
-      url: link.url,
-    }));
+    // Wrap inline button URLs with click-tracking when engagement tracking is on
+    const inlineLinks = links.map((link) => {
+      if (params.trackEngagement && params.trackingBaseUrl && params.notificationId) {
+        const encoded = Buffer.from(link.url).toString('base64url');
+        return {
+          text: link.label,
+          url: `${params.trackingBaseUrl}/v1/tg/c/${encodeURIComponent(params.notificationId)}?url=${encoded}`,
+        };
+      }
+      return { text: link.label, url: link.url };
+    });
 
     const inlineKeyboard = this.buildInlineKeyboard(
       inlineLinks,

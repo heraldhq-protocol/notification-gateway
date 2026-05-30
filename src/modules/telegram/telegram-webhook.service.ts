@@ -96,6 +96,26 @@ export class TelegramWebhookService implements OnModuleInit {
     ).catch(() => undefined);
   }
 
+  async recordClickAsync(notifId: string): Promise<void> {
+    try {
+      const notif = await this.prisma.notification.findUnique({
+        where: { id: notifId },
+        select: { protocolId: true },
+      });
+      if (!notif) return;
+
+      await this.prisma.notificationEngagement.create({
+        data: {
+          notificationId: notifId,
+          protocolId: notif.protocolId,
+          eventType: 'tg_click',
+        },
+      });
+    } catch (err) {
+      this.logger.debug(`Failed to record Telegram click for ${notifId}: ${(err as Error).message}`);
+    }
+  }
+
   @Cron(CronExpression.EVERY_10_MINUTES)
   async cleanExpiredPendingConnections(): Promise<void> {
     const { count } = await this.prisma.telegramPendingConnection.deleteMany({

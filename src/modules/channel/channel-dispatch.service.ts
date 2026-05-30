@@ -326,30 +326,35 @@ export class ChannelDispatchService {
       const bannerAsset = assets.find((a) => a.assetType === 'banner');
       const videoAsset = assets.find((a) => a.assetType === 'video');
 
-      // Resolve custom bot token and group chat ID for Growth+ protocols (tier >= 2)
+      // Resolve custom bot token, group chat ID, and engagement tracking for Growth+ protocols (tier >= 2)
       let customBotToken: string | undefined;
       let groupChatId: string | undefined;
+      let trackEngagement = false;
 
-      if ((job.tier ?? 0) >= 2 && job.protocolId) {
+      if (job.protocolId) {
         const settings = await this.prisma.protocolSettings.findUnique({
           where: { protocolId: job.protocolId },
           select: {
             telegramBotTokenEncrypted: true,
             telegramGroupChatId: true,
+            trackEngagement: true,
           },
         });
 
-        if (settings?.telegramBotTokenEncrypted) {
-          const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
-          if (encKey) {
-            customBotToken = decryptAes256Gcm(
-              settings.telegramBotTokenEncrypted,
-              encKey,
-            );
-          }
-        }
+        trackEngagement = !!settings?.trackEngagement;
 
-        groupChatId = settings?.telegramGroupChatId ?? undefined;
+        if ((job.tier ?? 0) >= 2) {
+          if (settings?.telegramBotTokenEncrypted) {
+            const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
+            if (encKey) {
+              customBotToken = decryptAes256Gcm(
+                settings.telegramBotTokenEncrypted,
+                encKey,
+              );
+            }
+          }
+          groupChatId = settings?.telegramGroupChatId ?? undefined;
+        }
       }
 
       const sendParams = {
@@ -365,6 +370,8 @@ export class ChannelDispatchService {
         bannerUrl: bannerAsset?.url,
         videoUrl: videoAsset?.url,
         customBotToken,
+        trackEngagement,
+        trackingBaseUrl: this.trackingBaseUrl,
       };
 
       // Deliver to subscriber's personal chat
