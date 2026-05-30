@@ -44,6 +44,18 @@ export class TelegramWebhookService implements OnModuleInit {
       return;
     }
 
+    // Register bot commands so they appear in Telegram's command menu
+    await this.bot
+      .setMyCommands([
+        { command: 'start', description: 'Connect your wallet or get started' },
+        { command: 'mute', description: 'Mute a notification category (e.g. /mute marketing)' },
+        { command: 'unmute', description: 'Unmute a category (e.g. /unmute marketing)' },
+        { command: 'categories', description: 'List categories and their mute status' },
+      ])
+      .catch((err: Error) => {
+        this.logger.warn(`setMyCommands failed: ${err.message}`);
+      });
+
     // Auto-register webhook in production/staging
     const nodeEnv = this.config.get<string>('NODE_ENV', 'development');
     const gatewayUrl = this.config.get<string>('GATEWAY_PUBLIC_URL', '');

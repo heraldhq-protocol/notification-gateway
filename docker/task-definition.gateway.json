@@ -55,7 +55,9 @@
         { "name": "LIGHT_RPC_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:LIGHT_RPC_URL::" },
         { "name": "HERALD_X25519_PRIV_HEX",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_X25519_PRIV_HEX::" },
         { "name": "ARWEAVE_PAYER_SECRET",         "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:ARWEAVE_PAYER_SECRET::" },
-        { "name": "TELEGRAM_BOT_TOKEN",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_BOT_TOKEN::" }
+        { "name": "TELEGRAM_BOT_TOKEN",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_BOT_TOKEN::" },
+        { "name": "TELEGRAM_WEBHOOK_SECRET",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_WEBHOOK_SECRET::" },
+        { "name": "GATEWAY_PUBLIC_URL",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:GATEWAY_PUBLIC_URL::" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health/live || exit 1"],

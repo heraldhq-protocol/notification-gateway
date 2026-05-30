@@ -299,9 +299,17 @@ export class TelegramService implements OnModuleInit {
     videoUrl?: string;
     customBotToken?: string;
     messageThreadId?: string;
+    priority?: string;
     trackEngagement?: boolean;
     trackingBaseUrl?: string;
   }): Promise<{ messageId: string }> {
+    // Bail early if this chat has been blocked — avoids wasteful API calls
+    const blockedKey = `tg:blocked:${params.chatId}`;
+    const isBlocked = await this.redis.get(blockedKey).catch(() => null);
+    if (isBlocked) {
+      throw new Error('BOT_BLOCKED');
+    }
+
     // Use per-request custom bot when provided (Growth+ / Tier 2+)
     let bot = this.bot;
     if (params.customBotToken) {
@@ -393,53 +401,66 @@ export class TelegramService implements OnModuleInit {
       params.notificationId,
     );
 
+    // Marketing or normal-priority messages are sent silently (no ping sound)
+    const isSilent =
+      params.category === 'marketing' || params.priority === 'normal';
+
     const options: any = {
       parse_mode: 'HTML',
       reply_markup: { inline_keyboard: inlineKeyboard },
       disable_web_page_preview: false,
+      disable_notification: isSilent,
       ...(params.messageThreadId && { message_thread_id: parseInt(params.messageThreadId, 10) }),
     };
 
-    if (media) {
-      options.caption = messageText;
-      options.caption_parse_mode = 'HTML';
+    try {
+      if (media) {
+        options.caption = messageText;
+        options.caption_parse_mode = 'HTML';
 
-      if (messageText.length > TELEGRAM_MAX_CAPTION_LENGTH) {
-        options.caption =
-          messageText.slice(0, TELEGRAM_MAX_CAPTION_LENGTH - 1) + '…';
-      }
+        if (messageText.length > TELEGRAM_MAX_CAPTION_LENGTH) {
+          options.caption =
+            messageText.slice(0, TELEGRAM_MAX_CAPTION_LENGTH - 1) + '…';
+        }
 
-      await this.rateLimit(params.chatId);
+        await this.rateLimit(params.chatId);
 
-      if (media.type === 'video' && bot.sendVideo) {
-        const result = await bot.sendVideo(
-          params.chatId,
-          media.media,
-          options,
-        );
-        return { messageId: String(result.message_id) };
+        if (media.type === 'video' && bot.sendVideo) {
+          const result = await bot.sendVideo(params.chatId, media.media, options);
+          return { messageId: String(result.message_id) };
+        } else {
+          const result = await bot.sendPhoto(params.chatId, media.media, options);
+          return { messageId: String(result.message_id) };
+        }
       } else {
-        const result = await bot.sendPhoto(
-          params.chatId,
-          media.media,
-          options,
-        );
+        if (messageText.length > TELEGRAM_MAX_MESSAGE_LENGTH) {
+          messageText = messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
+        }
+
+        await this.rateLimit(params.chatId);
+
+        const result = await bot.sendMessage(params.chatId, messageText, options);
         return { messageId: String(result.message_id) };
       }
-    } else {
-      if (messageText.length > TELEGRAM_MAX_MESSAGE_LENGTH) {
-        messageText =
-          messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
+    } catch (err: any) {
+      // 403 = user blocked the bot or bot was kicked from group.
+      // Cache this for 7 days to avoid hammering the Telegram API.
+      const statusCode: number =
+        err?.response?.body?.error_code ??
+        err?.response?.statusCode ??
+        err?.code ??
+        0;
+      const isForbidden =
+        statusCode === 403 ||
+        (err?.message as string | undefined)
+          ?.toLowerCase()
+          .includes('forbidden');
+      if (isForbidden) {
+        await this.redis.setex(blockedKey, 7 * 24 * 60 * 60, '1').catch(() => undefined);
+        this.logger.warn(`Bot blocked by chat ${params.chatId} — suppressed for 7 days`);
+        throw new Error('BOT_BLOCKED');
       }
-
-      await this.rateLimit(params.chatId);
-
-      const result = await bot.sendMessage(
-        params.chatId,
-        messageText,
-        options,
-      );
-      return { messageId: String(result.message_id) };
+      throw err;
     }
   }
 

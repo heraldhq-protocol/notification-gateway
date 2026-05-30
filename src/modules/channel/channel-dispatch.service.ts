@@ -408,6 +408,7 @@ export class ChannelDispatchService {
         videoUrl: videoAsset?.url,
         customBotToken,
         messageThreadId,
+        priority: job.priority,
         trackEngagement,
         trackingBaseUrl: this.trackingBaseUrl,
       };
@@ -448,7 +449,7 @@ export class ChannelDispatchService {
       return {
         channel: 'telegram',
         success: false,
-        error: err.message,
+        error: err.message === 'BOT_BLOCKED' ? 'bot_blocked_by_user' : err.message,
       };
     }
   }
