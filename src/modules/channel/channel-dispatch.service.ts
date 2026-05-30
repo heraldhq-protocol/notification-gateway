@@ -138,10 +138,13 @@ export class ChannelDispatchService {
     channels: DecryptedChannels,
     job: NotificationJobData,
   ): ('email' | 'telegram' | 'sms')[] {
+    const tier = job.tier ?? 0;
+
     const registered: ('email' | 'telegram' | 'sms')[] = [];
     if (channels.email) registered.push('email');
-    if (channels.telegramChatId) registered.push('telegram');
-    if (channels.phone) registered.push('sms');
+    // Telegram and SMS both require Growth+ (tier >= 1)
+    if (channels.telegramChatId && tier >= 1) registered.push('telegram');
+    if (channels.phone && tier >= 1) registered.push('sms');
 
     if (registered.length === 0) return [];
 
@@ -164,7 +167,9 @@ export class ChannelDispatchService {
       allowed = registered.filter((c) => !excluded.has(c));
     }
 
+    // Critical/important SMS escalation still respects the tier gate
     if (
+      tier >= 1 &&
       (job.priority === 'important' || job.priority === 'critical') &&
       channels.phone &&
       !excluded.has('sms') &&
