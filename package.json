@@ -75,7 +75,7 @@
     "marked": "^18.0.0",
     "mjml": "^4.18.0",
     "nestjs-pino": "^4.6.1",
-    "node-telegram-bot-api": "^0.67.0",
+    "telegraf": "^4.16.3",
     "nodemailer": "^6.10.1",
     "openai": "^6.38.0",
     "p-limit": "^6.2.0",

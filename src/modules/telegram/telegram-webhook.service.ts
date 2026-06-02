@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Redis } from 'ioredis';
+import { Telegram } from 'telegraf';
 import { PrismaService } from '../../database/prisma.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
 
@@ -19,7 +20,7 @@ const MUTE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 @Injectable()
 export class TelegramWebhookService implements OnModuleInit {
   private readonly logger = new Logger(TelegramWebhookService.name);
-  private bot: any;
+  private telegram: Telegram | null = null;
   private enabled = false;
 
   constructor(
@@ -28,58 +29,21 @@ export class TelegramWebhookService implements OnModuleInit {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) return;
 
     try {
-      const TelegramBot = (await import('node-telegram-bot-api')).default;
-      this.bot = new TelegramBot(token, { polling: false });
+      // The gateway only SENDS notifications — it never registers a webhook.
+      // The admin-api bot owns the single webhook for the shared bot token
+      // and handles all incoming updates (commands, mute callbacks, /start).
+      this.telegram = new Telegram(token);
       this.enabled = true;
-      this.logger.log('Telegram bot initialized');
+      this.logger.log('Telegram send-only service initialized (Telegraf)');
     } catch (err) {
-      this.logger.error('Failed to init Telegram bot for webhook handling', {
+      this.logger.error('Failed to init Telegram service', {
         error: (err as Error).message,
       });
-      return;
-    }
-
-    // Register bot commands so they appear in Telegram's command menu
-    await this.bot
-      .setMyCommands([
-        { command: 'start', description: 'Connect your wallet or get started' },
-        { command: 'mute', description: 'Mute a notification category (e.g. /mute marketing)' },
-        { command: 'unmute', description: 'Unmute a category (e.g. /unmute marketing)' },
-        { command: 'categories', description: 'List categories and their mute status' },
-      ])
-      .catch((err: Error) => {
-        this.logger.warn(`setMyCommands failed: ${err.message}`);
-      });
-
-    // Auto-register webhook in production/staging
-    const nodeEnv = this.config.get<string>('NODE_ENV', 'development');
-    const gatewayUrl = this.config.get<string>('GATEWAY_PUBLIC_URL', '');
-    const webhookSecret = this.config.get<string>('TELEGRAM_WEBHOOK_SECRET', '');
-
-    if (
-      ['production', 'staging'].includes(nodeEnv) &&
-      gatewayUrl &&
-      webhookSecret
-    ) {
-      await this.bot
-        .setWebHook(`${gatewayUrl}/v1/tg/webhook`, {
-          secret_token: webhookSecret,
-        })
-        .then(() => {
-          this.logger.log(
-            `Telegram webhook registered: ${gatewayUrl}/v1/tg/webhook`,
-          );
-        })
-        .catch((err: Error) => {
-          this.logger.error(
-            `Failed to register Telegram webhook: ${err.message}`,
-          );
-        });
     }
   }
 
@@ -136,12 +100,8 @@ export class TelegramWebhookService implements OnModuleInit {
 
   // ── Callback queries (inline button taps) ────────────────────────────────
 
-  private async handleCallbackQuery(
-    query: Record<string, any>,
-  ): Promise<void> {
-    const chatId = String(
-      query?.message?.chat?.id ?? query?.chat?.id ?? '',
-    );
+  private async handleCallbackQuery(query: Record<string, any>): Promise<void> {
+    const chatId = String(query?.message?.chat?.id ?? query?.chat?.id ?? '');
     const callbackData: string = query?.data ?? '';
     const queryId: string = query?.id ?? '';
 
@@ -152,14 +112,12 @@ export class TelegramWebhookService implements OnModuleInit {
         return;
       }
     } catch (err) {
-      this.logger.warn(
-        `Callback query error: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Callback query error: ${(err as Error).message}`);
     }
 
     // Acknowledge any unhandled callback to clear the spinner
-    if (this.bot && queryId) {
-      await this.bot.answerCallbackQuery(queryId).catch(() => undefined);
+    if (this.telegram && queryId) {
+      await this.telegram.answerCbQuery(queryId).catch(() => undefined);
     }
   }
 
@@ -174,32 +132,23 @@ export class TelegramWebhookService implements OnModuleInit {
     });
 
     if (!notif) {
-      if (this.bot) {
-        await this.bot
-          .answerCallbackQuery(queryId, {
-            text: '⚠️ Notification not found.',
-            show_alert: false,
-          })
-          .catch(() => undefined);
-      }
+      await this.telegram
+        ?.answerCbQuery(queryId, '⚠️ Notification not found.')
+        .catch(() => undefined);
       return;
     }
 
     const muteKey = `tg:mute:${chatId}:${notif.protocolId}`;
     await this.redis.setex(muteKey, MUTE_TTL_SECONDS, '1');
 
-    this.logger.log(
-      `Muted: chat=${chatId} protocol=${notif.protocolId}`,
-    );
+    this.logger.log(`Muted: chat=${chatId} protocol=${notif.protocolId}`);
 
-    if (this.bot) {
-      await this.bot
-        .answerCallbackQuery(queryId, {
-          text: "🔇 Muted. You won't receive Telegram notifications from this protocol.",
-          show_alert: false,
-        })
-        .catch(() => undefined);
-    }
+    await this.telegram
+      ?.answerCbQuery(
+        queryId,
+        "🔇 Muted. You won't receive Telegram notifications from this protocol.",
+      )
+      .catch(() => undefined);
   }
 
   // ── /start connect flow ───────────────────────────────────────────────────
@@ -229,8 +178,8 @@ export class TelegramWebhookService implements OnModuleInit {
       `Telegram connect initiated — wallet=${walletPubkey} chat=${chatId}`,
     );
 
-    if (this.bot) {
-      await this.bot
+    if (this.telegram) {
+      await this.telegram
         .sendMessage(
           chatId,
           '✅ <b>Almost there!</b>\n\nReturn to the Herald portal to complete the connection. This link expires in 10 minutes.',
@@ -245,8 +194,8 @@ export class TelegramWebhookService implements OnModuleInit {
   }
 
   private async sendWelcome(chatId: string): Promise<void> {
-    if (!this.bot) return;
-    await this.bot
+    if (!this.telegram) return;
+    await this.telegram
       .sendMessage(
         chatId,
         '👋 <b>Welcome to Herald!</b>\n\nTo connect your Telegram account, go to the Herald developer portal and click <b>Connect Telegram</b>.\n\n<b>Commands:</b>\n/mute &lt;category&gt; — mute a category\n/unmute &lt;category&gt; — unmute a category\n/categories — show all categories',
@@ -261,10 +210,10 @@ export class TelegramWebhookService implements OnModuleInit {
     chatId: string,
     category?: string,
   ): Promise<void> {
-    if (!this.bot) return;
+    if (!this.telegram) return;
 
     if (!category) {
-      await this.bot
+      await this.telegram
         .sendMessage(
           chatId,
           `Usage: /mute &lt;category&gt;\n\nAvailable categories: ${VALID_CATEGORIES.join(', ')}`,
@@ -276,7 +225,7 @@ export class TelegramWebhookService implements OnModuleInit {
 
     const cat = category.toLowerCase();
     if (!VALID_CATEGORIES.includes(cat)) {
-      await this.bot
+      await this.telegram
         .sendMessage(
           chatId,
           `❌ Unknown category <b>${this.escapeHtml(cat)}</b>.\n\nValid categories: ${VALID_CATEGORIES.join(', ')}`,
@@ -290,7 +239,7 @@ export class TelegramWebhookService implements OnModuleInit {
     await this.redis.setex(muteKey, MUTE_TTL_SECONDS, '1');
 
     const emoji = CATEGORY_EMOJI[cat] ?? '🔔';
-    await this.bot
+    await this.telegram
       .sendMessage(
         chatId,
         `🔇 ${emoji} <b>${cat}</b> notifications muted for 30 days.\n\nUse /unmute ${cat} to re-enable.`,
@@ -303,10 +252,10 @@ export class TelegramWebhookService implements OnModuleInit {
     chatId: string,
     category?: string,
   ): Promise<void> {
-    if (!this.bot) return;
+    if (!this.telegram) return;
 
     if (!category) {
-      await this.bot
+      await this.telegram
         .sendMessage(
           chatId,
           `Usage: /unmute &lt;category&gt;\n\nAvailable categories: ${VALID_CATEGORIES.join(', ')}`,
@@ -318,7 +267,7 @@ export class TelegramWebhookService implements OnModuleInit {
 
     const cat = category.toLowerCase();
     if (!VALID_CATEGORIES.includes(cat)) {
-      await this.bot
+      await this.telegram
         .sendMessage(
           chatId,
           `❌ Unknown category <b>${this.escapeHtml(cat)}</b>.`,
@@ -332,7 +281,7 @@ export class TelegramWebhookService implements OnModuleInit {
     await this.redis.del(muteKey);
 
     const emoji = CATEGORY_EMOJI[cat] ?? '🔔';
-    await this.bot
+    await this.telegram
       .sendMessage(
         chatId,
         `🔔 ${emoji} <b>${cat}</b> notifications re-enabled.`,
@@ -342,19 +291,21 @@ export class TelegramWebhookService implements OnModuleInit {
   }
 
   private async handleCategoriesCommand(chatId: string): Promise<void> {
-    if (!this.bot) return;
+    if (!this.telegram) return;
 
     const lines: string[] = ['<b>Notification categories:</b>\n'];
     for (const [cat, emoji] of Object.entries(CATEGORY_EMOJI)) {
       const muteKey = `tg:mute_cat:${chatId}:${cat}`;
       const muted = await this.redis.get(muteKey).catch(() => null);
-      lines.push(`${emoji} <b>${cat}</b> — ${muted ? '🔇 muted' : '✅ active'}`);
+      lines.push(
+        `${emoji} <b>${cat}</b> — ${muted ? '🔇 muted' : '✅ active'}`,
+      );
     }
     lines.push(
       '\nUse /mute &lt;category&gt; or /unmute &lt;category&gt; to change.',
     );
 
-    await this.bot
+    await this.telegram
       .sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' })
       .catch(() => undefined);
   }
@@ -424,15 +375,11 @@ export class TelegramWebhookService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async cleanExpiredPendingConnections(): Promise<void> {
-    const { count } =
-      await this.prisma.telegramPendingConnection.deleteMany({
-        where: {
-          OR: [
-            { expiresAt: { lt: new Date() } },
-            { claimed: true },
-          ],
-        },
-      });
+    const { count } = await this.prisma.telegramPendingConnection.deleteMany({
+      where: {
+        OR: [{ expiresAt: { lt: new Date() } }, { claimed: true }],
+      },
+    });
     if (count > 0) {
       this.logger.debug(
         `Cleaned ${count} expired/claimed Telegram pending connections`,

@@ -83,6 +83,17 @@ export class ChannelDispatchService {
       promises.push(this.deliverSms(channels.phone, job));
     }
 
+    // No channels allowed (e.g. tier gate) — fail explicitly rather than
+    // returning allDelivered=true from a vacuous 0===0 comparison.
+    if (promises.length === 0) {
+      return {
+        outcomes: [],
+        totalChannels: 0,
+        successCount: 0,
+        allDelivered: false,
+      };
+    }
+
     const settled = await Promise.allSettled(promises);
     const outcomes: ChannelDeliveryOutcome[] = settled.map((result) => {
       if (result.status === 'fulfilled') return result.value;
@@ -281,10 +292,14 @@ export class ChannelDispatchService {
           : html + pixel;
 
         // Stamp the notification record so analytics only count tracked sends
-        await this.prisma.notification.update({
-          where: { id: job.notificationId },
-          data: { trackingEnabled: true },
-        }).catch(() => { /* non-fatal — analytics might undercount, but email still sends */ });
+        await this.prisma.notification
+          .update({
+            where: { id: job.notificationId },
+            data: { trackingEnabled: true },
+          })
+          .catch(() => {
+            /* non-fatal — analytics might undercount, but email still sends */
+          });
       }
 
       this.sesIdentity.ensureVerified(email).catch(() => {});
@@ -367,7 +382,10 @@ export class ChannelDispatchService {
 
           // Resolve topic thread ID for this notification's category
           if (settings?.telegramThreadIds && job.category) {
-            const threadMap = settings.telegramThreadIds as Record<string, string>;
+            const threadMap = settings.telegramThreadIds as Record<
+              string,
+              string
+            >;
             messageThreadId = threadMap[job.category] ?? undefined;
           }
         }
@@ -399,7 +417,7 @@ export class ChannelDispatchService {
         };
       }
 
-      const sendParams = {
+      const baseParams = {
         protocolName: job.protocolName,
         protocolId: job.protocolId,
         subject: job.subject,
@@ -411,21 +429,22 @@ export class ChannelDispatchService {
         templateVariables: job.templateVariables,
         bannerUrl: bannerAsset?.url,
         videoUrl: videoAsset?.url,
-        customBotToken,
         messageThreadId,
         priority: job.priority,
         trackEngagement,
         trackingBaseUrl: this.trackingBaseUrl,
       };
 
-      // Deliver to subscriber's personal chat
+      // Individual subscriber delivery — always uses Herald's bot.
+      // Subscribers opted in via Herald's bot so a custom bot cannot reach them.
       const result = await this.telegramService.sendNotification({
         chatId,
-        ...sendParams,
+        ...baseParams,
       });
       this.logDelivery('telegram', job.notificationId, result.messageId);
 
-      // Group/channel delivery — deduplicated per notification (not per subscriber)
+      // Group/channel delivery — uses custom bot (which is admin of the group).
+      // Deduplicated per notification so N subscribers don't send N group messages.
       if (groupChatId) {
         const groupSentKey = `tg:group_sent:${job.notificationId}:${groupChatId}`;
         const alreadySent = await this.redis
@@ -434,7 +453,11 @@ export class ChannelDispatchService {
 
         if (!alreadySent) {
           await this.telegramService
-            .sendNotification({ chatId: groupChatId, ...sendParams })
+            .sendNotification({
+              chatId: groupChatId,
+              ...baseParams,
+              customBotToken,
+            })
             .then(() => this.redis.setex(groupSentKey, 86400, '1'))
             .catch((err: Error) => {
               this.logger.warn(
@@ -454,7 +477,8 @@ export class ChannelDispatchService {
       return {
         channel: 'telegram',
         success: false,
-        error: err.message === 'BOT_BLOCKED' ? 'bot_blocked_by_user' : err.message,
+        error:
+          err.message === 'BOT_BLOCKED' ? 'bot_blocked_by_user' : err.message,
       };
     }
   }

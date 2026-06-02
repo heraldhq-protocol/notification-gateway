@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
+import { Telegram } from 'telegraf';
 import { PrismaService } from '../../../database/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.module';
 import {
@@ -91,7 +92,7 @@ const DEFAULT_MAX_BUTTONS = 10;
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
-  private bot: any;
+  private telegram: Telegram | null = null;
   private enabled = false;
   private maxButtons: number;
 
@@ -106,7 +107,7 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
       this.logger.warn(
@@ -116,12 +117,11 @@ export class TelegramService implements OnModuleInit {
     }
 
     try {
-      const TelegramBot = (await import('node-telegram-bot-api')).default;
-      this.bot = new TelegramBot(token, { polling: false });
+      this.telegram = new Telegram(token);
       this.enabled = true;
-      this.logger.log('Telegram bot initialized');
+      this.logger.log('Telegram service initialized (Telegraf)');
     } catch (err) {
-      this.logger.error('Failed to initialize Telegram bot', {
+      this.logger.error('Failed to initialize Telegram service', {
         error: (err as Error).message,
       });
     }
@@ -310,15 +310,13 @@ export class TelegramService implements OnModuleInit {
       throw new Error('BOT_BLOCKED');
     }
 
-    // Use per-request custom bot when provided (Growth+ / Tier 2+)
-    let bot = this.bot;
-    if (params.customBotToken) {
-      const TelegramBot = (await import('node-telegram-bot-api')).default;
-      bot = new TelegramBot(params.customBotToken, { polling: false });
-    }
+    // Use per-request custom bot for group/channel delivery; otherwise Herald's bot
+    const tg = params.customBotToken
+      ? new Telegram(params.customBotToken)
+      : this.telegram;
 
-    if (!bot) {
-      throw new Error('Telegram bot not initialized');
+    if (!tg) {
+      throw new Error('Telegram service not initialized');
     }
 
     const emoji = this.getCategoryEmoji(params.category);
@@ -384,7 +382,11 @@ export class TelegramService implements OnModuleInit {
 
     // Wrap inline button URLs with click-tracking when engagement tracking is on
     const inlineLinks = links.map((link) => {
-      if (params.trackEngagement && params.trackingBaseUrl && params.notificationId) {
+      if (
+        params.trackEngagement &&
+        params.trackingBaseUrl &&
+        params.notificationId
+      ) {
         const encoded = Buffer.from(link.url).toString('base64url');
         return {
           text: link.label,
@@ -410,54 +412,66 @@ export class TelegramService implements OnModuleInit {
       reply_markup: { inline_keyboard: inlineKeyboard },
       disable_web_page_preview: false,
       disable_notification: isSilent,
-      ...(params.messageThreadId && { message_thread_id: parseInt(params.messageThreadId, 10) }),
+      ...(params.messageThreadId && {
+        message_thread_id: parseInt(params.messageThreadId, 10),
+      }),
     };
 
     try {
+      await this.rateLimit(params.chatId);
+
       if (media) {
-        options.caption = messageText;
-        options.caption_parse_mode = 'HTML';
-
-        if (messageText.length > TELEGRAM_MAX_CAPTION_LENGTH) {
-          options.caption =
-            messageText.slice(0, TELEGRAM_MAX_CAPTION_LENGTH - 1) + '…';
+        let caption = messageText;
+        if (caption.length > TELEGRAM_MAX_CAPTION_LENGTH) {
+          caption = caption.slice(0, TELEGRAM_MAX_CAPTION_LENGTH - 1) + '…';
         }
+        const mediaOptions: any = { ...options, caption, parse_mode: 'HTML' };
 
-        await this.rateLimit(params.chatId);
-
-        if (media.type === 'video' && bot.sendVideo) {
-          const result = await bot.sendVideo(params.chatId, media.media, options);
-          return { messageId: String(result.message_id) };
+        let result: any;
+        if (media.type === 'video') {
+          result = await tg.sendVideo(
+            params.chatId,
+            { url: media.media },
+            mediaOptions,
+          );
         } else {
-          const result = await bot.sendPhoto(params.chatId, media.media, options);
-          return { messageId: String(result.message_id) };
+          result = await tg.sendPhoto(
+            params.chatId,
+            { url: media.media },
+            mediaOptions,
+          );
         }
+        return { messageId: String(result.message_id) };
       } else {
         if (messageText.length > TELEGRAM_MAX_MESSAGE_LENGTH) {
-          messageText = messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
+          messageText =
+            messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
         }
-
-        await this.rateLimit(params.chatId);
-
-        const result = await bot.sendMessage(params.chatId, messageText, options);
+        const result = await tg.sendMessage(
+          params.chatId,
+          messageText,
+          options,
+        );
         return { messageId: String(result.message_id) };
       }
     } catch (err: any) {
-      // 403 = user blocked the bot or bot was kicked from group.
-      // Cache this for 7 days to avoid hammering the Telegram API.
-      const statusCode: number =
-        err?.response?.body?.error_code ??
-        err?.response?.statusCode ??
-        err?.code ??
-        0;
+      // 403 = user blocked the bot or kicked it from the group.
+      // Telegraf surfaces this as err.code === 403 or description contains 'Forbidden'.
       const isForbidden =
-        statusCode === 403 ||
+        err?.code === 403 ||
+        (err?.description as string | undefined)
+          ?.toLowerCase()
+          .includes('forbidden') ||
         (err?.message as string | undefined)
           ?.toLowerCase()
           .includes('forbidden');
       if (isForbidden) {
-        await this.redis.setex(blockedKey, 7 * 24 * 60 * 60, '1').catch(() => undefined);
-        this.logger.warn(`Bot blocked by chat ${params.chatId} — suppressed for 7 days`);
+        await this.redis
+          .setex(blockedKey, 7 * 24 * 60 * 60, '1')
+          .catch(() => undefined);
+        this.logger.warn(
+          `Bot blocked by chat ${params.chatId} — suppressed for 7 days`,
+        );
         throw new Error('BOT_BLOCKED');
       }
       throw err;
