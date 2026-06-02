@@ -92,7 +92,7 @@ const DEFAULT_MAX_BUTTONS = 10;
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+
   private telegram: Telegram | null = null;
   private enabled = false;
   private maxButtons: number;
@@ -584,5 +584,66 @@ export class TelegramService implements OnModuleInit {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  /** Pin a message in a group/channel. Uses custom bot if provided. */
+  async pinGroupMessage(
+    chatId: string,
+    messageId: string,
+    customBotToken?: string,
+  ): Promise<void> {
+    const tg = customBotToken ? new Telegram(customBotToken) : this.telegram;
+    if (!tg) return;
+    await (tg as any).pinChatMessage(chatId, parseInt(messageId, 10), {
+      disable_notification: true,
+    });
+  }
+
+  /** Get current member count for a group/channel. */
+  async getGroupMemberCount(
+    chatId: string,
+    customBotToken?: string,
+  ): Promise<number | null> {
+    const tg = customBotToken ? new Telegram(customBotToken) : this.telegram;
+    if (!tg) return null;
+    try {
+      const count = await (tg as any).getChatMemberCount(chatId);
+      return typeof count === 'number' ? count : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Create a forum topic in a supergroup. Returns the message_thread_id. */
+  async createForumTopic(
+    chatId: string,
+    name: string,
+    customBotToken?: string,
+  ): Promise<string | null> {
+    const tg = customBotToken ? new Telegram(customBotToken) : this.telegram;
+    if (!tg) return null;
+    try {
+      const result = await (tg as any).createForumTopic(chatId, name);
+      return result?.message_thread_id
+        ? String(result.message_thread_id)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Send a welcome message to a new group member. */
+  async sendWelcomeMessage(
+    chatId: string,
+    userId: number,
+    welcomeText: string,
+    customBotToken?: string,
+  ): Promise<void> {
+    const tg = customBotToken ? new Telegram(customBotToken) : this.telegram;
+    if (!tg) return;
+    const text = welcomeText.replace('{{userId}}', String(userId));
+    await tg
+      .sendMessage(chatId, text, { parse_mode: 'HTML' } as any)
+      .catch(() => undefined);
   }
 }

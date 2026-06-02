@@ -355,6 +355,8 @@ export class ChannelDispatchService {
       let messageThreadId: string | undefined;
       let trackEngagement = false;
 
+      let autoPinEnabled = false;
+
       if (job.protocolId) {
         const settings = await this.prisma.protocolSettings.findUnique({
           where: { protocolId: job.protocolId },
@@ -363,12 +365,14 @@ export class ChannelDispatchService {
             telegramGroupChatId: true,
             telegramThreadIds: true,
             trackEngagement: true,
+            telegramAutoPinEnabled: true,
           },
         });
 
         trackEngagement = !!settings?.trackEngagement;
+        autoPinEnabled = !!settings?.telegramAutoPinEnabled;
 
-        if ((job.tier ?? 0) >= 2) {
+        if ((job.tier ?? 0) >= 1) {
           if (settings?.telegramBotTokenEncrypted) {
             const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
             if (encKey) {
@@ -452,18 +456,52 @@ export class ChannelDispatchService {
           .catch(() => null);
 
         if (!alreadySent) {
-          await this.telegramService
+          const groupResult = await this.telegramService
             .sendNotification({
               chatId: groupChatId,
               ...baseParams,
               customBotToken,
             })
-            .then(() => this.redis.setex(groupSentKey, 86400, '1'))
             .catch((err: Error) => {
               this.logger.warn(
                 `Group Telegram delivery failed for protocol=${job.protocolId}: ${err.message}`,
               );
+              return null;
             });
+
+          if (groupResult) {
+            await this.redis.setex(groupSentKey, 86400, '1');
+
+            // Map the group message → notification so reaction events
+            // (handled by the admin-api bot) can attribute engagement.
+            await this.redis
+              .setex(
+                `tg:gmsg:${groupChatId}:${groupResult.messageId}`,
+                7 * 86400,
+                job.notificationId,
+              )
+              .catch(() => undefined);
+
+            // Auto-pin for security/critical notifications when enabled
+            const shouldPin =
+              autoPinEnabled &&
+              (job.category === 'security' ||
+                job.priority === 'critical' ||
+                job.priority === 'important');
+            if (shouldPin) {
+              await this.telegramService
+                .pinGroupMessage(
+                  groupChatId,
+                  groupResult.messageId,
+                  customBotToken,
+                )
+                .catch((err: Error) => {
+                  this.logger.warn(
+                    `Auto-pin failed for group=${groupChatId}: ${err.message}`,
+                  );
+                });
+            }
+          }
         }
       }
 

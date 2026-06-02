@@ -383,12 +383,15 @@ model ProtocolSettings {
   testTelegramId            String?   @map("test_telegram_id") @db.VarChar(100)
   testPhone                 String?   @map("test_phone") @db.VarChar(30)
   // Telegram custom bot (Growth+, Tier 2+)
-  telegramBotTokenEncrypted Bytes?    @map("telegram_bot_token_encrypted")
-  telegramBotUsername       String?   @map("telegram_bot_username") @db.VarChar(64)
-  telegramGroupChatId       String?   @map("telegram_group_chat_id") @db.VarChar(30)
-  // Topic thread routing: maps category → message_thread_id for forum supergroups
-  // e.g. {"defi": "123", "governance": "456"}
-  telegramThreadIds         Json?     @map("telegram_thread_ids")
+  telegramBotTokenEncrypted  Bytes?    @map("telegram_bot_token_encrypted")
+  telegramBotUsername        String?   @map("telegram_bot_username") @db.VarChar(64)
+  telegramBotName            String?   @map("telegram_bot_name") @db.VarChar(64)
+  telegramGroupChatId        String?   @map("telegram_group_chat_id") @db.VarChar(30)
+  telegramThreadIds          Json?     @map("telegram_thread_ids")
+  telegramAutoPinEnabled     Boolean   @default(false) @map("telegram_auto_pin_enabled")
+  telegramWelcomeMessage     String?   @map("telegram_welcome_message") @db.VarChar(500)
+  telegramGroupMemberCount   Int?      @map("telegram_group_member_count")
+  telegramMemberCountAt      DateTime? @map("telegram_member_count_at") @db.Timestamptz(6)
   protocol                  Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@map("protocol_settings")

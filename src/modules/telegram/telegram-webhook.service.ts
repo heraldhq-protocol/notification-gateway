@@ -5,6 +5,8 @@ import { Redis } from 'ioredis';
 import { Telegram } from 'telegraf';
 import { PrismaService } from '../../database/prisma.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
+import { TelegramService } from '../channel/providers/telegram.provider';
+import { decryptAes256Gcm } from '../../common/utils/crypto.util';
 
 const START_PATTERN = /^\/start\s+([1-9A-HJ-NP-Za-km-z]{32,44})$/;
 
@@ -27,6 +29,7 @@ export class TelegramWebhookService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly telegramService: TelegramService,
   ) {}
 
   onModuleInit(): void {
@@ -383,6 +386,62 @@ export class TelegramWebhookService implements OnModuleInit {
     if (count > 0) {
       this.logger.debug(
         `Cleaned ${count} expired/claimed Telegram pending connections`,
+      );
+    }
+  }
+
+  // ── Cron: refresh group member counts (daily) ─────────────────────────────
+
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async refreshGroupMemberCounts(): Promise<void> {
+    const settingsRows = await this.prisma.protocolSettings.findMany({
+      where: { telegramGroupChatId: { not: null } },
+      select: {
+        protocolId: true,
+        telegramGroupChatId: true,
+        telegramBotTokenEncrypted: true,
+      },
+    });
+    if (settingsRows.length === 0) return;
+
+    const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
+    let updated = 0;
+
+    for (const row of settingsRows) {
+      if (!row.telegramGroupChatId) continue;
+      let customBotToken: string | undefined;
+      if (row.telegramBotTokenEncrypted && encKey) {
+        try {
+          customBotToken = decryptAes256Gcm(
+            row.telegramBotTokenEncrypted,
+            encKey,
+          );
+        } catch {
+          /* fall back to Herald bot */
+        }
+      }
+
+      const count = await this.telegramService.getGroupMemberCount(
+        row.telegramGroupChatId,
+        customBotToken,
+      );
+      if (count !== null) {
+        await this.prisma.protocolSettings
+          .update({
+            where: { protocolId: row.protocolId },
+            data: {
+              telegramGroupMemberCount: count,
+              telegramMemberCountAt: new Date(),
+            },
+          })
+          .catch(() => undefined);
+        updated++;
+      }
+    }
+
+    if (updated > 0) {
+      this.logger.log(
+        `Refreshed Telegram member counts for ${updated} group(s)`,
       );
     }
   }
