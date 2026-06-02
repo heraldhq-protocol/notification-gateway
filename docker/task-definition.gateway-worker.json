@@ -19,7 +19,8 @@
         { "name": "ENCLAVE_MODE",                    "value": "sandbox" },
         { "name": "SECRET_ID",                       "value": "herald-gateway/staging" },
         { "name": "NODE_TLS_REJECT_UNAUTHORIZED",    "value": "0" },
-        { "name": "DB_POOL_MAX",                     "value": "3" }
+        { "name": "DB_POOL_MAX",                     "value": "3" },
+        { "name": "GATEWAY_PUBLIC_URL",              "value": "https://api.useherald.xyz" }
       ],
       "secrets": [
         { "name": "DATABASE_URL",               "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:DATABASE_URL::" },
@@ -54,8 +55,7 @@
         { "name": "HERALD_X25519_PRIV_HEX",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:HERALD_X25519_PRIV_HEX::" },
         { "name": "ARWEAVE_PAYER_SECRET",         "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:ARWEAVE_PAYER_SECRET::" },
         { "name": "TELEGRAM_BOT_TOKEN",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_BOT_TOKEN::" },
-        { "name": "TELEGRAM_WEBHOOK_SECRET",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_WEBHOOK_SECRET::" },
-        { "name": "GATEWAY_PUBLIC_URL",           "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:GATEWAY_PUBLIC_URL::" }
+        { "name": "TELEGRAM_WEBHOOK_SECRET",      "valueFrom": "arn:aws:secretsmanager:eu-north-1:120822896955:secret:herald-gateway/staging:TELEGRAM_WEBHOOK_SECRET::" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
