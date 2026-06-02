@@ -92,6 +92,7 @@ const DEFAULT_MAX_BUTTONS = 10;
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   private telegram: Telegram | null = null;
   private enabled = false;
   private maxButtons: number;
