@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   Query,
@@ -114,5 +115,25 @@ export class TelegramWebhookController {
       inlineButtonCount: result.inlineButtons.flat().length,
       inlineButtons: result.inlineButtons,
     };
+  }
+
+  /**
+   * Clear cached bot-block markers (tg:blocked:*). Use after fixing a bot
+   * misconfiguration so delivery stops bailing early on stale 403 caches.
+   * Pass ?chatId=<id> to clear a single chat, or omit to clear all.
+   */
+  @Delete('blocked')
+  @UseGuards(AuthGuard, ScopeGuard)
+  @RequiredScopes('notify:send')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Clear cached Telegram bot-block markers' })
+  @HttpCode(HttpStatus.OK)
+  async clearBlocked(
+    @ApiKey() _protocol: AuthenticatedProtocol,
+    @Query('chatId') chatId?: string,
+  ): Promise<{ cleared: number }> {
+    const cleared = await this.webhookService.clearBlockedChats(chatId?.trim() || undefined);
+    this.logger.log(`Cleared ${cleared} tg:blocked marker(s)${chatId ? ` for chat ${chatId}` : ''}`);
+    return { cleared };
   }
 }

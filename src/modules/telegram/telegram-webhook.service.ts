@@ -58,6 +58,43 @@ export class TelegramWebhookService implements OnModuleInit {
     return incomingSecret === expected;
   }
 
+  // ── Bot-block management ──────────────────────────────────────────────────
+
+  /**
+   * Clear cached bot-block markers. A `tg:blocked:<chatId>` key is set for 7
+   * days whenever Telegram returns 403 for a chat (user blocked the bot, or
+   * the bot was misconfigured). After fixing the underlying cause (e.g. a bot
+   * token mismatch), these stale markers must be cleared or delivery keeps
+   * bailing early.
+   *
+   * @param chatId  Clear only this chat's marker; omit to clear all.
+   * @returns the number of markers removed.
+   */
+  async clearBlockedChats(chatId?: string): Promise<number> {
+    if (chatId) {
+      return this.redis.del(`tg:blocked:${chatId}`);
+    }
+
+    // Scan + delete all tg:blocked:* keys (SCAN avoids blocking Redis on KEYS).
+    let cursor = '0';
+    let removed = 0;
+    do {
+      const [next, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        'tg:blocked:*',
+        'COUNT',
+        100,
+      );
+      cursor = next;
+      if (keys.length > 0) {
+        removed += await this.redis.del(...keys);
+      }
+    } while (cursor !== '0');
+
+    return removed;
+  }
+
   // ── Incoming update dispatcher ────────────────────────────────────────────
 
   async handleUpdate(update: Record<string, any>): Promise<void> {
