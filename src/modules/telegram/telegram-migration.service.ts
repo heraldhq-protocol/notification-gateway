@@ -111,6 +111,48 @@ export class TelegramMigrationService {
     }
   }
 
+  /**
+   * Send a confirmation message via the protocol's custom bot after the user taps Start.
+   * Fetches the encrypted token from DB, decrypts, and sends as the custom bot.
+   */
+  async sendCustomBotWelcome(chatId: string, protocolId: string): Promise<void> {
+    const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
+    if (!encKey) return;
+
+    const settings = await this.prisma.protocolSettings.findUnique({
+      where: { protocolId },
+      select: {
+        telegramBotTokenEncrypted: true,
+        telegramBotUsername: true,
+        protocol: { select: { nameEncrypted: true } },
+      },
+    });
+
+    if (!settings?.telegramBotTokenEncrypted) return;
+
+    let customBotToken: string;
+    try {
+      customBotToken = decryptAes256Gcm(settings.telegramBotTokenEncrypted, encKey);
+    } catch {
+      return;
+    }
+
+    const protocolName = await this.resolveProtocolName(protocolId);
+    const tg = new Telegram(customBotToken);
+
+    await tg
+      .sendMessage(
+        chatId,
+        `✅ <b>You're connected!</b>\n\n` +
+          `<b>${this.escapeHtml(protocolName)}</b> alerts will now be delivered directly via this bot.\n\n` +
+          `You'll receive notifications for DeFi positions, governance votes, security alerts, and more.`,
+        { parse_mode: 'HTML' } as any,
+      )
+      .catch((err: Error) => {
+        this.logger.warn(`Custom bot welcome failed for chat ${chatId}: ${err.message}`);
+      });
+  }
+
   // ── Fan-out ───────────────────────────────────────────────────────────────
 
   /**
