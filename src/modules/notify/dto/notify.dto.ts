@@ -32,24 +32,16 @@ export function IsBodyLengthValid(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
-          const dto = args.object as NotifyDto;
+        validate(value: any, _args: ValidationArguments) {
           if (typeof value !== 'string') return false;
-
-          if (dto.preferred_channel === 'sms' && value.length > 1600)
-            return false;
-          if (dto.preferred_channel === 'telegram' && value.length > 4096)
-            return false;
-
+          // Accept up to the email maximum — per-channel limits (Telegram 4096,
+          // SMS 160/1600) are enforced at delivery time via truncation/stripping,
+          // not at the API boundary. The caller should not need to know which
+          // channel will ultimately deliver the message.
           return value.length <= 10000;
         },
-        defaultMessage(args: ValidationArguments) {
-          const dto = args.object as NotifyDto;
-          if (dto.preferred_channel === 'sms')
-            return 'Body cannot exceed 1600 characters for SMS.';
-          if (dto.preferred_channel === 'telegram')
-            return 'Body cannot exceed 4096 characters for Telegram.';
-          return 'Body cannot exceed 10000 characters.';
+        defaultMessage(_args: ValidationArguments) {
+          return 'Body cannot exceed 10,000 characters.';
         },
       },
     });

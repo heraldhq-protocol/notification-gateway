@@ -5,7 +5,7 @@ import {
   PublishCommand,
   type PublishCommandInput,
 } from '@aws-sdk/client-sns';
-import { parseMarkdownLinks } from '../../../common/utils/link-parser';
+import { stripMarkdown } from '../../../common/utils/link-parser';
 
 export interface SmsMessageParams {
   protocolName: string;
@@ -63,7 +63,9 @@ export class SnsService implements OnModuleInit {
    * Uses word boundary truncation with character cutoff fallback.
    */
   buildSmsBody(params: SmsMessageParams): SmsMessageResult {
-    const { cleanText } = parseMarkdownLinks(params.body);
+    // Strip all markdown formatting before building the SMS body.
+    // SMS does not support any rich text — tables, bold, headers etc must be removed.
+    const cleanText = stripMarkdown(params.body);
 
     const isGsm7 = this.isGsm7Encoding(cleanText);
     const maxSingle = isGsm7 ? GSM_7_MAX_LENGTH : UCS_2_MAX_LENGTH;

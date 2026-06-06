@@ -12,28 +12,59 @@ import {
 function parseMarkdownToTelegramHtml(text: string): string {
   let result = text;
 
-  result = result.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
+  // Fenced code blocks → <pre>
+  result = result.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, _lang, code) => {
     return `<pre>${escapeHtmlForTelegram(code.trim())}</pre>`;
   });
 
+  // Inline code → <code>
   result = result.replace(/`([^`]+)`/g, (_, code) => {
     return `<code>${escapeHtmlForTelegram(code)}</code>`;
   });
 
-  result = result.replace(/\*\*\*([^*]+)\*\*/g, (_, text) => {
-    return `<b>${escapeHtmlForTelegram(text)}</b>`;
+  // Markdown table separator lines (|---|---|) → remove
+  result = result.replace(/^\|[-:| ]+\|[ \t]*$/gm, '');
+
+  // Markdown table rows | cell | cell | → cell │ cell (readable plain text)
+  result = result.replace(/^\|(.+)\|[ \t]*$/gm, (_match, inner) => {
+    return inner
+      .split('|')
+      .map((cell: string) => cell.trim())
+      .filter(Boolean)
+      .join(' │ ');
   });
 
-  result = result.replace(/\*([^*]+)\*/g, (_, text) => {
-    return `<i>${escapeHtmlForTelegram(text)}</i>`;
+  // Horizontal rules --- → a unicode divider
+  result = result.replace(/^(-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '──────────');
+
+  // Bold+italic ***text***
+  result = result.replace(/\*\*\*([^*]+)\*\*\*/g, (_, t) => {
+    return `<b><i>${escapeHtmlForTelegram(t)}</i></b>`;
   });
 
-  result = result.replace(/__([_^]+)__/g, (_, text) => {
-    return `<u>${escapeHtmlForTelegram(text)}</u>`;
+  // Bold **text**
+  result = result.replace(/\*\*([^*\n]+)\*\*/g, (_, t) => {
+    return `<b>${escapeHtmlForTelegram(t)}</b>`;
   });
 
-  result = result.replace(/~~([^~]+)~~/g, (_, text) => {
-    return `<s>${escapeHtmlForTelegram(text)}</s>`;
+  // Italic *text*
+  result = result.replace(/\*([^*\n]+)\*/g, (_, t) => {
+    return `<i>${escapeHtmlForTelegram(t)}</i>`;
+  });
+
+  // Underline __text__
+  result = result.replace(/__([^_\n]+)__/g, (_, t) => {
+    return `<u>${escapeHtmlForTelegram(t)}</u>`;
+  });
+
+  // Strikethrough ~~text~~
+  result = result.replace(/~~([^~\n]+)~~/g, (_, t) => {
+    return `<s>${escapeHtmlForTelegram(t)}</s>`;
+  });
+
+  // ATX headers ## Title → <b>Title</b>
+  result = result.replace(/^#{1,6}\s+(.+)$/gm, (_, t) => {
+    return `<b>${escapeHtmlForTelegram(t)}</b>`;
   });
 
   return result;

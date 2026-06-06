@@ -135,6 +135,63 @@ export function unescapeHtml(text: string): string {
     .replace(/&#039;/g, "'");
 }
 
+/**
+ * Strip all markdown formatting from text, producing plain text suitable for SMS.
+ *
+ * Handles: bold, italic, strikethrough, inline code, fenced code blocks, headers,
+ * blockquotes, horizontal rules, and markdown tables.
+ * Links are reduced to their label text.
+ */
+export function stripMarkdown(text: string): string {
+  let result = text;
+
+  // Fenced code blocks → [code]
+  result = result.replace(/```[\s\S]*?```/g, '[code]');
+
+  // Inline code → bare text
+  result = result.replace(/`([^`]+)`/g, '$1');
+
+  // Markdown links [label](url) → label
+  result = result.replace(MARKDOWN_LINK_REGEX, '$1');
+
+  // Table separator lines (e.g. |---|---|) → remove entirely
+  result = result.replace(/^\|[-:| ]+\|[ \t]*$/gm, '');
+
+  // Table data rows | cell | cell | → cell | cell (strip outer pipes)
+  result = result.replace(/^\|(.+)\|[ \t]*$/gm, (_match, inner) => {
+    return inner
+      .split('|')
+      .map((cell: string) => cell.trim())
+      .filter(Boolean)
+      .join(' | ');
+  });
+
+  // Bold: **text** and __text__
+  result = result.replace(/\*\*([^*\n]+)\*\*/g, '$1');
+  result = result.replace(/__([^_\n]+)__/g, '$1');
+
+  // Italic: *text* and _text_ (single)
+  result = result.replace(/\*([^*\n]+)\*/g, '$1');
+  result = result.replace(/_([^_\n]+)_/g, '$1');
+
+  // Strikethrough: ~~text~~
+  result = result.replace(/~~([^~\n]+)~~/g, '$1');
+
+  // ATX headers: ## Title → Title
+  result = result.replace(/^#{1,6}\s+/gm, '');
+
+  // Horizontal rules: ---, ***, ___
+  result = result.replace(/^(\*{3,}|-{3,}|_{3,})[ \t]*$/gm, '');
+
+  // Blockquotes: > text → text
+  result = result.replace(/^>\s*/gm, '');
+
+  // Collapse 3+ blank lines to 2
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result.trim();
+}
+
 export function injectVariables(
   template: string,
   variables: Record<string, string>,
