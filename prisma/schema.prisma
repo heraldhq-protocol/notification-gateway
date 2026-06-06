@@ -392,6 +392,7 @@ model ProtocolSettings {
   telegramWelcomeMessage     String?   @map("telegram_welcome_message") @db.VarChar(500)
   telegramGroupMemberCount   Int?      @map("telegram_group_member_count")
   telegramMemberCountAt      DateTime? @map("telegram_member_count_at") @db.Timestamptz(6)
+  telegramMigrationSentAt    DateTime? @map("telegram_migration_sent_at") @db.Timestamptz(6)
   protocol                  Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
 
   @@map("protocol_settings")

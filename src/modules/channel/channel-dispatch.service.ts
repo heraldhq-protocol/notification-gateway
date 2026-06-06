@@ -11,6 +11,7 @@ import type {
   NotificationJobData,
 } from '../../common/types/notification.types';
 import { TelegramService } from './providers/telegram.provider';
+import { TelegramMigrationService } from '../telegram/telegram-migration.service';
 import { SnsService } from './providers/sns.provider';
 import { MailService } from '../mail/mail.service';
 import { SesIdentityService } from '../mail/ses-identity.service';
@@ -33,6 +34,7 @@ export class ChannelDispatchService {
   constructor(
     private readonly mailService: MailService,
     private readonly telegramService: TelegramService,
+    private readonly migrationService: TelegramMigrationService,
     private readonly snsService: SnsService,
     private readonly templateService: TemplateService,
     private readonly prisma: PrismaService,
@@ -354,14 +356,22 @@ export class ChannelDispatchService {
       let groupChatId: string | undefined;
       let messageThreadId: string | undefined;
       let trackEngagement = false;
-
       let autoPinEnabled = false;
+      let settings: {
+        telegramBotTokenEncrypted: Uint8Array | null;
+        telegramBotUsername: string | null;
+        telegramGroupChatId: string | null;
+        telegramThreadIds: unknown;
+        trackEngagement: boolean;
+        telegramAutoPinEnabled: boolean;
+      } | null = null;
 
       if (job.protocolId) {
-        const settings = await this.prisma.protocolSettings.findUnique({
+        settings = await this.prisma.protocolSettings.findUnique({
           where: { protocolId: job.protocolId },
           select: {
             telegramBotTokenEncrypted: true,
+            telegramBotUsername: true,
             telegramGroupChatId: true,
             telegramThreadIds: true,
             trackEngagement: true,
@@ -439,12 +449,47 @@ export class ChannelDispatchService {
         trackingBaseUrl: this.trackingBaseUrl,
       };
 
-      // Individual subscriber delivery — always uses Herald's bot.
-      // Subscribers opted in via Herald's bot so a custom bot cannot reach them.
-      const result = await this.telegramService.sendNotification({
-        chatId,
-        ...baseParams,
-      });
+      // Individual subscriber delivery.
+      // If the protocol has a custom bot AND the user has started it (migrated),
+      // use the custom bot. Otherwise fall back to Herald's bot and send a
+      // one-time migration prompt (rate-limited to once per 3 days).
+      let result: { messageId: string };
+
+      if (customBotToken && settings?.telegramBotUsername) {
+        const migrated = await this.migrationService.isMigrated(
+          chatId,
+          job.protocolId,
+        );
+
+        if (migrated) {
+          result = await this.telegramService.sendNotification({
+            chatId,
+            ...baseParams,
+            customBotToken,
+          });
+        } else {
+          // Not yet migrated — deliver via Herald's bot
+          result = await this.telegramService.sendNotification({
+            chatId,
+            ...baseParams,
+          });
+          // Fire-and-forget migration prompt (rate-limited internally)
+          this.migrationService
+            .sendSinglePrompt(
+              chatId,
+              job.protocolId,
+              settings.telegramBotUsername,
+              job.protocolName,
+            )
+            .catch(() => undefined);
+        }
+      } else {
+        result = await this.telegramService.sendNotification({
+          chatId,
+          ...baseParams,
+        });
+      }
+
       this.logDelivery('telegram', job.notificationId, result.messageId);
 
       // Group/channel delivery — uses custom bot (which is admin of the group).

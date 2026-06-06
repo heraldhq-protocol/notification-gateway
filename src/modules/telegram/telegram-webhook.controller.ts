@@ -15,8 +15,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TelegramWebhookService } from './telegram-webhook.service';
+import { TelegramMigrationService } from './telegram-migration.service';
 import { TelegramService } from '../channel/providers/telegram.provider';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { ScopeGuard, RequiredScopes } from '../../common/guards/scope.guard';
@@ -30,7 +32,9 @@ export class TelegramWebhookController {
 
   constructor(
     private readonly webhookService: TelegramWebhookService,
+    private readonly migrationService: TelegramMigrationService,
     private readonly telegramService: TelegramService,
+    private readonly config: ConfigService,
   ) {}
 
   @Post('webhook')
@@ -135,5 +139,88 @@ export class TelegramWebhookController {
     const cleared = await this.webhookService.clearBlockedChats(chatId?.trim() || undefined);
     this.logger.log(`Cleared ${cleared} tg:blocked marker(s)${chatId ? ` for chat ${chatId}` : ''}`);
     return { cleared };
+  }
+
+  /**
+   * POST /v1/tg/custom-webhook/:protocolId
+   *
+   * Receives updates from a protocol's custom Telegram bot.
+   * When a user sends /start to the custom bot, their chat is marked as
+   * migrated so future notifications are delivered via the custom bot.
+   *
+   * The webhook is registered by the admin-api when the custom bot token is saved.
+   * Secured via the gateway's TELEGRAM_WEBHOOK_SECRET header.
+   */
+  @Post('custom-webhook/:protocolId')
+  @HttpCode(HttpStatus.OK)
+  async handleCustomBotWebhook(
+    @Param('protocolId') protocolId: string,
+    @Body() update: Record<string, any>,
+    @Headers('x-telegram-bot-api-secret-token') secret?: string,
+  ): Promise<void> {
+    if (!this.webhookService.verifySecret(secret)) {
+      throw new ForbiddenException('Invalid webhook secret');
+    }
+
+    const message = update?.message;
+    if (!message?.text) return;
+
+    const chatId = String(message.chat?.id);
+    const text: string = message.text.trim();
+
+    // /start hrld_<protocolId> — user started the custom bot via migration prompt
+    if (text.startsWith('/start hrld_') || text === `/start hrld_${protocolId}`) {
+      await this.migrationService.markMigrated(chatId, protocolId);
+      this.logger.log(
+        `Custom bot migration confirmed: chat=${chatId} protocol=${protocolId}`,
+      );
+    }
+  }
+
+  /**
+   * POST /v1/tg/migrate/:protocolId
+   *
+   * Internal endpoint — triggers migration prompt fan-out to all of a protocol's
+   * active Telegram subscribers. Called by the admin-api after a custom bot token
+   * is saved. Secured via X-Internal-Secret header.
+   */
+  @Post('migrate/:protocolId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Trigger Telegram migration fan-out (internal)' })
+  async triggerMigration(
+    @Param('protocolId') protocolId: string,
+    @Headers('x-internal-secret') secret?: string,
+  ): Promise<{ sent: number; skipped: number }> {
+    this.verifyInternalSecret(secret);
+    const result = await this.migrationService.sendMigrationPrompts(protocolId);
+    this.logger.log(
+      `Migration triggered for ${protocolId}: sent=${result.sent} skipped=${result.skipped}`,
+    );
+    return result;
+  }
+
+  /**
+   * DELETE /v1/tg/migrate/:protocolId
+   *
+   * Internal endpoint — clears all migration Redis state for a protocol.
+   * Called by the admin-api when a custom bot token is removed.
+   */
+  @Delete('migrate/:protocolId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear Telegram migration state (internal)' })
+  async clearMigration(
+    @Param('protocolId') protocolId: string,
+    @Headers('x-internal-secret') secret?: string,
+  ): Promise<{ cleared: boolean }> {
+    this.verifyInternalSecret(secret);
+    await this.migrationService.clearMigrationState(protocolId);
+    return { cleared: true };
+  }
+
+  private verifyInternalSecret(secret?: string): void {
+    const expected = this.config.get<string>('INTERNAL_API_SECRET');
+    if (expected && secret !== expected) {
+      throw new ForbiddenException('Invalid internal secret');
+    }
   }
 }

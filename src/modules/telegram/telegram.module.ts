@@ -5,9 +5,9 @@ import { PrismaModule } from '../../database/prisma.module';
 import { ChannelModule } from '../channel/channel.module';
 import { AuthModule } from '../auth/auth.module';
 
+// TelegramMigrationService is provided by ChannelModule (which this module
+// imports) to avoid a circular dependency.
 @Module({
-  // AuthModule provides AuthService for the AuthGuard/ScopeGuard used on the
-  // /tg/preview endpoint in TelegramWebhookController.
   imports: [PrismaModule, ChannelModule, AuthModule],
   controllers: [TelegramWebhookController],
   providers: [TelegramWebhookService],
