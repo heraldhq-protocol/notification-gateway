@@ -476,16 +476,40 @@ export class TelegramService implements OnModuleInit {
         }
         return { messageId: String(result.message_id) };
       } else {
-        if (messageText.length > TELEGRAM_MAX_MESSAGE_LENGTH) {
-          messageText =
-            messageText.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH - 1) + '…';
-        }
-        const result = await tg.sendMessage(
-          params.chatId,
+        // Split long messages into sequential parts instead of truncating.
+        // Each part is ≤ 4096 chars; the part indicator (1/N) is appended to
+        // each chunk. The inline keyboard (action buttons + mute) is placed
+        // only on the last part so the UI isn't cluttered.
+        const chunks = this.splitIntoChunks(
           messageText,
-          options,
+          TELEGRAM_MAX_MESSAGE_LENGTH,
         );
-        return { messageId: String(result.message_id) };
+
+        let firstMessageId = '';
+        for (let i = 0; i < chunks.length; i++) {
+          const isLast = i === chunks.length - 1;
+          const partText =
+            chunks.length > 1
+              ? `${chunks[i]}\n\n<i>(${i + 1}/${chunks.length})</i>`
+              : chunks[i];
+
+          const partOptions: any = {
+            ...options,
+            reply_markup: isLast
+              ? options.reply_markup
+              : { inline_keyboard: [] },
+          };
+
+          await this.rateLimit(params.chatId);
+          const result = await tg.sendMessage(
+            params.chatId,
+            partText,
+            partOptions,
+          );
+          if (i === 0) firstMessageId = String(result.message_id);
+        }
+
+        return { messageId: firstMessageId };
       }
     } catch (err: any) {
       // 403 = user blocked the bot or kicked it from the group.
@@ -509,6 +533,71 @@ export class TelegramService implements OnModuleInit {
       }
       throw err;
     }
+  }
+
+  /**
+   * Split a long message into chunks of at most maxLength characters.
+   *
+   * Splits preferentially on paragraph boundaries (\n\n), then line
+   * boundaries (\n), then hard-cuts as a last resort. Each chunk leaves
+   * 15 chars of headroom for the appended "(X/N)" part indicator.
+   */
+  private splitIntoChunks(text: string, maxLength: number): string[] {
+    const effectiveMax = maxLength - 15;
+    if (text.length <= effectiveMax) return [text];
+
+    const chunks: string[] = [];
+    let current = '';
+
+    const addChunk = (s: string) => {
+      if (s) chunks.push(s);
+    };
+
+    for (const para of text.split('\n\n')) {
+      const sep = current ? '\n\n' : '';
+      if ((current + sep + para).length <= effectiveMax) {
+        current += sep + para;
+        continue;
+      }
+
+      addChunk(current);
+
+      if (para.length <= effectiveMax) {
+        current = para;
+        continue;
+      }
+
+      // Paragraph too long — split by lines
+      current = '';
+      for (const line of para.split('\n')) {
+        const lineSep = current ? '\n' : '';
+        if ((current + lineSep + line).length <= effectiveMax) {
+          current += lineSep + line;
+          continue;
+        }
+
+        addChunk(current);
+
+        if (line.length <= effectiveMax) {
+          current = line;
+        } else {
+          // Hard-cut single long line
+          let pos = 0;
+          while (pos < line.length) {
+            const slice = line.slice(pos, pos + effectiveMax);
+            if (pos + effectiveMax < line.length) {
+              addChunk(slice);
+            } else {
+              current = slice;
+            }
+            pos += effectiveMax;
+          }
+        }
+      }
+    }
+
+    addChunk(current);
+    return chunks;
   }
 
   /**
