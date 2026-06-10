@@ -133,6 +133,41 @@ export class SubscriptionsService {
     };
   }
 
+  /** All subscriptions for a portal user (active + unsubscribed), with protocol metadata. */
+  async getUserSubscriptions(walletHash: string) {
+    const rows = await this.prisma.protocolSubscription.findMany({
+      where: { walletHash },
+      include: {
+        protocol: {
+          include: { settings: true },
+        },
+      },
+      orderBy: { subscribedAt: 'desc' },
+    });
+
+    return rows.map((row) => ({
+      protocolId: row.protocolId,
+      status: row.status as 'active' | 'unsubscribed',
+      channels: row.channels,
+      subscribedAt: row.subscribedAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      protocol: {
+        name: row.protocol.settings?.customFromName ?? null,
+        logoUrl: row.protocol.settings?.logoUrl ?? null,
+        websiteUrl: row.protocol.settings?.websiteUrl ?? null,
+        categories: row.protocol.settings?.notificationCategories ?? [],
+      },
+    }));
+  }
+
+  /** Re-activate an existing unsubscribed row — does not need walletPubkey. */
+  async resubscribe(walletHash: string, protocolId: string): Promise<void> {
+    await this.prisma.protocolSubscription.updateMany({
+      where: { walletHash, protocolId },
+      data: { status: 'active', updatedAt: new Date() },
+    });
+  }
+
   sha256(input: string): string {
     return createHash('sha256').update(input).digest('hex');
   }
