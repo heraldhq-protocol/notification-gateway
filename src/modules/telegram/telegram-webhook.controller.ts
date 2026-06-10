@@ -156,12 +156,7 @@ export class TelegramWebhookController {
   async handleCustomBotWebhook(
     @Param('protocolId') protocolId: string,
     @Body() update: Record<string, any>,
-    @Headers('x-telegram-bot-api-secret-token') secret?: string,
   ): Promise<void> {
-    if (!this.webhookService.verifySecret(secret)) {
-      throw new ForbiddenException('Invalid webhook secret');
-    }
-
     const message = update?.message;
     if (!message?.text) return;
 
