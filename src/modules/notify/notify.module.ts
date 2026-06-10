@@ -4,6 +4,7 @@ import { NotifyController } from './notify.controller';
 import { NotifyService } from './notify.service';
 import { SchedulerService } from './scheduler.service';
 import { UnsubscribeController } from './unsubscribe.controller';
+import { PortalUnsubscribeController } from './portal-unsubscribe.controller';
 import { UnsubscribeService } from './unsubscribe.service';
 import { AuthModule } from '../auth/auth.module';
 import { RoutingModule } from '../routing/routing.module';
@@ -27,7 +28,7 @@ import { AiClassifierService } from './ai-classifier.service';
     // SchedulerService injects the NOTIFICATION queue directly via @InjectQueue
     BullModule.registerQueue({ name: QueueNames.NOTIFICATION }),
   ],
-  controllers: [NotifyController, UnsubscribeController],
+  controllers: [NotifyController, UnsubscribeController, PortalUnsubscribeController],
   // SandboxService is provided globally via @Global() SandboxModule (imported in AppModule).
   // SandboxRoutingService is exported from RoutingModule — available via the RoutingModule import.
   // DigestService is provided by QueueModule (co-located there to avoid circular dependency).
