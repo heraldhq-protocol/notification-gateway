@@ -2,8 +2,10 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Param,
+  Body,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -18,6 +20,15 @@ import {
 import type { Request } from 'express';
 import { PortalAuthGuard } from '../../common/guards/portal-auth.guard';
 import { SubscriptionsService } from './subscriptions.service';
+import { PrismaService } from '../../database/prisma.service';
+
+class UpdateProtocolPreferencesDto {
+  optInDefi?: boolean | null;
+  optInGovernance?: boolean | null;
+  optInMarketing?: boolean | null;
+  optInSystem?: boolean | null;
+  channels?: string[];
+}
 
 type AuthedRequest = Request & { walletHash: string };
 
@@ -33,7 +44,10 @@ type AuthedRequest = Request & { walletHash: string };
 @UseGuards(PortalAuthGuard)
 @Controller('v1/portal/subscriptions')
 export class PortalSubscriptionsController {
-  constructor(private readonly subscriptions: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptions: SubscriptionsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * GET /v1/portal/subscriptions
@@ -45,6 +59,39 @@ export class PortalSubscriptionsController {
   @ApiResponse({ status: 200, description: 'Subscription list returned' })
   async list(@Req() req: AuthedRequest) {
     return this.subscriptions.getUserSubscriptions(req.walletHash);
+  }
+
+  /**
+   * POST /v1/portal/subscriptions/:protocolId
+   * Subscribe (or re-activate) the authenticated user to a protocol.
+   * Creates a new row if none exists, otherwise sets status → active.
+   */
+  @Post(':protocolId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Subscribe to a protocol (portal-initiated)' })
+  @ApiResponse({ status: 200, description: 'Subscribed successfully' })
+  async subscribe(
+    @Req() req: AuthedRequest,
+    @Param('protocolId') protocolId: string,
+  ) {
+    await this.prisma.protocolSubscription.upsert({
+      where: {
+        walletHash_protocolId: {
+          walletHash: req.walletHash,
+          protocolId,
+        },
+      },
+      create: {
+        walletHash: req.walletHash,
+        protocolId,
+        status: 'active',
+        channels: [],
+      },
+      update: {
+        status: 'active',
+      },
+    });
+    return { success: true };
   }
 
   /**
@@ -77,5 +124,85 @@ export class PortalSubscriptionsController {
   ) {
     await this.subscriptions.resubscribe(req.walletHash, protocolId);
     return { success: true };
+  }
+
+  /**
+   * GET /v1/portal/subscriptions/:protocolId/preferences
+   * Returns per-protocol category + channel overrides for the user.
+   * Null values mean "inherit from global preferences".
+   */
+  @Get(':protocolId/preferences')
+  @ApiOperation({ summary: 'Get per-protocol notification preferences' })
+  @ApiResponse({ status: 200 })
+  async getPreferences(
+    @Req() req: AuthedRequest,
+    @Param('protocolId') protocolId: string,
+  ) {
+    const pref = await this.prisma.userProtocolPreference.findUnique({
+      where: {
+        walletHash_protocolId: {
+          walletHash: req.walletHash,
+          protocolId,
+        },
+      },
+    });
+
+    return {
+      protocolId,
+      optInDefi: pref?.optInDefi ?? null,
+      optInGovernance: pref?.optInGovernance ?? null,
+      optInMarketing: pref?.optInMarketing ?? null,
+      optInSystem: pref?.optInSystem ?? null,
+      channels: pref?.channels ?? [],
+    };
+  }
+
+  /**
+   * PUT /v1/portal/subscriptions/:protocolId/preferences
+   * Upserts per-protocol category + channel overrides.
+   * Pass null for a category to revert to global preference.
+   */
+  @Put(':protocolId/preferences')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update per-protocol notification preferences' })
+  @ApiResponse({ status: 200 })
+  async updatePreferences(
+    @Req() req: AuthedRequest,
+    @Param('protocolId') protocolId: string,
+    @Body() dto: UpdateProtocolPreferencesDto,
+  ) {
+    const pref = await this.prisma.userProtocolPreference.upsert({
+      where: {
+        walletHash_protocolId: {
+          walletHash: req.walletHash,
+          protocolId,
+        },
+      },
+      create: {
+        walletHash: req.walletHash,
+        protocolId,
+        optInDefi: dto.optInDefi ?? null,
+        optInGovernance: dto.optInGovernance ?? null,
+        optInMarketing: dto.optInMarketing ?? null,
+        optInSystem: dto.optInSystem ?? null,
+        channels: dto.channels ?? [],
+      },
+      update: {
+        ...(dto.optInDefi !== undefined && { optInDefi: dto.optInDefi }),
+        ...(dto.optInGovernance !== undefined && { optInGovernance: dto.optInGovernance }),
+        ...(dto.optInMarketing !== undefined && { optInMarketing: dto.optInMarketing }),
+        ...(dto.optInSystem !== undefined && { optInSystem: dto.optInSystem }),
+        ...(dto.channels !== undefined && { channels: dto.channels }),
+      },
+    });
+
+    return {
+      protocolId: pref.protocolId,
+      optInDefi: pref.optInDefi,
+      optInGovernance: pref.optInGovernance,
+      optInMarketing: pref.optInMarketing,
+      optInSystem: pref.optInSystem,
+      channels: pref.channels,
+    };
   }
 }

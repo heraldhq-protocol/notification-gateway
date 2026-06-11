@@ -86,6 +86,7 @@ model Protocol {
   scheduledNotifications ScheduledNotification[]
   moderationItems        ModerationQueue[]
   notificationReports    NotificationReport[]
+  userPreferences        UserProtocolPreference[]
 
   @@index([protocolPubkey], map: "idx_protocols_pubkey")
   @@map("protocols")
@@ -479,6 +480,28 @@ model UnsubscribeToken {
   @@map("unsubscribe_tokens")
 }
 
+model UserProtocolPreference {
+  id              String   @id @default(uuid()) @db.Uuid
+  walletHash      String   @map("wallet_hash") @db.VarChar(64)
+  protocolId      String   @map("protocol_id") @db.Uuid
+  // Per-protocol category overrides (null = inherit global setting)
+  optInDefi       Boolean? @map("opt_in_defi")
+  optInGovernance Boolean? @map("opt_in_governance")
+  optInMarketing  Boolean? @map("opt_in_marketing")
+  optInSystem     Boolean? @map("opt_in_system")
+  // Per-protocol channel override (null = inherit from ProtocolSubscription)
+  channels        String[] @default([])
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user     PortalUser @relation(fields: [walletHash], references: [walletHash], onDelete: Cascade)
+  protocol Protocol   @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@unique([walletHash, protocolId])
+  @@index([walletHash])
+  @@map("user_protocol_preferences")
+}
+
 model PortalSession {
   id         String     @id @default(uuid()) @db.Uuid
   walletHash String     @map("wallet_hash") @db.VarChar(64)
@@ -501,8 +524,9 @@ model PortalUser {
   optInMarketing    Boolean            @default(false) @map("opt_in_marketing")
   digestMode        Boolean            @default(false) @map("digest_mode")
   updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  sessions          PortalSession[]
-  unsubscribeTokens UnsubscribeToken[]
+  sessions            PortalSession[]
+  unsubscribeTokens   UnsubscribeToken[]
+  protocolPreferences UserProtocolPreference[]
 
   @@map("portal_users")
 }

@@ -5,13 +5,16 @@ import { NotifyService } from './notify.service';
 import { SchedulerService } from './scheduler.service';
 import { UnsubscribeController } from './unsubscribe.controller';
 import { PortalUnsubscribeController } from './portal-unsubscribe.controller';
+import { PortalNotificationsController } from './portal-notifications.controller';
 import { UnsubscribeService } from './unsubscribe.service';
+import { PortalAuthGuard } from '../../common/guards/portal-auth.guard';
 import { AuthModule } from '../auth/auth.module';
 import { RoutingModule } from '../routing/routing.module';
 import { QueueModule } from '../queue/queue.module';
 import { BillingModule } from '../billing/billing.module';
 import { TemplateModule } from '../template/template.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { PrismaModule } from '../../database/prisma.module';
 import { RateLimitInterceptor } from '../../common/interceptors/rate-limit.interceptor';
 import { QueueNames } from '../queue/queue.constants';
 import { ContentScannerService } from './content-scanner.service';
@@ -20,6 +23,7 @@ import { AiClassifierService } from './ai-classifier.service';
 @Module({
   imports: [
     AuthModule,
+    PrismaModule,
     RoutingModule,
     QueueModule, // Provides DigestService via exports
     BillingModule,
@@ -28,13 +32,19 @@ import { AiClassifierService } from './ai-classifier.service';
     // SchedulerService injects the NOTIFICATION queue directly via @InjectQueue
     BullModule.registerQueue({ name: QueueNames.NOTIFICATION }),
   ],
-  controllers: [NotifyController, UnsubscribeController, PortalUnsubscribeController],
+  controllers: [
+    NotifyController,
+    UnsubscribeController,
+    PortalUnsubscribeController,
+    PortalNotificationsController,
+  ],
   // SandboxService is provided globally via @Global() SandboxModule (imported in AppModule).
   // SandboxRoutingService is exported from RoutingModule — available via the RoutingModule import.
   // DigestService is provided by QueueModule (co-located there to avoid circular dependency).
   providers: [
     NotifyService,
     UnsubscribeService,
+    PortalAuthGuard,
     RateLimitInterceptor,
     SchedulerService,
     ContentScannerService,
