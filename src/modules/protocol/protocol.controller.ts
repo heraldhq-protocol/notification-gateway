@@ -35,7 +35,7 @@ export class ProtocolController {
       protocol.protocolId,
     );
     if (!info) throw new NotFoundException('Protocol not found');
-    return info;
+    return { ...info, name: protocol.name ?? null };
   }
 
   @Get('me/retry-policy')
