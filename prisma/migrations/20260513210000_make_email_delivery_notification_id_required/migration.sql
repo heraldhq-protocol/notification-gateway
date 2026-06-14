@@ -1,5 +1,5 @@
 -- Make notification_id required on email_deliveries
--- Prisma: notificationId String? → String, notification Notification? → Notification
+-- Prisma: notificationId String? -> String, notification Notification? -> Notification
 
 ALTER TABLE "email_deliveries" ALTER COLUMN "notification_id" SET NOT NULL;
 

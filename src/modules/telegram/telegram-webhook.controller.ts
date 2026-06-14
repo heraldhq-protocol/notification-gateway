@@ -157,28 +157,12 @@ export class TelegramWebhookController {
     @Param('protocolId') protocolId: string,
     @Body() update: Record<string, any>,
   ): Promise<void> {
-    const message = update?.message;
-    if (!message?.text) return;
-
-    const chatId = String(message.chat?.id);
-    const text: string = message.text.trim();
-
-    // Accept /start with the migration payload OR bare /start (user tapped Start button)
-    const isMigrationStart =
-      text.startsWith('/start hrld_') ||
-      text === `/start hrld_${protocolId}` ||
-      text === '/start';
-
-    if (isMigrationStart) {
-      await this.migrationService.markMigrated(chatId, protocolId);
-      this.logger.log(
-        `Custom bot migration confirmed: chat=${chatId} protocol=${protocolId}`,
-      );
-
-      // Fetch the custom bot token so we can reply from the correct bot
-      await this.migrationService
-        .sendCustomBotWelcome(chatId, protocolId)
-        .catch(() => undefined);
+    try {
+      await this.migrationService.handleCustomBotUpdate(protocolId, update);
+    } catch (err) {
+      this.logger.error(`Failed to handle custom bot update for protocol ${protocolId}`, {
+        error: (err as Error).message,
+      });
     }
   }
 

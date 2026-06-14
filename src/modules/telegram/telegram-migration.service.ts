@@ -294,4 +294,457 @@ export class TelegramMigrationService {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
+
+  // ── Custom Bot Webhook Processing ──────────────────────────────────────────
+
+  async getCustomBotToken(protocolId: string): Promise<string | null> {
+    const encKey = this.config.get<string>('ENCRYPTION_KEY_ID');
+    if (!encKey) return null;
+
+    const settings = await this.prisma.protocolSettings.findUnique({
+      where: { protocolId },
+      select: { telegramBotTokenEncrypted: true },
+    });
+
+    if (!settings?.telegramBotTokenEncrypted) return null;
+
+    try {
+      return decryptAes256Gcm(settings.telegramBotTokenEncrypted, encKey);
+    } catch {
+      return null;
+    }
+  }
+
+  async checkIsAdmin(tg: Telegram, chatId: string, userId: number): Promise<boolean> {
+    try {
+      const member = await tg.getChatMember(chatId, userId);
+      return ['creator', 'administrator'].includes(member.status);
+    } catch {
+      return false;
+    }
+  }
+
+  async handleCustomBotUpdate(
+    protocolId: string,
+    update: Record<string, any>,
+  ): Promise<void> {
+    const token = await this.getCustomBotToken(protocolId);
+    if (!token) {
+      this.logger.warn(`No custom bot token found for protocol ${protocolId}`);
+      return;
+    }
+
+    const tg = new Telegram(token);
+
+    // 1. Callback Queries (inline button taps)
+    if (update?.callback_query) {
+      await this.handleCustomBotCallbackQuery(tg, protocolId, update.callback_query);
+      return;
+    }
+
+    // 2. Messages
+    const message = update?.message;
+    if (message) {
+      const chatId = String(message.chat?.id);
+      const userId = message.from?.id;
+
+      // 2a. New Chat Members (welcome greeting)
+      if (message.new_chat_members && Array.isArray(message.new_chat_members)) {
+        await this.handleCustomBotNewChatMembers(tg, protocolId, chatId, message.new_chat_members);
+        return;
+      }
+
+      // 2b. Commands & Texts
+      if (message.text) {
+        await this.handleCustomBotMessageText(tg, protocolId, chatId, userId, message.text.trim(), message.chat?.type);
+        return;
+      }
+    }
+
+    // 3. My Chat Member Updates (bot added/removed from group)
+    if (update?.my_chat_member) {
+      await this.handleCustomBotMyChatMember(tg, protocolId, update.my_chat_member);
+      return;
+    }
+
+    // 4. Reactions on custom bot notifications
+    if (update?.message_reaction) {
+      await this.handleCustomBotMessageReaction(protocolId, update.message_reaction);
+      return;
+    }
+  }
+
+  private async handleCustomBotCallbackQuery(
+    tg: Telegram,
+    protocolId: string,
+    query: Record<string, any>,
+  ): Promise<void> {
+    const chatId = String(query?.message?.chat?.id ?? query?.chat?.id ?? '');
+    const callbackData: string = query?.data ?? '';
+    const queryId: string = query?.id ?? '';
+
+    try {
+      if (callbackData.startsWith('mute_')) {
+        const notifId = callbackData.slice(5);
+        const notif = await this.prisma.notification.findUnique({
+          where: { id: notifId },
+          select: { protocolId: true },
+        });
+
+        if (notif?.protocolId) {
+          const muteKey = `tg:mute:${chatId}:${notif.protocolId}`;
+          await this.redis.setex(muteKey, 30 * 24 * 60 * 60, '1');
+          await tg.answerCbQuery(
+            queryId,
+            { text: "🔇 Muted. You won't receive Telegram notifications from this protocol." } as any,
+          ).catch(() => undefined);
+        } else {
+          await tg.answerCbQuery(queryId, { text: '⚠️ Notification not found.' } as any).catch(() => undefined);
+        }
+        return;
+      }
+    } catch (err) {
+      this.logger.warn(`Callback query error: ${(err as Error).message}`);
+    }
+
+    if (queryId) {
+      await tg.answerCbQuery(queryId).catch(() => undefined);
+    }
+  }
+
+  private async handleCustomBotNewChatMembers(
+    tg: Telegram,
+    protocolId: string,
+    chatId: string,
+    newChatMembers: any[],
+  ): Promise<void> {
+    const settings = await this.prisma.protocolSettings.findUnique({
+      where: { protocolId },
+      select: { telegramWelcomeMessage: true, telegramGroupChatId: true },
+    });
+
+    const welcome = settings?.telegramWelcomeMessage;
+    if (!welcome || settings?.telegramGroupChatId !== chatId) return;
+
+    for (const member of newChatMembers) {
+      if (member?.is_bot) continue;
+      const name = member?.first_name ?? 'there';
+      const safeName = name
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const text = welcome.replace(/\{\{name\}\}/g, safeName);
+      await tg
+        .sendMessage(chatId, text, {
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true },
+        } as any)
+        .catch(() => undefined);
+    }
+  }
+
+  private async handleCustomBotMyChatMember(
+    tg: Telegram,
+    protocolId: string,
+    myChatMember: Record<string, any>,
+  ): Promise<void> {
+    const newStatus = myChatMember.new_chat_member?.status;
+    const chatId = String(myChatMember.chat?.id ?? '');
+    const senderId = myChatMember.from?.id;
+    if (!chatId || !senderId) return;
+
+    if (['left', 'kicked'].includes(newStatus)) {
+      const settings = await this.prisma.protocolSettings.findUnique({
+        where: { protocolId },
+        select: { telegramGroupChatId: true },
+      });
+
+      if (settings?.telegramGroupChatId === chatId) {
+        await this.prisma.protocolSettings.update({
+          where: { protocolId },
+          data: { telegramGroupChatId: null, telegramGroupMemberCount: null },
+        });
+        this.logger.warn(`Custom bot kicked from group ${chatId} — cleared settings for protocol ${protocolId}`);
+      }
+    } else if (['member', 'administrator'].includes(newStatus)) {
+      const chatType = myChatMember.chat?.type;
+      if (['group', 'supergroup'].includes(chatType)) {
+        const isAdmin = await this.checkIsAdmin(tg, chatId, senderId);
+        if (!isAdmin) {
+          await (tg as any).leaveChat(chatId).catch(() => undefined);
+          return;
+        }
+
+        await this.prisma.protocolSettings.update({
+          where: { protocolId },
+          data: { telegramGroupChatId: chatId },
+        });
+
+        await tg.sendMessage(
+          chatId,
+          `🤖 <b>Custom Bot Activated!</b>\n\n` +
+            `✅ Group Chat ID <code>${chatId}</code> has been securely linked to your Herald protocol settings.\n\n` +
+            `Notifications for this protocol will now be delivered here.`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+      }
+    }
+  }
+
+  private async handleCustomBotMessageReaction(
+    protocolId: string,
+    reaction: Record<string, any>,
+  ): Promise<void> {
+    const chatId = String(reaction?.chat?.id ?? '');
+    const messageId = String(reaction?.message_id ?? '');
+    if (!chatId || !messageId) return;
+
+    const newReactions: any[] = reaction?.new_reaction ?? [];
+    if (newReactions.length === 0) return;
+
+    const notifId = await this.redis
+      .get(`tg:gmsg:${chatId}:${messageId}`)
+      .catch(() => null);
+    if (!notifId) return;
+
+    const notif = await this.prisma.notification.findUnique({
+      where: { id: notifId },
+      select: { protocolId: true },
+    });
+    if (!notif || notif.protocolId !== protocolId) return;
+
+    const emoji = newReactions[0]?.emoji ?? newReactions[0]?.custom_emoji_id ?? 'unknown';
+
+    await this.prisma.notificationEngagement
+      .create({
+        data: {
+          notificationId: notifId,
+          protocolId,
+          eventType: 'tg_reaction',
+          linkUrl: String(emoji),
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  private async handleCustomBotMessageText(
+    tg: Telegram,
+    protocolId: string,
+    chatId: string,
+    userId: number | undefined,
+    text: string,
+    chatType: string | undefined,
+  ): Promise<void> {
+    const isGroup = ['group', 'supergroup'].includes(chatType ?? '');
+
+    const verifyGroupAdmin = async (): Promise<boolean> => {
+      if (!isGroup) return true;
+      if (!userId) return false;
+      return this.checkIsAdmin(tg, chatId, userId);
+    };
+
+    const rawCmd = text.split(' ')[0];
+    const cleanCmd = rawCmd.split('@')[0].toLowerCase();
+
+    if (cleanCmd === '/start') {
+      const arg = text.split(' ')[1]?.trim();
+      if (arg && arg.startsWith('hrld_')) {
+        await this.markMigrated(chatId, protocolId);
+        this.logger.log(`Custom bot migration completed via command: chat=${chatId} protocol=${protocolId}`);
+        await this.sendCustomBotWelcome(chatId, protocolId);
+        return;
+      }
+
+      if (arg && arg.startsWith('setup_')) {
+        const nonce = arg.slice(6);
+        const senderId = userId;
+        if (!senderId) return;
+
+        const isAdmin = await this.checkIsAdmin(tg, chatId, senderId);
+        if (!isAdmin) {
+          await tg.sendMessage(chatId, '⚠️ Only group creators or administrators can link this bot.', { parse_mode: 'HTML' } as any).catch(() => undefined);
+          return;
+        }
+
+        const redisKey = `tg:group_nonce:${nonce}`;
+        const data = await this.redis.get(redisKey);
+        if (!data) {
+          await tg.sendMessage(chatId, '⏰ This setup link has expired. Please generate a new one from the Herald Portal.', { parse_mode: 'HTML' } as any).catch(() => undefined);
+          return;
+        }
+
+        const parsed = JSON.parse(data);
+
+        // Link group
+        await this.prisma.protocolSettings.update({
+          where: { protocolId: parsed.protocolId },
+          data: { telegramGroupChatId: chatId },
+        });
+
+        // Update nonce status in Redis
+        parsed.status = 'completed';
+        parsed.chatId = chatId;
+        await this.redis.setex(redisKey, 60, JSON.stringify(parsed));
+
+        this.logger.log(`Group chat ID securely linked via custom bot: chatId=${chatId} protocol=${parsed.protocolId}`);
+
+        await tg.sendMessage(
+          chatId,
+          '✅ <b>Group Linked Successfully!</b>\n\n' +
+            'This group chat is now linked to your Herald protocol dashboard.\n\n' +
+            'Make sure this bot is promoted to <b>Administrator</b> with permission to post messages so alerts are delivered properly.',
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+        return;
+      }
+
+      if (!isGroup) {
+        await tg.sendMessage(
+          chatId,
+          `👋 <b>Welcome!</b>\n\nI am the official custom notification bot for this protocol. I will deliver your real-time alerts here.\n\nUse /help to see available commands.`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+      }
+      return;
+    }
+
+    if (cleanCmd === '/status') {
+      if (!(await verifyGroupAdmin())) return;
+
+      if (isGroup) {
+        await this.prisma.protocolSettings.update({
+          where: { protocolId },
+          data: { telegramGroupChatId: chatId },
+        });
+
+        await tg.sendMessage(
+          chatId,
+          `📊 <b>Herald Bot Status</b>\n\n` +
+            `✅ Group Chat ID <code>${chatId}</code> has been securely linked to your Herald protocol settings.\n\n` +
+            `Notifications for this protocol will now be delivered here.`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+      } else {
+        await tg.sendMessage(
+          chatId,
+          `📊 <b>Herald Bot Status</b>\n\n` +
+            `✅ Chat ID: <code>${chatId}</code>\n` +
+            `✅ Connection: Active\n\n` +
+            `You are securely linked to receive direct alerts from this bot.`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+      }
+      return;
+    }
+
+    if (cleanCmd === '/help') {
+      if (!(await verifyGroupAdmin())) return;
+
+      await tg.sendMessage(
+        chatId,
+        `📖 <b>Available Commands</b>\n\n` +
+          `/status — Check bot status and link group chat\n` +
+          `/mute &lt;category&gt; — Mute a notification category\n` +
+          `/unmute &lt;category&gt; — Unmute a notification category\n` +
+          `/categories — Show all alert categories`,
+        { parse_mode: 'HTML' } as any,
+      ).catch(() => undefined);
+      return;
+    }
+
+    if (cleanCmd === '/mute') {
+      if (!(await verifyGroupAdmin())) return;
+
+      const category = text.split(' ')[1]?.trim().toLowerCase();
+      const validCategories = ['defi', 'governance', 'system', 'marketing'];
+      if (!category) {
+        await tg.sendMessage(
+          chatId,
+          `Usage: /mute &lt;category&gt;\n\nValid categories: ${validCategories.join(', ')}`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+        return;
+      }
+
+      if (!validCategories.includes(category)) {
+        await tg.sendMessage(
+          chatId,
+          `❌ Unknown category <b>${this.escapeHtml(category)}</b>.\n\nValid categories: ${validCategories.join(', ')}`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+        return;
+      }
+
+      const muteKey = `tg:mute_cat:${chatId}:${category}`;
+      await this.redis.setex(muteKey, 30 * 24 * 60 * 60, '1');
+
+      const emojiMap: Record<string, string> = {
+        defi: '💰', governance: '🗳️', system: '⚙️', marketing: '📢',
+      };
+      await tg.sendMessage(
+        chatId,
+        `🔇 ${emojiMap[category] ?? '🔔'} <b>${category}</b> notifications muted for 30 days.\n\nUse /unmute ${category} to re-enable.`,
+        { parse_mode: 'HTML' } as any,
+      ).catch(() => undefined);
+      return;
+    }
+
+    if (cleanCmd === '/unmute') {
+      if (!(await verifyGroupAdmin())) return;
+
+      const category = text.split(' ')[1]?.trim().toLowerCase();
+      const validCategories = ['defi', 'governance', 'system', 'marketing'];
+      if (!category) {
+        await tg.sendMessage(
+          chatId,
+          `Usage: /unmute &lt;category&gt;\n\nValid categories: ${validCategories.join(', ')}`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+        return;
+      }
+
+      if (!validCategories.includes(category)) {
+        await tg.sendMessage(
+          chatId,
+          `❌ Unknown category <b>${this.escapeHtml(category)}</b>.`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+        return;
+      }
+
+      const muteKey = `tg:mute_cat:${chatId}:${category}`;
+      await this.redis.del(muteKey);
+
+      const emojiMap: Record<string, string> = {
+        defi: '💰', governance: '🗳️', system: '⚙️', marketing: '📢',
+      };
+      await tg.sendMessage(
+        chatId,
+        `🔔 ${emojiMap[category] ?? '🔔'} <b>${category}</b> notifications re-enabled.`,
+        { parse_mode: 'HTML' } as any,
+      ).catch(() => undefined);
+      return;
+    }
+
+    if (cleanCmd === '/categories') {
+      if (!(await verifyGroupAdmin())) return;
+
+      const emojiMap: Record<string, string> = {
+        defi: '💰', governance: '🗳️', system: '⚙️', marketing: '📢',
+      };
+      const lines: string[] = ['<b>Notification categories:</b>\n'];
+      for (const cat of ['defi', 'governance', 'system', 'marketing']) {
+        const muteKey = `tg:mute_cat:${chatId}:${cat}`;
+        const muted = await this.redis.get(muteKey).catch(() => null);
+        lines.push(
+          `${emojiMap[cat]} <b>${cat}</b> — ${muted ? '🔇 muted' : '✅ active'}`,
+        );
+      }
+      lines.push('\nUse /mute &lt;category&gt; or /unmute &lt;category&gt; to change.');
+
+      await tg.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' } as any).catch(() => undefined);
+      return;
+    }
+  }
 }
+
