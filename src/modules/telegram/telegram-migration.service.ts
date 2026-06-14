@@ -475,16 +475,13 @@ export class TelegramMigrationService {
           return;
         }
 
-        await this.prisma.protocolSettings.update({
-          where: { protocolId },
-          data: { telegramGroupChatId: chatId },
-        });
-
+        // Do NOT auto-link the group here — require a portal-initiated nonce flow.
+        // Auto-linking on join would let any group the bot is invited to silently
+        // overwrite the configured delivery group.
         await tg.sendMessage(
           chatId,
-          `🤖 <b>Custom Bot Activated!</b>\n\n` +
-            `✅ Group Chat ID <code>${chatId}</code> has been securely linked to your Herald protocol settings.\n\n` +
-            `Notifications for this protocol will now be delivered here.`,
+          `👋 <b>Herald Bot added!</b>\n\n` +
+            `To link this group for notifications, go to your Herald Dashboard → Settings → Telegram → Link Group and follow the setup flow.`,
           { parse_mode: 'HTML' } as any,
         ).catch(() => undefined);
       }
@@ -575,6 +572,13 @@ export class TelegramMigrationService {
 
         const parsed = JSON.parse(data);
 
+        // Reject nonces generated for the shared Herald bot — those must be
+        // completed by the shared bot, not a custom bot webhook.
+        if (parsed.botType && parsed.botType !== 'custom') {
+          await tg.sendMessage(chatId, '⚠️ This setup link is for a different bot. Please use the correct bot to complete group setup.', { parse_mode: 'HTML' } as any).catch(() => undefined);
+          return;
+        }
+
         // Link group
         await this.prisma.protocolSettings.update({
           where: { protocolId: parsed.protocolId },
@@ -612,16 +616,22 @@ export class TelegramMigrationService {
       if (!(await verifyGroupAdmin())) return;
 
       if (isGroup) {
-        await this.prisma.protocolSettings.update({
+        // Read-only: show whether this group is the configured delivery group.
+        // Do not auto-link — use the portal nonce flow for that.
+        const settings = await this.prisma.protocolSettings.findUnique({
           where: { protocolId },
-          data: { telegramGroupChatId: chatId },
+          select: { telegramGroupChatId: true },
         });
+        const isLinked = settings?.telegramGroupChatId === chatId;
 
         await tg.sendMessage(
           chatId,
-          `📊 <b>Herald Bot Status</b>\n\n` +
-            `✅ Group Chat ID <code>${chatId}</code> has been securely linked to your Herald protocol settings.\n\n` +
-            `Notifications for this protocol will now be delivered here.`,
+          isLinked
+            ? `📊 <b>Herald Bot Status</b>\n\n` +
+              `✅ This group (<code>${chatId}</code>) is linked as the delivery group for this protocol.`
+            : `📊 <b>Herald Bot Status</b>\n\n` +
+              `⚠️ This group is <b>not yet linked</b> for notifications.\n\n` +
+              `To link it, go to your Herald Dashboard → Settings → Telegram → Link Group.`,
           { parse_mode: 'HTML' } as any,
         ).catch(() => undefined);
       } else {

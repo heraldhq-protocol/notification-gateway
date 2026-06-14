@@ -149,14 +149,19 @@ export class TelegramWebhookController {
    * migrated so future notifications are delivered via the custom bot.
    *
    * The webhook is registered by the admin-api when the custom bot token is saved.
-   * Secured via the gateway's TELEGRAM_WEBHOOK_SECRET header.
+   * Secured via the shared TELEGRAM_WEBHOOK_SECRET — Telegram sends it back as
+   * x-telegram-bot-api-secret-token on every update.
    */
   @Post('custom-webhook/:protocolId')
   @HttpCode(HttpStatus.OK)
   async handleCustomBotWebhook(
     @Param('protocolId') protocolId: string,
     @Body() update: Record<string, any>,
+    @Headers('x-telegram-bot-api-secret-token') secret?: string,
   ): Promise<void> {
+    if (!this.webhookService.verifySecret(secret)) {
+      throw new ForbiddenException('Invalid webhook secret');
+    }
     try {
       await this.migrationService.handleCustomBotUpdate(protocolId, update);
     } catch (err) {
@@ -208,7 +213,7 @@ export class TelegramWebhookController {
 
   private verifyInternalSecret(secret?: string): void {
     const expected = this.config.get<string>('INTERNAL_API_SECRET');
-    if (expected && secret !== expected) {
+    if (!expected || secret !== expected) {
       throw new ForbiddenException('Invalid internal secret');
     }
   }
