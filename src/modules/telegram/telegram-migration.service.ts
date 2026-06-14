@@ -345,7 +345,8 @@ export class TelegramMigrationService {
     // 2. Messages
     const message = update?.message;
     if (message) {
-      const chatId = String(message.chat?.id);
+      const chatId = String(message.chat?.id ?? '');
+      if (!chatId) return;
       const userId = message.from?.id;
 
       // 2a. New Chat Members (welcome greeting)
@@ -382,6 +383,11 @@ export class TelegramMigrationService {
     const chatId = String(query?.message?.chat?.id ?? query?.chat?.id ?? '');
     const callbackData: string = query?.data ?? '';
     const queryId: string = query?.id ?? '';
+
+    if (!chatId) {
+      if (queryId) await tg.answerCbQuery(queryId).catch(() => undefined);
+      return;
+    }
 
     try {
       if (callbackData.startsWith('mute_')) {
@@ -576,6 +582,15 @@ export class TelegramMigrationService {
         // completed by the shared bot, not a custom bot webhook.
         if (parsed.botType && parsed.botType !== 'custom') {
           await tg.sendMessage(chatId, '⚠️ This setup link is for a different bot. Please use the correct bot to complete group setup.', { parse_mode: 'HTML' } as any).catch(() => undefined);
+          return;
+        }
+
+        // The nonce must belong to the same protocol as the custom bot that
+        // received it. Reject if they diverge — prevents a nonce for protocol A
+        // from being completed via protocol B's bot webhook.
+        if (parsed.protocolId !== protocolId) {
+          this.logger.warn(`Nonce protocolId mismatch: nonce=${parsed.protocolId} webhook=${protocolId}`);
+          await tg.sendMessage(chatId, '⚠️ This setup link is not valid for this bot.', { parse_mode: 'HTML' } as any).catch(() => undefined);
           return;
         }
 
