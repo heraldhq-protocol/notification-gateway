@@ -617,7 +617,29 @@ export class TelegramMigrationService {
         return;
       }
 
-      if (!isGroup) {
+      if (isGroup) {
+        // /start received in a group without a setup nonce — the bot is already
+        // a member so Telegram's startgroup flow didn't resend the command.
+        // Get the bot's username so we can show the exact command to paste.
+        let botUsername: string | undefined;
+        try {
+          const me = await tg.getMe();
+          botUsername = me.username;
+        } catch {
+          // best-effort
+        }
+        const cmdHint = botUsername
+          ? `<code>/start@${botUsername} setup_&lt;code&gt;</code>`
+          : `<code>/start@[botname] setup_&lt;code&gt;</code>`;
+        await tg.sendMessage(
+          chatId,
+          `👋 <b>Herald Bot is here!</b>\n\n` +
+            `To link this group for notifications, go to your <b>Herald Dashboard → Settings → Telegram → Link Group</b>, ` +
+            `generate a setup link, then paste the command shown there directly into this group.\n\n` +
+            `The command will look like:\n${cmdHint}`,
+          { parse_mode: 'HTML' } as any,
+        ).catch(() => undefined);
+      } else {
         await tg.sendMessage(
           chatId,
           `👋 <b>Welcome!</b>\n\nI am the official custom notification bot for this protocol. I will deliver your real-time alerts here.\n\nUse /help to see available commands.`,
