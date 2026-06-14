@@ -27,7 +27,6 @@ import { v4 as uuidv4 } from 'uuid';
 @ApiTags('Templates')
 @ApiBearerAuth()
 @UseGuards(AuthGuard, ScopeGuard)
-@RequiredScopes('admin')
 @Controller('v1/templates')
 export class TemplateController {
   constructor(
@@ -36,6 +35,7 @@ export class TemplateController {
   ) {}
 
   @Post('email')
+  @RequiredScopes('notify:write')
   @ApiOperation({ summary: 'Create custom email template (Growth+)' })
   async createEmailTemplate(
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -100,6 +100,7 @@ export class TemplateController {
   }
 
   @Get('email')
+  @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'List custom email templates' })
   async listEmailTemplates(@ApiKey() protocol: AuthenticatedProtocol) {
     const templates = await this.prisma.notificationTemplate.findMany({
@@ -110,6 +111,7 @@ export class TemplateController {
   }
 
   @Get('email/:id')
+  @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'Get a single custom email template' })
   async getEmailTemplate(
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -125,6 +127,7 @@ export class TemplateController {
   }
 
   @Put('email/:id')
+  @RequiredScopes('notify:write')
   @ApiOperation({
     summary: 'Update a custom email template (creates new version)',
   })
@@ -221,6 +224,7 @@ export class TemplateController {
    * The Herald footer is determined by the protocol's tier; it cannot be overridden.
    */
   @Post('preview')
+  @RequiredScopes('notify:write')
   @ApiOperation({ summary: 'Render full email preview including Herald footer' })
   async previewTemplate(
     @ApiKey() protocol: AuthenticatedProtocol,
@@ -253,6 +257,7 @@ export class TemplateController {
   }
 
   @Delete('email/:id')
+  @RequiredScopes('notify:write')
   @ApiOperation({ summary: 'Soft-delete a custom email template' })
   async deleteEmailTemplate(
     @ApiKey() protocol: AuthenticatedProtocol,

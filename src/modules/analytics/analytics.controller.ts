@@ -79,7 +79,7 @@ export class AnalyticsController {
     return this.analyticsService.getAnalytics(protocol.protocolId, period);
   }
 
-  @Get('usage')
+  @Get(['usage', 'analytics/usage'])
   @UseGuards(AuthGuard, ScopeGuard)
   @RequiredScopes('analytics:read')
   @ApiBearerAuth()
@@ -88,7 +88,7 @@ export class AnalyticsController {
     return this.analyticsService.getUsage(protocol.protocolId, protocol.tier);
   }
 
-  @Get('engagement')
+  @Get(['engagement', 'analytics/engagement'])
   @UseGuards(AuthGuard, ScopeGuard)
   @RequiredScopes('analytics:read')
   @ApiBearerAuth()

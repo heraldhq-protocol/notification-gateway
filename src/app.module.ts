@@ -29,6 +29,9 @@ import { EnclaveModule } from './modules/enclave/enclave.module';
 import { ArweaveStorageModule } from './storage/arweave-storage.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { TemplateModule } from './modules/template/template.module';
+import { CampaignModule } from './modules/campaign/campaign.module';
+
 
 import { LoggerModule } from 'nestjs-pino';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -147,6 +150,9 @@ import { RedisModule } from './modules/redis/redis.module';
     TelegramModule,
     EnclaveModule,
     ArweaveStorageModule,
+    TemplateModule,
+    CampaignModule,
+
     LoggerModule.forRoot({
       pinoHttp: {
         transport:

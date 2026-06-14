@@ -55,7 +55,8 @@ export class TelegramWebhookService implements OnModuleInit {
   verifySecret(incomingSecret?: string): boolean {
     const expected = this.config.get<string>('TELEGRAM_WEBHOOK_SECRET', '');
     if (!expected) return true; // Not configured → allow (dev mode)
-    return incomingSecret === expected;
+    const sanitizedExpected = expected.replace(/[^A-Za-z0-9_-]/g, '');
+    return incomingSecret === sanitizedExpected;
   }
 
   // ── Bot-block management ──────────────────────────────────────────────────

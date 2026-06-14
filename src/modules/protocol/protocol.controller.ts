@@ -21,7 +21,6 @@ import type { AuthenticatedProtocol } from '../../common/types/protocol.types';
 @ApiBearerAuth()
 @UseGuards(AuthGuard, ScopeGuard)
 @Controller('v1/protocols')
-@RequiredScopes('protocol:read')
 export class ProtocolController {
   constructor(
     private readonly protocolService: ProtocolService,
@@ -29,6 +28,7 @@ export class ProtocolController {
   ) {}
 
   @Get('me')
+  @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'Get your protocol info + subscription status' })
   async getMe(@ApiKey() protocol: AuthenticatedProtocol) {
     const info = await this.protocolService.getProtocolInfo(
@@ -39,6 +39,7 @@ export class ProtocolController {
   }
 
   @Get('me/retry-policy')
+  @RequiredScopes('notify:read')
   @ApiOperation({ summary: 'Get retry + engagement tracking settings' })
   async getRetryPolicy(@ApiKey() protocol: AuthenticatedProtocol) {
     const settings = await this.prisma.protocolSettings.findUnique({
@@ -63,6 +64,7 @@ export class ProtocolController {
   }
 
   @Patch('me/retry-policy')
+  @RequiredScopes('notify:write')
   @ApiOperation({ summary: 'Update retry + engagement tracking settings' })
   async updateRetryPolicy(
     @ApiKey() protocol: AuthenticatedProtocol,
