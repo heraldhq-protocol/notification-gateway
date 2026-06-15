@@ -212,7 +212,7 @@ export class TelegramWebhookController {
   }
 
   private verifyInternalSecret(secret?: string): void {
-    const expected = this.config.get<string>('INTERNAL_API_SECRET');
+    const expected = this.config.get<string>('INTERNAL_API_KEY');
     if (!expected || secret !== expected) {
       throw new ForbiddenException('Invalid internal secret');
     }
