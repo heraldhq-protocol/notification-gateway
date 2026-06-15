@@ -319,7 +319,8 @@ export class TelegramMigrationService {
     try {
       const member = await tg.getChatMember(chatId, userId);
       return ['creator', 'administrator'].includes(member.status);
-    } catch {
+    } catch (err: any) {
+      this.logger.warn(`checkIsAdmin failed for chat=${chatId} user=${userId}: ${err?.message ?? err}`);
       return false;
     }
   }
@@ -563,8 +564,11 @@ export class TelegramMigrationService {
         const senderId = userId;
         if (!senderId) return;
 
+        this.logger.log(`Group setup attempt: nonce=${nonce} chat=${chatId} sender=${senderId} protocol=${protocolId}`);
+
         const isAdmin = await this.checkIsAdmin(tg, chatId, senderId);
         if (!isAdmin) {
+          this.logger.warn(`Group setup rejected: sender ${senderId} is not admin in chat ${chatId}`);
           await tg.sendMessage(chatId, '⚠️ Only group creators or administrators can link this bot.', { parse_mode: 'HTML' } as any).catch(() => undefined);
           return;
         }
@@ -572,10 +576,12 @@ export class TelegramMigrationService {
         const redisKey = `tg:group_nonce:${nonce}`;
         const data = await this.redis.get(redisKey);
         if (!data) {
+          this.logger.warn(`Group setup rejected: nonce expired or not found: nonce=${nonce}`);
           await tg.sendMessage(chatId, '⏰ This setup link has expired. Please generate a new one from the Herald Portal.', { parse_mode: 'HTML' } as any).catch(() => undefined);
           return;
         }
 
+        this.logger.log(`Nonce found in Redis: nonce=${nonce}`);
         const parsed = JSON.parse(data);
 
         // Reject nonces generated for the shared Herald bot — those must be
